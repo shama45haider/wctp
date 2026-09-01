@@ -2,8 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 import EventManifest from "@/components/EventManifest";
 import { upcoming, past, org, flyer, monthOf, dayOf } from "@/lib/events";
+import { getInstagramPosts } from "@/lib/instagram";
 
 const next = upcoming[0];
+const posts = getInstagramPosts();
 
 function SectionHead({
   title,
@@ -30,68 +32,95 @@ function SectionHead({
 export default function Home() {
   return (
     <main>
-      <header className="relative overflow-hidden py-[clamp(3.5rem,9vw,7rem)]">
-        <div className="pointer-events-none absolute top-[-30%] left-1/2 h-[70vh] w-[120vw] -translate-x-1/2 bg-[radial-gradient(ellipse_at_center,rgba(140,155,180,0.13),transparent_62%)]" />
-        <div className="relative mx-auto w-[92vw] max-w-[1180px]">
-          <div className="label mb-6 flex items-center gap-3 text-silverfaint">
-            <span>
-              NEW YORK CITY &nbsp;&middot;&nbsp; {org.totalEvents} EVENTS
-              &nbsp;&middot;&nbsp; {org.totalAttendees.toLocaleString()} ATTENDEES
+      <header className="relative overflow-hidden border-b border-line">
+        {/* stamped index strip */}
+        <div className="border-b border-line">
+          <div className="label mx-auto flex w-[92vw] max-w-[1180px] justify-between py-2 text-silverfaint">
+            <span>EST. NYC</span>
+            <span className="hidden sm:block">
+              {org.totalEvents} EVENTS / {org.totalAttendees.toLocaleString()}{" "}
+              HEADS
             </span>
-            <span className="h-px flex-1 bg-gradient-to-r from-linehi to-transparent" />
+            <span>18+</span>
+          </div>
+        </div>
+
+        <div className="mx-auto grid w-[92vw] max-w-[1180px] grid-cols-1 items-end gap-x-8 pt-8 pb-7 md:grid-cols-[1fr_auto]">
+          <div className="relative z-10">
+            <h1 className="font-display text-[clamp(2.75rem,10.5vw,7.5rem)] leading-[0.78] tracking-[-0.03em]">
+              <span className="chrome block">WE CAME</span>
+              <span className="text-outline block">TOO PARTY</span>
+            </h1>
+
+            <p className="mt-5 max-w-[38ch] text-[0.9375rem] leading-relaxed text-silverdim">
+              {org.bio}
+            </p>
+
+            {/* next-up strip */}
+            <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-4">
+              <span className="dot shrink-0" />
+              <span className="label text-bloodhi">NEXT</span>
+              <Link
+                href={`/events/${next.slug}`}
+                className="font-display text-[1.75rem] transition-colors hover:text-bloodhi"
+              >
+                {next.title}
+              </Link>
+              <span className="label text-silverdim">
+                {next.dow} {dayOf(next.date)} {monthOf(next.date)}
+                &nbsp;/&nbsp;{next.time}&nbsp;/&nbsp;
+                {next.venue.toUpperCase()}
+              </span>
+              <Link
+                href={`/events/${next.slug}`}
+                className="label ml-auto shrink-0 border border-[rgba(200,16,46,0.5)] px-3 py-2 text-chalk transition-all hover:border-bloodhi hover:bg-[rgba(200,16,46,0.08)]"
+              >
+                RSVP &rarr;
+              </Link>
+            </div>
           </div>
 
-          <h1 className="font-display chrome text-[clamp(3rem,12.4vw,10.5rem)] leading-[0.82] tracking-[-0.015em]">
-            <span className="block">WE CAME</span>
-            <span className="block">TOO PARTY</span>
-          </h1>
-
-          <p className="mt-7 max-w-[44ch] text-xl leading-snug text-silverdim">
-            {org.bio}
-          </p>
-
-          <div className="mt-11 grid items-center gap-6 border border-line bg-gradient-to-b from-ink to-[#08090b] p-6 md:grid-cols-[auto_auto_1fr_auto]">
-            <div className="border-b border-dashed border-linehi pb-4 md:border-r md:border-b-0 md:pr-6 md:pb-0 md:text-center">
-              <div className="label text-silverfaint">{next.dow}</div>
-              <div className="font-display text-[2.75rem] leading-[0.9]">
-                {dayOf(next.date)}
-              </div>
-              <div className="label text-silverfaint">{monthOf(next.date)}</div>
-            </div>
-
+          {/* tilted flyer stack */}
+          <div className="relative -order-1 mb-6 hidden w-[clamp(190px,22vw,270px)] shrink-0 md:order-none md:mb-0 md:block">
+            <div className="absolute -top-3 -right-3 aspect-[4/5] w-full rotate-[5deg] border border-line bg-ink" />
             <Link
               href={`/events/${next.slug}`}
-              className="relative hidden aspect-square w-28 overflow-hidden border border-line md:block"
+              className="scanlines group relative block aspect-[4/5] w-full -rotate-[2deg] overflow-hidden border border-linehi shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] transition-transform hover:rotate-0"
             >
               <Image
                 src={flyer(next.imageId)!}
                 alt={next.title}
                 fill
-                sizes="112px"
-                className="object-cover"
+                sizes="270px"
+                className="object-cover contrast-[1.1] saturate-[0.85]"
                 priority
               />
-            </Link>
-
-            <div>
-              <div className="label mb-2 flex items-center gap-2 text-bloodhi">
-                <span className="dot" />
+              <span className="label absolute bottom-0 left-0 bg-void/85 px-2 py-1 text-bloodhi">
                 RSVP OPEN
-              </div>
-              <h3 className="font-display text-[clamp(1.75rem,3vw,2.5rem)]">
-                {next.title}
-              </h3>
-              <div className="label mt-1.5 text-silverdim">
-                {next.venue.toUpperCase()} &nbsp;&middot;&nbsp; DOORS {next.time}
-              </div>
-            </div>
-
-            <Link
-              href={`/events/${next.slug}`}
-              className="font-display justify-self-start border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] px-[1.15rem] py-[0.6rem] tracking-[0.12em] text-chalk uppercase transition-all hover:border-bloodhi hover:shadow-[0_10px_34px_-12px_rgba(200,16,46,0.6)]"
-            >
-              Claim a spot
+              </span>
             </Link>
+          </div>
+        </div>
+
+        {/* marquee */}
+        <div className="overflow-hidden border-t border-line py-2.5">
+          <div className="marquee-track">
+            {[0, 1].map((dup) => (
+              <div key={dup} className="flex shrink-0" aria-hidden={dup === 1}>
+                {upcoming.map((e) => (
+                  <span
+                    key={e.slug}
+                    className="label flex items-center gap-4 px-5 text-silverfaint whitespace-nowrap"
+                  >
+                    <span className="text-silver">{e.title.toUpperCase()}</span>
+                    <span>
+                      {dayOf(e.date)}.{e.date.slice(5, 7)}
+                    </span>
+                    <span className="hairline-x h-2 w-2 shrink-0" />
+                  </span>
+                ))}
+              </div>
+            ))}
           </div>
         </div>
       </header>
@@ -107,53 +136,72 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="dispatches" className="py-[clamp(3.5rem,7vw,6rem)]">
+      <section id="instagram" className="py-[clamp(3.5rem,7vw,6rem)]">
         <div className="mx-auto w-[92vw] max-w-[1180px]">
           <SectionHead
-            title="Dispatches"
-            blurb="News, location drops and recaps. Straight from the people running the door."
+            title="Official Instagram"
+            blurb={`Every post from ${org.instagramHandle}, straight from the account.`}
+            aside={posts.length ? `${posts.length} POSTS` : undefined}
           />
-          <div className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
-            <a
-              href="https://www.instagram.com/reel/DM-YPL-uKiL/"
-              target="_blank"
-              rel="noopener"
-              className="flex flex-col gap-3 bg-void p-7 transition-colors hover:bg-ink"
-            >
-              <span className="label text-silverfaint">
-                LATEST &middot; INSTAGRAM
-              </span>
-              <h3 className="font-display text-[1.6rem]">New reel is up</h3>
-              <p className="text-sm leading-relaxed text-silverdim">
-                Pulled from {org.instagramHandle}. This card feeds straight from
-                the Instagram account once it&rsquo;s connected.
-              </p>
-            </a>
-            <div className="flex flex-col gap-3 bg-void p-7">
-              <span className="label self-start border border-dashed border-linehi px-2 py-0.5 text-silverfaint">
-                DRAFT &middot; NEEDS YOUR COPY
-              </span>
-              <h3 className="font-display text-[1.6rem]">
-                Halloween is going down in Washington Square
-              </h3>
-              <p className="text-sm leading-relaxed text-silverdim">
-                Noon to 3 AM on October 31 in the park. 27 people are already on
-                the list.
-              </p>
+
+          {posts.length > 0 ? (
+            <div className="grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-3 lg:grid-cols-4">
+              {posts.map((p) => (
+                <a
+                  key={p.id}
+                  href={p.permalink}
+                  target="_blank"
+                  rel="noopener"
+                  className="group relative aspect-square overflow-hidden bg-void"
+                >
+                  <Image
+                    src={p.thumbnailUrl ?? p.mediaUrl}
+                    alt={p.caption?.slice(0, 120) ?? "Instagram post"}
+                    fill
+                    sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 280px"
+                    className="object-cover grayscale-[0.35] transition-[filter,transform] duration-500 group-hover:scale-[1.03] group-hover:grayscale-0"
+                  />
+                  <span className="absolute inset-0 bg-gradient-to-t from-[rgba(5,5,5,0.9)] via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                  {p.caption && (
+                    <span className="label absolute right-3 bottom-3 left-3 line-clamp-3 text-silver opacity-0 transition-opacity group-hover:opacity-100">
+                      {p.caption}
+                    </span>
+                  )}
+                  {p.mediaType === "VIDEO" && (
+                    <span className="label absolute top-2 right-2 bg-void/80 px-1.5 py-0.5 text-bloodhi">
+                      REEL
+                    </span>
+                  )}
+                </a>
+              ))}
             </div>
-            <div className="flex flex-col gap-3 bg-void p-7">
-              <span className="label self-start border border-dashed border-linehi px-2 py-0.5 text-silverfaint">
-                DRAFT &middot; NEEDS YOUR COPY
-              </span>
-              <h3 className="font-display text-[1.6rem]">
-                Back at Gems for Cosplay
-              </h3>
-              <p className="text-sm leading-relaxed text-silverdim">
-                Second date at Gems Bar &amp; Lounge this year after Blackout V.
-                Doors 9:30 on October 17.
-              </p>
+          ) : (
+            <div className="border border-line">
+              <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 lg:grid-cols-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="hairline-x aspect-square bg-void opacity-30"
+                  />
+                ))}
+              </div>
+              <div className="label border-t border-line p-5 leading-loose text-silverfaint">
+                NOT CONNECTED &mdash; the feed renders here once Instagram API
+                credentials are set. It needs a Business or Creator account; the
+                old Basic Display API for personal accounts was shut down in
+                December 2024.
+                <br />
+                <a
+                  href={org.instagram}
+                  target="_blank"
+                  rel="noopener"
+                  className="text-silver underline decoration-blood underline-offset-4 hover:text-bloodhi"
+                >
+                  VISIT {org.instagramHandle.toUpperCase()} &rarr;
+                </a>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -207,8 +255,8 @@ export default function Home() {
             {org.totalAttendees.toLocaleString()} attendees totals are real.
             <br />
             STILL NEEDED &mdash; ticket prices, attendee counts for past events,
-            a flyer for Mastertripsitter&rsquo;s Birthday BBQ, and copy for the
-            two draft dispatches.
+            a flyer for Mastertripsitter&rsquo;s Birthday BBQ, and Instagram API
+            credentials to fill the feed above.
             <br />
             NOT REAL YET &mdash; RSVP and accounts are front-end only until
             Supabase is wired up.

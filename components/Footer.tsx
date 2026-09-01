@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { org } from "@/lib/events";
+import { navLinks } from "./Nav";
 
 export default function Footer() {
   return (
@@ -12,36 +13,40 @@ export default function Footer() {
             TOO PARTY
           </div>
           <div className="label flex flex-wrap gap-6">
-            <Link href="/#events" className="text-silverdim hover:text-chalk">
-              Events
+            {navLinks.map((l) => (
+              <Link
+                key={l.label}
+                href={l.href}
+                className="text-silverdim hover:text-chalk"
+              >
+                {l.label}
+              </Link>
+            ))}
+            <Link href="/login" className="text-silverdim hover:text-chalk">
+              SIGN UP / LOGIN
             </Link>
-            <Link href="/#dispatches" className="text-silverdim hover:text-chalk">
-              Dispatches
-            </Link>
-            <Link href="/#archive" className="text-silverdim hover:text-chalk">
-              Archive
-            </Link>
+          </div>
+        </div>
+        <div className="label flex flex-wrap justify-between gap-4 border-t border-line pt-6 text-silverfaint">
+          <span>© 2026 WECAMETOOPARTY · NEW YORK CITY</span>
+          <span className="flex gap-5">
             <a
               href={org.instagram}
               target="_blank"
               rel="noopener"
-              className="text-silverdim hover:text-chalk"
+              className="hover:text-chalk"
             >
-              {org.instagramHandle}
+              {org.instagramHandle.toUpperCase()}
             </a>
             <a
               href={org.twitter}
               target="_blank"
               rel="noopener"
-              className="text-silverdim hover:text-chalk"
+              className="hover:text-chalk"
             >
-              {org.handle}
+              {org.handle.toUpperCase()}
             </a>
-          </div>
-        </div>
-        <div className="label flex flex-wrap justify-between gap-4 border-t border-line pt-6 text-silverfaint">
-          <span>© 2026 WECAMETOOPARTY · NEW YORK CITY</span>
-          <span>DM {org.instagramHandle.toUpperCase()} FOR INFO</span>
+          </span>
         </div>
       </div>
     </footer>

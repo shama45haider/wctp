@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-const links = [
-  { href: "/#events", label: "EVENTS" },
-  { href: "/#dispatches", label: "DISPATCHES" },
-  { href: "/#archive", label: "ARCHIVE" },
+export const navLinks = [
+  { href: "/", label: "HOME" },
+  { href: "/#events", label: "TICKETS" },
+  { href: "/partners", label: "PARTNERS" },
 ];
 
 export default function Nav() {
@@ -17,9 +17,9 @@ export default function Nav() {
           WCTP
         </Link>
         <div className="label hidden gap-7 md:flex">
-          {links.map((l) => (
+          {navLinks.map((l) => (
             <Link
-              key={l.href}
+              key={l.label}
               href={l.href}
               className="text-silverdim transition-colors hover:text-chalk"
             >
@@ -28,11 +28,26 @@ export default function Nav() {
           ))}
         </div>
         <Link
-          href="/#events"
+          href="/login"
           className="font-display border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] px-[1.15rem] py-[0.6rem] text-base tracking-[0.12em] text-chalk uppercase transition-all hover:border-silverdim hover:shadow-[0_8px_30px_-12px_rgba(180,195,215,0.35)]"
         >
-          RSVP
+          Sign up / Login
         </Link>
+      </div>
+
+      {/* second row on small screens, where the inline links don't fit */}
+      <div className="label flex gap-6 border-t border-line md:hidden">
+        <div className="mx-auto flex w-[92vw] max-w-[1180px] gap-6 py-2.5">
+          {navLinks.map((l) => (
+            <Link
+              key={l.label}
+              href={l.href}
+              className="text-silverdim transition-colors hover:text-chalk"
+            >
+              {l.label}
+            </Link>
+          ))}
+        </div>
       </div>
     </nav>
   );

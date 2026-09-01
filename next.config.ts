@@ -12,7 +12,11 @@ const nextConfig: NextConfig = {
   images: {
     // Static export has no image optimization server.
     unoptimized: true,
-    remotePatterns: [{ protocol: "https", hostname: "posh.vip" }],
+    remotePatterns: [
+      { protocol: "https", hostname: "posh.vip" },
+      { protocol: "https", hostname: "*.cdninstagram.com" },
+      { protocol: "https", hostname: "*.fbcdn.net" },
+    ],
   },
 };
 

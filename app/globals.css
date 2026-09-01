@@ -113,3 +113,42 @@ body::before {
     transition: none !important;
   }
 }
+
+/* --- hero treatments --- */
+
+.text-outline {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--silver-dim);
+  paint-order: stroke fill;
+}
+
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.4) 3px,
+    rgba(0, 0, 0, 0.4) 4px
+  );
+  pointer-events: none;
+  opacity: 0.28;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 34s linear infinite;
+}
+
+.hairline-x {
+  background-image: linear-gradient(45deg, transparent 47%, var(--line-hi) 47%, var(--line-hi) 53%, transparent 53%),
+    linear-gradient(-45deg, transparent 47%, var(--line-hi) 47%, var(--line-hi) 53%, transparent 53%);
+}
