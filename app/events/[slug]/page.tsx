@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import EventManifest from "@/components/EventManifest";
 import { allEvents, findEvent, flyer, monthOf, dayOf, org } from "@/lib/events";
 
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return allEvents.map((e) => ({ slug: e.slug }));
 }
