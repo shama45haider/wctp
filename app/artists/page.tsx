@@ -38,13 +38,13 @@ function FilledCard({ a }: { a: Artist }) {
           <p className="mt-3 text-sm leading-relaxed text-silverdim">{a.bio}</p>
         )}
         {(a.instagram || a.soundcloud) && (
-          <div className="label mt-4 flex gap-4 border-t border-line pt-3">
+          <div className="label mt-4 flex gap-5 border-t border-line pt-1">
             {a.instagram && (
               <a
                 href={a.instagram}
                 target="_blank"
                 rel="noopener"
-                className="text-silverfaint transition-colors hover:text-chalk"
+                className="inline-block py-3 text-silverfaint transition-colors hover:text-chalk"
               >
                 INSTAGRAM
               </a>
@@ -54,7 +54,7 @@ function FilledCard({ a }: { a: Artist }) {
                 href={a.soundcloud}
                 target="_blank"
                 rel="noopener"
-                className="text-silverfaint transition-colors hover:text-chalk"
+                className="inline-block py-3 text-silverfaint transition-colors hover:text-chalk"
               >
                 SOUNDCLOUD
               </a>
