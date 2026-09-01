@@ -14,7 +14,12 @@ export type Artist = {
  * only its number renders as an empty placeholder on /artists.
  */
 export const artists: Artist[] = [
-  { slot: 1 },
+  {
+    slot: 1,
+    name: "ragevvs",
+    imageUrl: "/roster/ragevvs.jpg",
+    instagram: "https://www.instagram.com/ragevvs",
+  },
   { slot: 2 },
   { slot: 3 },
   { slot: 4 },

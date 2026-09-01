@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { artists, isFilled, type Artist } from "@/lib/artists";
 import { org } from "@/lib/events";
+import { asset } from "@/lib/asset";
 
 export const metadata = { title: "Meet Our Artists — WECAMETOOPARTY" };
 
@@ -12,7 +13,7 @@ function FilledCard({ a }: { a: Artist }) {
       <div className="scanlines relative aspect-[4/5] overflow-hidden">
         {a.imageUrl ? (
           <Image
-            src={a.imageUrl}
+            src={asset(a.imageUrl)}
             alt={a.name!}
             fill
             sizes="(max-width:640px) 92vw, (max-width:1024px) 45vw, 280px"
