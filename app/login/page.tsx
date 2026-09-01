@@ -89,10 +89,15 @@ export default function Login() {
         </button>
       </form>
 
-      <div className="label mt-6 border border-dashed border-linehi p-4 leading-loose text-silverfaint">
-        MOCKUP &mdash; this form is intentionally inert. Nothing is sent, stored
-        or validated until Supabase auth is wired up.
-      </div>
+      <p className="label mt-5 text-center text-silverfaint">
+        {isSignup ? (
+          "BY SIGNING UP YOU AGREE TO THE HOUSE RULES"
+        ) : (
+          <button type="button" className="transition-colors hover:text-chalk">
+            FORGOT PASSWORD?
+          </button>
+        )}
+      </p>
 
       <Link
         href="/#events"

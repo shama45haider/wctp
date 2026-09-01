@@ -185,19 +185,15 @@ export default function Home() {
                   />
                 ))}
               </div>
-              <div className="label border-t border-line p-5 leading-loose text-silverfaint">
-                NOT CONNECTED &mdash; the feed renders here once Instagram API
-                credentials are set. It needs a Business or Creator account; the
-                old Basic Display API for personal accounts was shut down in
-                December 2024.
-                <br />
+              <div className="label flex flex-wrap items-center justify-between gap-4 border-t border-line p-5 text-silverfaint">
+                <span>NEW POSTS DROP HERE</span>
                 <a
                   href={org.instagram}
                   target="_blank"
                   rel="noopener"
-                  className="text-silver underline decoration-blood underline-offset-4 hover:text-bloodhi"
+                  className="border border-linehi px-3 py-2 text-silver transition-colors hover:border-bloodhi hover:text-bloodhi"
                 >
-                  VISIT {org.instagramHandle.toUpperCase()} &rarr;
+                  FOLLOW {org.instagramHandle.toUpperCase()} &rarr;
                 </a>
               </div>
             </div>
@@ -247,19 +243,6 @@ export default function Home() {
                 </Link>
               );
             })}
-          </div>
-
-          <div className="label mt-10 border border-dashed border-linehi p-5 leading-loose text-silverfaint">
-            PULLED FROM POSH.VIP/G/WECAMETOOPARTY &mdash; titles, dates, times,
-            venues, flyer images and the {org.totalEvents} events /{" "}
-            {org.totalAttendees.toLocaleString()} attendees totals are real.
-            <br />
-            STILL NEEDED &mdash; ticket prices, attendee counts for past events,
-            a flyer for Mastertripsitter&rsquo;s Birthday BBQ, and Instagram API
-            credentials to fill the feed above.
-            <br />
-            NOT REAL YET &mdash; RSVP and accounts are front-end only until
-            Supabase is wired up.
           </div>
         </div>
       </section>

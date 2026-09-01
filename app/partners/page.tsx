@@ -44,12 +44,6 @@ export default function Partners() {
           </div>
         ))}
       </div>
-
-      <div className="label mt-10 border border-dashed border-linehi p-5 leading-loose text-silverfaint">
-        DRAFT &mdash; these are venues and co-hosts pulled from your Posh event
-        records, not a confirmed partner list. Send me the real roster (plus
-        logos and any brand deals) and I&rsquo;ll replace this.
-      </div>
     </main>
   );
 }

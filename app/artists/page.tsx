@@ -77,7 +77,7 @@ function EmptySlot({ slot }: { slot: number }) {
           Slot {pad(slot)}
         </h2>
         <p className="label mt-2 leading-loose text-silverfaint">
-          OPEN &mdash; send name, photo, a line of bio and socials.
+          ANNOUNCING SOON
         </p>
       </div>
     </article>
@@ -121,16 +121,6 @@ export default function Artists() {
             <EmptySlot key={a.slot} slot={a.slot} />
           ),
         )}
-      </div>
-
-      <div className="label mt-10 border border-dashed border-linehi p-5 leading-loose text-silverfaint">
-        EMPTY ON PURPOSE &mdash; I don&rsquo;t have your roster, so nothing here
-        is invented. Fill a slot by editing lib/artists.ts (name, role, bio,
-        imageUrl, instagram, soundcloud) and the card renders itself.
-        <br />
-        CANDIDATES FROM YOUR EVENT RECORDS &mdash; MASTERTRIPSITTER and
-        IMSAVIILOLIIBOYY both appear as hosts on Posh. Confirm whether they
-        belong here and I&rsquo;ll slot them in.
       </div>
     </main>
   );
