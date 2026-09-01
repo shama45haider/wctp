@@ -31,7 +31,7 @@ function ageFrom(dob: string) {
 
 export default function Verify() {
   const router = useRouter();
-  const { ready, user, markVerified } = useAccount();
+  const { ready, user, cart, markVerified } = useAccount();
 
   const [stage, setStage] = useState<Stage>("dob");
   const [dob, setDob] = useState("");
@@ -189,11 +189,12 @@ export default function Verify() {
             <span className="text-bloodhi">VERIFIED</span>
           </div>
           <div className="mt-6 flex flex-col gap-3">
+            {/* Straight back to the order they were held out of, if there is one. */}
             <button
-              onClick={() => router.push("/#events")}
+              onClick={() => router.push(cart ? "/checkout" : "/tickets")}
               className="font-display border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase hover:border-bloodhi"
             >
-              Browse events
+              {cart ? "Back to checkout" : "Browse tickets"}
             </button>
             <Link
               href="/account"

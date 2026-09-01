@@ -39,9 +39,9 @@ export default function Home() {
         <div className="border-b border-line">
           <div className="label mx-auto flex w-[92vw] max-w-[1180px] justify-between py-2 text-silverfaint">
             <span>EST. NYC</span>
-            <span className="hidden sm:block">
-              {org.totalEvents} EVENTS / {org.totalAttendees.toLocaleString()}{" "}
-              HEADS
+            <span>
+              {org.totalEvents} / {org.totalAttendees.toLocaleString()}
+              <span className="hidden sm:inline"> HEADS</span>
             </span>
             <span>18+</span>
           </div>
@@ -74,30 +74,34 @@ export default function Home() {
                 {next.venue.toUpperCase()}
               </span>
               <Link
-                href={`/events/${next.slug}`}
+                href={`/events/${next.slug}#tickets`}
                 className="label ml-auto flex min-h-11 shrink-0 items-center border border-[rgba(200,16,46,0.5)] px-4 text-chalk transition-all hover:border-bloodhi hover:bg-[rgba(200,16,46,0.08)]"
               >
-                RSVP &rarr;
+                GET TICKETS &rarr;
               </Link>
             </div>
           </div>
 
-          {/* tilted flyer stack */}
-          <div className="relative -order-1 mb-6 hidden w-[clamp(190px,22vw,270px)] shrink-0 md:order-none md:mb-0 md:block">
+          {/* Tilted flyer stack. Shown at every width - it used to be
+              `hidden md:block`, so phones opened the site with no artwork at
+              all. Below md it sits above the headline at 58vw, wide enough to
+              read the flyer and short enough to keep the name in view. */}
+          <div className="relative -order-1 mx-auto mb-8 w-[min(58vw,240px)] shrink-0 md:order-none md:mx-0 md:mb-0 md:w-[clamp(190px,22vw,270px)]">
             <div className="absolute -top-3 -right-3 aspect-[4/5] w-full rotate-[5deg] border border-line bg-ink" />
             <Link
-              href={`/events/${next.slug}`}
+              href={`/events/${next.slug}#tickets`}
               className="scanlines group relative block aspect-[4/5] w-full -rotate-[2deg] overflow-hidden border border-linehi shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] transition-transform hover:rotate-0"
             >
               <Flyer
                 id={next.imageId!}
                 alt={next.title}
-                sizes="(max-width:767px) 1px, 270px"
+                sizes="(max-width:767px) 58vw, 270px"
                 maxWidth={640}
+                priority
                 className="contrast-[1.1] saturate-[0.85]"
               />
               <span className="label absolute bottom-0 left-0 bg-void/85 px-2 py-1 text-bloodhi">
-                RSVP OPEN
+                ON SALE
               </span>
             </Link>
           </div>
@@ -134,6 +138,12 @@ export default function Home() {
             aside={`${String(upcoming.length).padStart(2, "0")} DATES`}
           />
           <EventManifest events={upcoming} />
+          <Link
+            href="/tickets"
+            className="label mt-6 flex min-h-11 items-center justify-center border border-linehi text-silverdim transition-colors hover:border-silverdim hover:text-chalk"
+          >
+            ALL DATES, PRICES AND TIERS &rarr;
+          </Link>
         </div>
       </section>
 
@@ -210,19 +220,22 @@ export default function Home() {
             blurb="Everything we&rsquo;ve thrown. Nothing gets taken down."
             aside={`${org.totalEvents} EVENTS · ${org.totalAttendees.toLocaleString()} ATTENDEES`}
           />
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-5">
+          {/* Two-up on a phone: a portrait flyer squeezed into one full-width
+              180px band loses most of the artwork, which is the whole point of
+              an archive. Paired columns show each flyer whole. */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(230px,1fr))] sm:gap-5">
             {past.map((e) => (
                 <Link
                   key={e.slug}
                   href={`/events/${e.slug}`}
                   className="group border border-line bg-ink transition-colors hover:border-linehi"
                 >
-                  <div className="relative h-[180px] overflow-hidden">
+                  <div className="relative aspect-[4/5] overflow-hidden sm:aspect-auto sm:h-[180px]">
                     {e.imageId ? (
                       <Flyer
                         id={e.imageId}
                         alt={e.title}
-                        sizes="(max-width:639px) 92vw, (max-width:1023px) 46vw, 280px"
+                        sizes="(max-width:639px) 45vw, (max-width:1023px) 46vw, 280px"
                         maxWidth={640}
                         className="grayscale transition-[filter] duration-500 group-hover:grayscale-[0.5]"
                       />
@@ -233,8 +246,10 @@ export default function Home() {
                     )}
                     <span className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(5,5,5,0.85)]" />
                   </div>
-                  <div className="px-5 pt-4 pb-6">
-                    <h3 className="font-display text-[1.4rem]">{e.title}</h3>
+                  <div className="px-4 pt-3 pb-5 sm:px-5 sm:pt-4 sm:pb-6">
+                    <h3 className="font-display text-[1.15rem] break-words sm:text-[1.4rem]">
+                      {e.title}
+                    </h3>
                     <span className="label mt-2 block text-silverfaint">
                       {e.dow} {dayOf(e.date)} {monthOf(e.date)} &middot;{" "}
                       {e.venue.toUpperCase()}

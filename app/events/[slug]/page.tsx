@@ -1,13 +1,31 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import EventManifest from "@/components/EventManifest";
+import TicketPicker from "@/components/TicketPicker";
 import Flyer from "@/components/Flyer";
 import { allEvents, findEvent, monthOf, dayOf, org } from "@/lib/events";
+import { isPastEvent, money, priceFrom, saleState } from "@/lib/tickets";
 
 export const dynamicParams = false;
 
 export function generateStaticParams() {
   return allEvents.map((e) => ({ slug: e.slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const event = findEvent(slug);
+  if (!event) return {};
+  const from = priceFrom(event);
+  return {
+    title: `${event.title} · WECAMETOOPARTY`,
+    description: `${event.dow} ${dayOf(event.date)} ${monthOf(event.date)} at ${
+      event.venue
+    }${from !== null ? ` · tickets from ${money(from)}` : ""}.`,
+  };
 }
 
 export default async function EventPage({
@@ -19,20 +37,45 @@ export default async function EventPage({
   const event = findEvent(slug);
   if (!event) notFound();
 
-  const isPast = new Date(event.date) < new Date("2026-09-01");
+  const past = isPastEvent(event);
+  const state = saleState(event);
 
   return (
-    <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(2.5rem,6vw,5rem)]">
+    <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(1.5rem,5vw,5rem)]">
       <Link
-        href="/#events"
+        href="/tickets"
         className="label -my-3 inline-block py-3 text-silverfaint hover:text-chalk"
       >
-        &larr; ALL EVENTS
+        &larr; ALL TICKETS
       </Link>
 
-      <div className="mt-8 grid gap-10 md:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="mt-6 grid gap-8 md:mt-8 md:grid-cols-[minmax(0,1fr)_380px] md:gap-10">
+        {/* The flyer leads on a phone - it is the thing people recognise - then
+            moves to the right rail once there is room for two columns. */}
+        <div className="relative -order-1 aspect-square overflow-hidden border border-line bg-ink md:order-2">
+          {event.imageId ? (
+            <Flyer
+              id={event.imageId}
+              alt={event.title}
+              sizes="(max-width:767px) 92vw, 380px"
+              maxWidth={900}
+              priority
+              className={past ? "grayscale-[0.4]" : ""}
+            />
+          ) : (
+            <div className="hairline-x label flex h-full items-center justify-center text-silverfaint">
+              NO FLYER
+            </div>
+          )}
+          {state === "on-sale" && (
+            <span className="label absolute bottom-0 left-0 bg-void/85 px-2.5 py-1.5 text-bloodhi">
+              ON SALE NOW
+            </span>
+          )}
+        </div>
+
         <div className="min-w-0">
-          <div className="label mb-4 flex items-center gap-2 text-silverfaint">
+          <div className="label mb-3 flex items-center gap-2 text-silverfaint">
             {org.name}
           </div>
 
@@ -40,7 +83,7 @@ export default async function EventPage({
             {event.title}
           </h1>
 
-          <div className="mt-8 flex flex-wrap gap-x-12 gap-y-6 border-y border-line py-6">
+          <div className="mt-7 grid grid-cols-2 gap-x-8 gap-y-6 border-y border-line py-6 sm:flex sm:flex-wrap sm:gap-x-12">
             <div>
               <div className="label mb-1 text-silverfaint">WHEN</div>
               <div className="font-display text-2xl">
@@ -66,6 +109,14 @@ export default async function EventPage({
                 <div className="font-display text-2xl">{event.going}</div>
               </div>
             )}
+            {state === "on-sale" && (
+              <div>
+                <div className="label mb-1 text-silverfaint">FROM</div>
+                <div className="font-display text-2xl">
+                  {money(priceFrom(event) ?? 0)}
+                </div>
+              </div>
+            )}
           </div>
 
           {event.note && (
@@ -74,32 +125,9 @@ export default async function EventPage({
             </p>
           )}
 
-          {isPast ? (
-            <div className="label mt-8 inline-block border border-line px-4 py-3 text-silverfaint">
-              THIS EVENT HAS PASSED
-            </div>
-          ) : (
-            <div className="mt-8">
-              <EventManifest events={[event]} />
-            </div>
-          )}
-        </div>
-
-        <div className="relative aspect-square overflow-hidden border border-line bg-ink">
-          {event.imageId ? (
-            <Flyer
-              id={event.imageId}
-              alt={event.title}
-              sizes="(max-width:767px) 92vw, 380px"
-              maxWidth={900}
-              priority
-              className={isPast ? "grayscale-[0.4]" : ""}
-            />
-          ) : (
-            <div className="label flex h-full items-center justify-center text-silverfaint">
-              NO FLYER
-            </div>
-          )}
+          <div className="mt-8">
+            <TicketPicker event={event} />
+          </div>
         </div>
       </div>
     </main>

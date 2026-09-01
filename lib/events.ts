@@ -125,6 +125,15 @@ export const org = {
   bio: "It's in the name OKK so don't ask \u2014 just get lit. Smoke sum, drink sum, pop sum if u want. Everything is optional.",
 };
 
+/**
+ * "Now", pinned rather than read from the clock.
+ *
+ * Server and client render the same HTML from it, so nothing that depends on
+ * whether a date has passed can hydrate differently from how it prerendered.
+ * Move this forward when the archive is rolled.
+ */
+export const TODAY = new Date("2026-09-01");
+
 export const allEvents = [...upcoming, ...past];
 export const findEvent = (slug: string) => allEvents.find((e) => e.slug === slug);
 

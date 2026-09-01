@@ -1,25 +1,57 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
+import {
+  findPromo,
+  linesFromCart,
+  maxSelectable,
+  tiersFor,
+  totalsFor,
+  type Cart,
+  type OrderLine,
+} from "./tickets";
 
 /**
  * Client-only demo account layer.
  *
- * State lives in localStorage — there is no server, no network call and no real
+ * State lives in localStorage - there is no server, no network call and no real
  * credential anywhere. Modelled as an external store so React reads it through
  * useSyncExternalStore: no setState-in-effect, no hydration mismatch, and tabs
  * stay in sync for free.
  *
  * Swap this module for Supabase auth when the backend lands; the hook API is
- * meant to survive that change.
+ * meant to survive that change. `placeOrder` is the seam where a real payment
+ * intent and a server-issued order would go.
  */
 
-export type Ticket = {
+/** One admission. A table ticket is a single pass that admits its whole party. */
+export type Pass = {
+  code: string;
+  tierId: string;
+  tierName: string;
+  admits: number;
+  /** Face value of this ticket, before fees. */
+  priceCents: number;
+};
+
+export type Buyer = {
+  name: string;
+  email: string;
+  phone?: string;
+};
+
+export type Order = {
+  id: string;
   eventSlug: string;
   eventTitle: string;
-  code: string;
-  guests: number;
-  paidCents: number;
+  lines: OrderLine[];
+  promoCode?: string;
+  subtotalCents: number;
+  discountCents: number;
+  feeCents: number;
+  totalCents: number;
+  buyer: Buyer;
+  passes: Pass[];
   createdAt: string;
 };
 
@@ -27,21 +59,32 @@ export type DemoUser = {
   name: string;
   email: string;
   instagram?: string;
+  phone?: string;
   verified: boolean;
-  /** Year only — a full birth date is never retained. */
+  /** Year only - a full birth date is never retained. */
   birthYear?: number;
 };
 
 type Snapshot = {
   ready: boolean;
   user: DemoUser | null;
-  tickets: Ticket[];
+  cart: Cart | null;
+  orders: Order[];
 };
 
 const USER_KEY = "wctp.demo.user";
-const TICKETS_KEY = "wctp.demo.tickets";
+const CART_KEY = "wctp.demo.cart";
+const ORDERS_KEY = "wctp.demo.orders";
+/** Single-ticket RSVPs from before tiers existed. Cleared, never migrated. */
+const LEGACY_TICKETS_KEY = "wctp.demo.tickets";
 
-const EMPTY: Snapshot = { ready: false, user: null, tickets: [] };
+const NO_ORDERS: Order[] = [];
+const EMPTY: Snapshot = {
+  ready: false,
+  user: null,
+  cart: null,
+  orders: NO_ORDERS,
+};
 
 let snapshot: Snapshot = EMPTY;
 let hydrated = false;
@@ -62,7 +105,7 @@ const write = (key: string, value: unknown) => {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    /* private mode or blocked storage — state just won't persist */
+    /* private mode or blocked storage - state just will not persist */
   }
 };
 
@@ -70,7 +113,8 @@ function load(): Snapshot {
   return {
     ready: true,
     user: read<DemoUser | null>(USER_KEY, null),
-    tickets: read<Ticket[]>(TICKETS_KEY, []),
+    cart: read<Cart | null>(CART_KEY, null),
+    orders: read<Order[]>(ORDERS_KEY, NO_ORDERS),
   };
 }
 
@@ -81,12 +125,17 @@ function subscribe(listener: () => void) {
   // client both render the `ready: false` snapshot on first paint.
   if (!hydrated) {
     hydrated = true;
+    try {
+      window.localStorage.removeItem(LEGACY_TICKETS_KEY);
+    } catch {
+      /* nothing to clean up */
+    }
     snapshot = load();
     queueMicrotask(emit);
   }
 
   const onStorage = (e: StorageEvent) => {
-    if (e.key === USER_KEY || e.key === TICKETS_KEY) {
+    if (e.key === USER_KEY || e.key === CART_KEY || e.key === ORDERS_KEY) {
       snapshot = load();
       emit();
     }
@@ -102,25 +151,25 @@ function subscribe(listener: () => void) {
 const getSnapshot = () => snapshot;
 const getServerSnapshot = () => EMPTY;
 
-function setUser(user: DemoUser | null) {
-  snapshot = { ...snapshot, user };
-  write(USER_KEY, user);
+function patch(next: Partial<Snapshot>) {
+  snapshot = { ...snapshot, ...next };
+  if ("user" in next) write(USER_KEY, snapshot.user);
+  if ("cart" in next) write(CART_KEY, snapshot.cart);
+  if ("orders" in next) write(ORDERS_KEY, snapshot.orders);
   emit();
 }
 
-function setTickets(tickets: Ticket[]) {
-  snapshot = { ...snapshot, tickets };
-  write(TICKETS_KEY, tickets);
-  emit();
-}
+const rand = (n: number) =>
+  Array.from({ length: n }, () =>
+    "ABCDEFGHJKMNPQRSTUVWXYZ23456789".charAt(Math.floor(Math.random() * 31)),
+  ).join("");
 
-const makeCode = (slug: string) =>
-  `WCTP-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${slug
-    .slice(0, 4)
-    .toUpperCase()}`;
+// Ambiguous glyphs (0/O, 1/I/L) are left out of the alphabet above so a code
+// read aloud at a loud door, or typed in from a screenshot, survives the trip.
+const makeOrderId = () => `WCTP-${rand(6)}`;
 
 export function useAccount() {
-  const { ready, user, tickets } = useSyncExternalStore(
+  const { ready, user, cart, orders } = useSyncExternalStore(
     subscribe,
     getSnapshot,
     getServerSnapshot,
@@ -128,76 +177,186 @@ export function useAccount() {
 
   const signUp = useCallback(
     (u: { name: string; email: string; instagram?: string }) =>
-      setUser({ ...u, verified: false }),
+      patch({ user: { ...u, verified: false } }),
     [],
   );
 
   const signIn = useCallback((email: string) => {
     const existing = snapshot.user;
-    setUser(
-      existing?.email === email
-        ? existing
-        : { name: email.split("@")[0], email, verified: false },
-    );
+    patch({
+      user:
+        existing?.email === email
+          ? existing
+          : { name: email.split("@")[0], email, verified: false },
+    });
   }, []);
 
   const signInAsDemo = useCallback(
     () =>
-      setUser({
-        name: "Demo Guest",
-        email: "demo@wecametooparty.com",
-        instagram: "@demoguest",
-        verified: true,
-        birthYear: 2001,
+      patch({
+        user: {
+          name: "Demo Guest",
+          email: "demo@wecametooparty.com",
+          instagram: "@demoguest",
+          phone: "(212) 555-0139",
+          verified: true,
+          birthYear: 2001,
+        },
       }),
     [],
   );
 
-  const signOut = useCallback(() => {
-    setUser(null);
-    setTickets([]);
-  }, []);
+  const signOut = useCallback(
+    () => patch({ user: null, cart: null, orders: NO_ORDERS }),
+    [],
+  );
 
   const markVerified = useCallback((birthYear: number) => {
     if (!snapshot.user) return;
-    setUser({ ...snapshot.user, verified: true, birthYear });
+    patch({ user: { ...snapshot.user, verified: true, birthYear } });
   }, []);
 
-  const addTicket = useCallback(
-    (t: Omit<Ticket, "code" | "createdAt">): Ticket => {
-      const ticket: Ticket = {
-        ...t,
-        code: makeCode(t.eventSlug),
-        createdAt: new Date().toISOString(),
+  /**
+   * Sets the quantity of one tier.
+   *
+   * Selecting from a different event replaces the cart rather than merging:
+   * every order belongs to a single night, so there is no such thing as a
+   * basket spanning two doors.
+   */
+  const setQty = useCallback(
+    (eventSlug: string, tierId: string, qty: number) => {
+      const base: Cart =
+        snapshot.cart?.eventSlug === eventSlug
+          ? snapshot.cart
+          : { eventSlug, qty: {} };
+      const next: Cart = {
+        ...base,
+        qty: { ...base.qty, [tierId]: Math.max(0, qty) },
       };
-      setTickets([
-        ...snapshot.tickets.filter((p) => p.eventSlug !== t.eventSlug),
-        ticket,
-      ]);
-      return ticket;
+      patch({
+        cart: Object.values(next.qty).some((n) => n > 0) ? next : null,
+      });
     },
     [],
   );
 
-  const cancelTicket = useCallback(
-    (code: string) =>
-      setTickets(snapshot.tickets.filter((t) => t.code !== code)),
+  /**
+   * Moves a tier's quantity by a delta, clamped to what is actually buyable.
+   *
+   * Steppers go through here rather than through `setQty` with a number they
+   * computed at render time: two taps inside one frame both read the same
+   * stale quantity, and the second silently undoes the first.
+   */
+  const adjustQty = useCallback(
+    (eventSlug: string, tierId: string, delta: number) => {
+      const tier = tiersFor(eventSlug).find((t) => t.id === tierId);
+      if (!tier) return;
+      const current =
+        snapshot.cart?.eventSlug === eventSlug
+          ? (snapshot.cart.qty[tierId] ?? 0)
+          : 0;
+      setQty(
+        eventSlug,
+        tierId,
+        Math.min(maxSelectable(tier), Math.max(0, current + delta)),
+      );
+    },
+    [setQty],
+  );
+
+  const setPromoCode = useCallback((code: string | null) => {
+    if (!snapshot.cart) return;
+    patch({
+      cart: { ...snapshot.cart, promoCode: code?.toUpperCase() || undefined },
+    });
+  }, []);
+
+  const clearCart = useCallback(() => patch({ cart: null }), []);
+
+  /**
+   * Turns the cart into an order and issues a pass per ticket.
+   *
+   * Priced from live inventory at this moment, not from whatever the cart was
+   * worth when it was built - the same reason a real checkout reprices on
+   * submit rather than trusting the client's total.
+   */
+  const placeOrder = useCallback(
+    (buyer: Buyer, eventTitle: string): Order | null => {
+      const cart = snapshot.cart;
+      const lines = linesFromCart(cart);
+      if (!cart || lines.length === 0) return null;
+
+      const promo = cart.promoCode ? findPromo(cart.promoCode) : null;
+      const t = totalsFor(lines, promo);
+      const id = makeOrderId();
+
+      const passes: Pass[] = lines.flatMap((l) =>
+        Array.from({ length: l.qty }, (_, i) => ({
+          code: `${id}-${l.tierId.slice(0, 2).toUpperCase()}${i + 1}`,
+          tierId: l.tierId,
+          tierName: l.tierName,
+          admits: l.admits,
+          priceCents: l.unitCents,
+        })),
+      );
+
+      const order: Order = {
+        id,
+        eventSlug: cart.eventSlug,
+        eventTitle,
+        lines,
+        promoCode: promo?.code,
+        subtotalCents: t.subtotalCents,
+        discountCents: t.discountCents,
+        feeCents: t.feeCents,
+        totalCents: t.totalCents,
+        buyer,
+        passes,
+        createdAt: new Date().toISOString(),
+      };
+
+      patch({ cart: null, orders: [order, ...snapshot.orders] });
+      return order;
+    },
     [],
+  );
+
+  const cancelOrder = useCallback(
+    (id: string) =>
+      patch({ orders: snapshot.orders.filter((o) => o.id !== id) }),
+    [],
+  );
+
+  const findOrder = useCallback(
+    (id: string) => orders.find((o) => o.id === id) ?? null,
+    [orders],
+  );
+
+  const lines = useMemo(() => linesFromCart(cart), [cart]);
+  const passCount = useMemo(
+    () => orders.reduce((n, o) => n + o.passes.length, 0),
+    [orders],
   );
 
   return {
     ready,
     user,
-    tickets,
+    cart,
+    /** The cart priced against current stock. Empty when there is no cart. */
+    lines,
+    orders,
+    passCount,
     signUp,
     signIn,
     signInAsDemo,
     signOut,
     markVerified,
-    addTicket,
-    cancelTicket,
+    setQty,
+    adjustQty,
+    setPromoCode,
+    clearCart,
+    placeOrder,
+    cancelOrder,
+    findOrder,
   };
 }
-
-export const money = (cents: number) =>
-  cents === 0 ? "Free" : `$${(cents / 100).toFixed(2)}`;

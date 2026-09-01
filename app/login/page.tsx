@@ -12,7 +12,12 @@ const field =
 
 export default function Login() {
   const router = useRouter();
-  const { ready, user, signUp, signIn, signInAsDemo, signOut } = useAccount();
+  const { ready, user, cart, signUp, signIn, signInAsDemo, signOut } =
+    useAccount();
+
+  // Signing in is usually a detour out of a half-built order. Land back on it
+  // rather than on the account page, which would look like the order vanished.
+  const resume = cart ? "/checkout" : "/account";
 
   const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");
@@ -34,6 +39,14 @@ export default function Login() {
           </span>
         </div>
         <div className="mt-6 flex flex-col gap-3">
+          {cart && user.verified && (
+            <Link
+              href="/checkout"
+              className="font-display border border-[rgba(200,16,46,0.5)] py-3 text-center tracking-[0.12em] text-chalk uppercase hover:border-bloodhi"
+            >
+              Resume checkout
+            </Link>
+          )}
           {!user.verified && (
             <Link
               href="/verify"
@@ -67,7 +80,7 @@ export default function Login() {
       router.push("/verify");
     } else {
       signIn(email);
-      router.push("/account");
+      router.push(resume);
     }
   };
 
@@ -85,7 +98,7 @@ export default function Login() {
       <button
         onClick={() => {
           signInAsDemo();
-          router.push("/account");
+          router.push(resume);
         }}
         className="font-display mt-7 w-full border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-silverdim"
       >
@@ -189,10 +202,10 @@ export default function Login() {
       </p>
 
       <Link
-        href="/#events"
+        href="/tickets"
         className="label mt-6 inline-block text-silverfaint hover:text-chalk"
       >
-        &larr; BACK TO EVENTS
+        &larr; BACK TO TICKETS
       </Link>
     </main>
   );

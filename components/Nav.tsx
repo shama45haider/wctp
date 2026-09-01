@@ -2,7 +2,8 @@ import Link from "next/link";
 
 export const navLinks = [
   { href: "/", label: "HOME" },
-  { href: "/#events", label: "TICKETS" },
+  { href: "/tickets", label: "TICKETS" },
+  { href: "/account", label: "MY TICKETS" },
   { href: "/artists", label: "ARTISTS" },
   { href: "/partners", label: "PARTNERS" },
 ];
@@ -17,7 +18,7 @@ export default function Nav() {
         >
           WCTP
         </Link>
-        <div className="label hidden gap-7 md:flex">
+        <div className="label hidden gap-7 lg:flex">
           {navLinks.map((l) => (
             <Link
               key={l.label}
@@ -36,18 +37,25 @@ export default function Nav() {
         </Link>
       </div>
 
-      {/* second row on small screens, where the inline links don't fit */}
-      <div className="label flex gap-6 border-t border-line md:hidden">
-        <div className="mx-auto flex w-[92vw] max-w-[1180px] gap-6">
-          {navLinks.map((l) => (
-            <Link
-              key={l.label}
-              href={l.href}
-              className="py-3.5 text-silverdim transition-colors hover:text-chalk"
-            >
-              {l.label}
-            </Link>
-          ))}
+      {/* Second row below lg, where five inline links stop fitting beside the
+          button. It scrolls sideways rather than wrapping, so the bar keeps a
+          single predictable height at every width. */}
+      <div className="relative border-t border-line lg:hidden">
+        {/* Fades the last link out at the right edge so a cut-off word reads as
+            "there is more this way" rather than as broken text. */}
+        <span className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-void to-transparent" />
+        <div className="mx-auto w-[92vw] max-w-[1180px] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="label flex w-max gap-6">
+            {navLinks.map((l) => (
+              <Link
+                key={l.label}
+                href={l.href}
+                className="py-3.5 whitespace-nowrap text-silverdim transition-colors hover:text-chalk"
+              >
+                {l.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
     </nav>
