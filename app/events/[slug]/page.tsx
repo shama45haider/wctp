@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EventManifest from "@/components/EventManifest";
-import { allEvents, findEvent, flyer, monthOf, dayOf, org } from "@/lib/events";
+import Flyer from "@/components/Flyer";
+import { allEvents, findEvent, monthOf, dayOf, org } from "@/lib/events";
 
 export const dynamicParams = false;
 
@@ -19,22 +19,24 @@ export default async function EventPage({
   const event = findEvent(slug);
   if (!event) notFound();
 
-  const src = flyer(event.imageId);
   const isPast = new Date(event.date) < new Date("2026-09-01");
 
   return (
     <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(2.5rem,6vw,5rem)]">
-      <Link href="/#events" className="label text-silverfaint hover:text-chalk">
+      <Link
+        href="/#events"
+        className="label -my-3 inline-block py-3 text-silverfaint hover:text-chalk"
+      >
         &larr; ALL EVENTS
       </Link>
 
       <div className="mt-8 grid gap-10 md:grid-cols-[minmax(0,1fr)_380px]">
-        <div>
+        <div className="min-w-0">
           <div className="label mb-4 flex items-center gap-2 text-silverfaint">
             {org.name}
           </div>
 
-          <h1 className="font-display chrome text-[clamp(2.5rem,7vw,5rem)]">
+          <h1 className="font-display chrome text-[clamp(1.75rem,8.5vw,5rem)] break-words">
             {event.title}
           </h1>
 
@@ -51,7 +53,9 @@ export default async function EventPage({
             </div>
             <div>
               <div className="label mb-1 text-silverfaint">WHERE</div>
-              <div className="font-display text-2xl">{event.venue}</div>
+              <div className="font-display text-2xl break-words">
+                {event.venue}
+              </div>
               {event.city && (
                 <div className="label mt-1 text-silverdim">{event.city}</div>
               )}
@@ -82,14 +86,14 @@ export default async function EventPage({
         </div>
 
         <div className="relative aspect-square overflow-hidden border border-line bg-ink">
-          {src ? (
-            <Image
-              src={src}
+          {event.imageId ? (
+            <Flyer
+              id={event.imageId}
               alt={event.title}
-              fill
-              sizes="(max-width:768px) 92vw, 380px"
-              className={`object-cover ${isPast ? "grayscale-[0.4]" : ""}`}
+              sizes="(max-width:767px) 92vw, 380px"
+              maxWidth={900}
               priority
+              className={isPast ? "grayscale-[0.4]" : ""}
             />
           ) : (
             <div className="label flex h-full items-center justify-center text-silverfaint">

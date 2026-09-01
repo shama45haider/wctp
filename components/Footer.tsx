@@ -12,29 +12,29 @@ export default function Footer() {
             <br />
             TOO PARTY
           </div>
-          <div className="label flex flex-wrap gap-6">
+          <div className="label -my-3.5 flex flex-wrap gap-x-6">
             {navLinks.map((l) => (
               <Link
                 key={l.label}
                 href={l.href}
-                className="text-silverdim hover:text-chalk"
+                className="py-3.5 text-silverdim hover:text-chalk"
               >
                 {l.label}
               </Link>
             ))}
-            <Link href="/login" className="text-silverdim hover:text-chalk">
+            <Link href="/login" className="py-3.5 text-silverdim hover:text-chalk">
               SIGN UP / LOGIN
             </Link>
           </div>
         </div>
         <div className="label flex flex-wrap justify-between gap-4 border-t border-line pt-6 text-silverfaint">
           <span>© 2026 WECAMETOOPARTY · NEW YORK CITY</span>
-          <span className="flex gap-5">
+          <span className="-my-3 flex gap-5">
             <a
               href={org.instagram}
               target="_blank"
               rel="noopener"
-              className="hover:text-chalk"
+              className="py-3 hover:text-chalk"
             >
               {org.instagramHandle.toUpperCase()}
             </a>
@@ -42,7 +42,7 @@ export default function Footer() {
               href={org.twitter}
               target="_blank"
               rel="noopener"
-              className="hover:text-chalk"
+              className="py-3 hover:text-chalk"
             >
               {org.handle.toUpperCase()}
             </a>

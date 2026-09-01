@@ -12,9 +12,9 @@ type FlowStep = "details" | "pay" | "done";
 const field =
   "border border-line bg-[#0a0b0d] px-3.5 py-2.5 text-chalk transition-colors focus:border-silverdim focus:outline-none";
 const btn =
-  "font-display border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] py-[0.6rem] px-[1.15rem] tracking-[0.12em] text-chalk uppercase transition-all hover:border-silverdim";
+  "font-display min-h-11 border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] py-[0.7rem] px-[1.15rem] tracking-[0.12em] text-chalk uppercase transition-all hover:border-silverdim";
 const btnGo =
-  "font-display border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] py-[0.6rem] px-[1.15rem] tracking-[0.12em] text-chalk uppercase transition-all hover:border-bloodhi hover:shadow-[0_10px_34px_-12px_rgba(200,16,46,0.6)] disabled:cursor-not-allowed disabled:opacity-50";
+  "font-display min-h-11 border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] py-[0.7rem] px-[1.15rem] tracking-[0.12em] text-chalk uppercase transition-all hover:border-bloodhi hover:shadow-[0_10px_34px_-12px_rgba(200,16,46,0.6)] disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function RsvpModal({
   event,
@@ -35,7 +35,18 @@ export default function RsvpModal({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+
+    // Without this the page scrolls under the scrim on touch devices.
+    const { overflow, paddingRight } = document.body.style;
+    const gap = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = "hidden";
+    if (gap > 0) document.body.style.paddingRight = `${gap}px`;
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflow;
+      document.body.style.paddingRight = paddingRight;
+    };
   }, [onClose]);
 
   // Derived, not synced: anyone not signed in and verified is held at the gate.
@@ -66,14 +77,14 @@ export default function RsvpModal({
 
   return (
     <div
-      className="fixed inset-0 z-[500] flex items-center justify-center bg-[rgba(3,3,4,0.86)] p-6 backdrop-blur-sm"
+      className="fixed inset-0 z-[500] flex items-center justify-center overflow-y-auto overscroll-contain bg-[rgba(3,3,4,0.86)] p-4 backdrop-blur-sm sm:p-6"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`RSVP for ${event.title}`}
-        className="max-h-[90vh] w-full max-w-[480px] overflow-y-auto border border-linehi bg-gradient-to-b from-ink2 to-[#08090b] p-8"
+        className="my-auto max-h-[92dvh] w-full max-w-[480px] overflow-y-auto overscroll-contain border border-linehi bg-gradient-to-b from-ink2 to-[#08090b] p-6 sm:p-8"
       >
         <div className="label mb-3 flex items-center justify-between text-silverfaint">
           <span>{isPaid ? money(priceCents) : "FREE ENTRY"}</span>

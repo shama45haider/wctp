@@ -54,14 +54,14 @@ export default function Account() {
           {!user.verified && (
             <Link
               href="/verify"
-              className="label border border-[rgba(200,16,46,0.5)] px-4 py-2.5 text-chalk hover:border-bloodhi"
+              className="label flex min-h-11 items-center border border-[rgba(200,16,46,0.5)] px-4 text-chalk hover:border-bloodhi"
             >
               VERIFY ID
             </Link>
           )}
           <button
             onClick={signOut}
-            className="label border border-linehi px-4 py-2.5 text-silverdim transition-colors hover:border-silverdim hover:text-chalk"
+            className="label flex min-h-11 items-center border border-linehi px-4 text-silverdim transition-colors hover:border-silverdim hover:text-chalk"
           >
             SIGN OUT
           </button>
@@ -125,7 +125,7 @@ export default function Account() {
                 </div>
                 <button
                   onClick={() => cancelTicket(t.code)}
-                  className="label border-t border-line py-3 text-silverfaint transition-colors hover:bg-[rgba(200,16,46,0.08)] hover:text-bloodhi"
+                  className="label min-h-11 border-t border-line py-3 text-silverfaint transition-colors hover:bg-[rgba(200,16,46,0.08)] hover:text-bloodhi"
                 >
                   CANCEL RSVP
                 </button>

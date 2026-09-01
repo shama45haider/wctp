@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Big_Shoulders, Archivo, Martian_Mono } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
@@ -21,6 +21,11 @@ const mono = Martian_Mono({
   subsets: ["latin"],
   weight: ["400", "600"],
 });
+
+export const viewport: Viewport = {
+  themeColor: "#050505",
+  colorScheme: "dark",
+};
 
 export const metadata: Metadata = {
   title: "WECAMETOOPARTY",

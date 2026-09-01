@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import EventManifest from "@/components/EventManifest";
-import { upcoming, past, org, flyer, monthOf, dayOf } from "@/lib/events";
+import Flyer from "@/components/Flyer";
+import { upcoming, past, org, monthOf, dayOf } from "@/lib/events";
 import { getInstagramPosts } from "@/lib/instagram";
 
 const next = upcoming[0];
@@ -17,14 +17,16 @@ function SectionHead({
   aside?: string;
 }) {
   return (
-    <div className="mb-10 flex items-end justify-between gap-8 border-b border-line pb-6">
+    <div className="mb-10 flex flex-col items-start gap-3 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
       <div>
         <h2 className="font-display chrome text-[clamp(2.5rem,6vw,4.5rem)]">
           {title}
         </h2>
         <p className="mt-2 max-w-[42ch] text-silverdim">{blurb}</p>
       </div>
-      {aside && <div className="label shrink-0 text-silverfaint">{aside}</div>}
+      {aside && (
+        <div className="label text-silverfaint sm:shrink-0">{aside}</div>
+      )}
     </div>
   );
 }
@@ -73,7 +75,7 @@ export default function Home() {
               </span>
               <Link
                 href={`/events/${next.slug}`}
-                className="label ml-auto shrink-0 border border-[rgba(200,16,46,0.5)] px-3 py-2 text-chalk transition-all hover:border-bloodhi hover:bg-[rgba(200,16,46,0.08)]"
+                className="label ml-auto flex min-h-11 shrink-0 items-center border border-[rgba(200,16,46,0.5)] px-4 text-chalk transition-all hover:border-bloodhi hover:bg-[rgba(200,16,46,0.08)]"
               >
                 RSVP &rarr;
               </Link>
@@ -87,13 +89,12 @@ export default function Home() {
               href={`/events/${next.slug}`}
               className="scanlines group relative block aspect-[4/5] w-full -rotate-[2deg] overflow-hidden border border-linehi shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] transition-transform hover:rotate-0"
             >
-              <Image
-                src={flyer(next.imageId)!}
+              <Flyer
+                id={next.imageId!}
                 alt={next.title}
-                fill
-                sizes="270px"
-                className="object-cover contrast-[1.1] saturate-[0.85]"
-                priority
+                sizes="(max-width:767px) 1px, 270px"
+                maxWidth={640}
+                className="contrast-[1.1] saturate-[0.85]"
               />
               <span className="label absolute bottom-0 left-0 bg-void/85 px-2 py-1 text-bloodhi">
                 RSVP OPEN
@@ -154,12 +155,13 @@ export default function Home() {
                   rel="noopener"
                   className="group relative aspect-square overflow-hidden bg-void"
                 >
-                  <Image
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
                     src={p.thumbnailUrl ?? p.mediaUrl}
                     alt={p.caption?.slice(0, 120) ?? "Instagram post"}
-                    fill
-                    sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 280px"
-                    className="object-cover grayscale-[0.35] transition-[filter,transform] duration-500 group-hover:scale-[1.03] group-hover:grayscale-0"
+                    loading="lazy"
+                    decoding="async"
+                    className="absolute inset-0 h-full w-full object-cover grayscale-[0.35] transition-[filter,transform] duration-500 group-hover:scale-[1.03] group-hover:grayscale-0"
                   />
                   <span className="absolute inset-0 bg-gradient-to-t from-[rgba(5,5,5,0.9)] via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                   {p.caption && (
@@ -209,22 +211,20 @@ export default function Home() {
             aside={`${org.totalEvents} EVENTS · ${org.totalAttendees.toLocaleString()} ATTENDEES`}
           />
           <div className="grid grid-cols-[repeat(auto-fit,minmax(230px,1fr))] gap-5">
-            {past.map((e) => {
-              const src = flyer(e.imageId);
-              return (
+            {past.map((e) => (
                 <Link
                   key={e.slug}
                   href={`/events/${e.slug}`}
                   className="group border border-line bg-ink transition-colors hover:border-linehi"
                 >
                   <div className="relative h-[180px] overflow-hidden">
-                    {src ? (
-                      <Image
-                        src={src}
+                    {e.imageId ? (
+                      <Flyer
+                        id={e.imageId}
                         alt={e.title}
-                        fill
-                        sizes="(max-width:768px) 100vw, 280px"
-                        className="object-cover grayscale transition-[filter] duration-500 group-hover:grayscale-[0.5]"
+                        sizes="(max-width:639px) 92vw, (max-width:1023px) 46vw, 280px"
+                        maxWidth={640}
+                        className="grayscale transition-[filter] duration-500 group-hover:grayscale-[0.5]"
                       />
                     ) : (
                       <div className="label flex h-full items-center justify-center bg-ink2 text-silverfaint">
@@ -241,8 +241,7 @@ export default function Home() {
                     </span>
                   </div>
                 </Link>
-              );
-            })}
+              ))}
           </div>
         </div>
       </section>

@@ -10,14 +10,14 @@ const pad = (n: number) => String(n).padStart(2, "0");
 function FilledCard({ a }: { a: Artist }) {
   return (
     <article className="group relative border border-line bg-ink transition-colors hover:border-linehi">
-      <div className="scanlines relative aspect-[4/5] overflow-hidden">
+      <div className="relative aspect-[4/5] overflow-hidden">
         {a.imageUrl ? (
           <Image
             src={asset(a.imageUrl)}
             alt={a.name!}
             fill
             sizes="(max-width:640px) 92vw, (max-width:1024px) 45vw, 280px"
-            className="object-cover grayscale contrast-[1.1] transition-[filter] duration-500 group-hover:grayscale-0"
+            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
           <div className="label flex h-full items-center justify-center bg-ink2 text-silverfaint">
@@ -90,7 +90,7 @@ export default function Artists() {
 
   return (
     <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(2.5rem,6vw,4.5rem)]">
-      <div className="flex items-end justify-between gap-8 border-b border-line pb-6">
+      <div className="flex flex-col items-start gap-3 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
         <div>
           <h1 className="font-display chrome text-[clamp(2.5rem,8vw,5.5rem)] leading-[0.82]">
             Meet Our Artists
@@ -108,7 +108,7 @@ export default function Artists() {
             .
           </p>
         </div>
-        <div className="label shrink-0 text-silverfaint">
+        <div className="label text-silverfaint sm:shrink-0">
           {artists.length} SLOTS
           {open > 0 && ` / ${open} OPEN`}
         </div>

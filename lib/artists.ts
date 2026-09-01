@@ -20,7 +20,12 @@ export const artists: Artist[] = [
     imageUrl: "/roster/ragevvs.jpg",
     instagram: "https://www.instagram.com/ragevvs",
   },
-  { slot: 2 },
+  {
+    slot: 2,
+    name: "fuckitsoni",
+    imageUrl: "/roster/fuckitsoni.jpg",
+    instagram: "https://www.instagram.com/fuckitsoni/",
+  },
   { slot: 3 },
   { slot: 4 },
 ];
