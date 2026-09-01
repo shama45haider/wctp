@@ -6,6 +6,8 @@ const isPages = process.env.GITHUB_PAGES === "true";
 
 const nextConfig: NextConfig = {
   output: "export",
+  // Emit directory/index.html so shared URLs work with or without a trailing slash.
+  trailingSlash: true,
   basePath: isPages ? "/wctp" : undefined,
   images: {
     // Static export has no image optimization server.
