@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { flyer, monthOf, dayOf, type Event } from "@/lib/events";
+import { money } from "@/lib/demo-account";
 import RsvpModal from "./RsvpModal";
 
 function Row({ e, onRsvp }: { e: Event; onRsvp: () => void }) {
@@ -54,6 +55,8 @@ function Row({ e, onRsvp }: { e: Event; onRsvp: () => void }) {
       </div>
 
       <div className="label col-start-2 text-chalk md:col-start-auto">
+        <span className="text-bloodhi">{money(e.priceCents ?? 0)}</span>
+        <br />
         {e.time}
         {e.endTime && (
           <>

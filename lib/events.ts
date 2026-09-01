@@ -10,6 +10,12 @@ export type Event = {
   imageId?: string;
   going?: number;
   note?: string;
+  /**
+   * Ticket price in cents; 0 is a free RSVP.
+   * Posh confirms WECAMETOOFURR starts at $0.00. The non-zero values below are
+   * PLACEHOLDERS — replace them with real door prices before launch.
+   */
+  priceCents?: number;
 };
 
 const POSH_CDN =
@@ -20,6 +26,7 @@ export const flyer = (id?: string) => (id ? POSH_CDN + id : null);
 export const upcoming: Event[] = [
   {
     slug: "wecametoofurr",
+    priceCents: 0,
     title: "WECAMETOOFURR",
     date: "2026-09-04",
     dow: "FRI",
@@ -31,6 +38,7 @@ export const upcoming: Event[] = [
   },
   {
     slug: "saviis-21st-color-wave",
+    priceCents: 0,
     title: "SAVII'S 21st Color Wave",
     date: "2026-09-08",
     dow: "TUE",
@@ -43,6 +51,7 @@ export const upcoming: Event[] = [
   },
   {
     slug: "wecametooswag",
+    priceCents: 0,
     title: "WECAMETOOSWAG",
     date: "2026-09-11",
     dow: "FRI",
@@ -55,6 +64,7 @@ export const upcoming: Event[] = [
   },
   {
     slug: "sniff-snort-pt-2",
+    priceCents: 1500,
     title: "Sniff & Snort PT 2",
     date: "2026-10-02",
     dow: "FRI",
@@ -64,6 +74,7 @@ export const upcoming: Event[] = [
   },
   {
     slug: "wecametoocosplay",
+    priceCents: 2000,
     title: "WECAMETOOCOSPLAY",
     date: "2026-10-17",
     dow: "SAT",
@@ -74,6 +85,7 @@ export const upcoming: Event[] = [
   },
   {
     slug: "wecametoohalloween",
+    priceCents: 2500,
     title: "WECAMETOOHALLOWEEN",
     date: "2026-10-31",
     dow: "SAT",
