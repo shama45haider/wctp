@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Event } from "@/lib/events";
 import { monthOf, dayOf } from "@/lib/events";
 import { useAccount, money, type Ticket } from "@/lib/demo-account";
+import TicketQr from "./TicketQr";
 
 type FlowStep = "details" | "pay" | "done";
 
@@ -232,10 +233,10 @@ export default function RsvpModal({
                 : "FREE ENTRY"}{" "}
               · {ticket.guests === 1 ? "1 SPOT" : `${ticket.guests} SPOTS`}
             </p>
-            <div className="my-5 border border-dashed border-linehi p-4 font-mono text-xl tracking-[0.14em] text-chalk">
-              {ticket.code}
+            <div className="my-5 border border-dashed border-linehi py-6">
+              <TicketQr code={ticket.code} />
             </div>
-            <p className="label text-silverdim">SHOW THIS AT THE DOOR</p>
+            <p className="label text-silverdim">SCAN THIS AT THE DOOR</p>
             <div className="mt-6 flex gap-3">
               <Link href="/account" className={`${btn} flex-1 text-center`}>
                 My tickets

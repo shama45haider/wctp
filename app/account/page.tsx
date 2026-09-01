@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useAccount, money } from "@/lib/demo-account";
 import { findEvent, monthOf, dayOf } from "@/lib/events";
+import TicketQr from "@/components/TicketQr";
 
 export default function Account() {
   const { ready, user, tickets, signOut, cancelTicket } = useAccount();
@@ -115,10 +116,10 @@ export default function Account() {
                       {ev.venue.toUpperCase()} · {ev.time}
                     </p>
                   )}
-                  <div className="mt-4 border border-dashed border-linehi p-3 text-center font-mono text-sm tracking-[0.12em] text-chalk">
-                    {t.code}
+                  <div className="mt-4 border-t border-dashed border-linehi pt-5">
+                    <TicketQr code={t.code} size={132} />
                   </div>
-                  <p className="label mt-2 text-center text-silverfaint">
+                  <p className="label mt-3 text-center text-silverfaint">
                     {t.guests === 1 ? "1 SPOT" : `${t.guests} SPOTS`}
                   </p>
                 </div>
