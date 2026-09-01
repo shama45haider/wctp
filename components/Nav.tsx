@@ -3,6 +3,7 @@ import Link from "next/link";
 export const navLinks = [
   { href: "/", label: "HOME" },
   { href: "/#events", label: "TICKETS" },
+  { href: "/artists", label: "ARTISTS" },
   { href: "/partners", label: "PARTNERS" },
 ];
 
