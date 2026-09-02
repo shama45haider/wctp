@@ -31,12 +31,15 @@ export default function Login() {
       </h1>
 
       <p className="mt-4 max-w-[38ch] text-[0.9375rem] leading-relaxed text-silverdim">
-        Sign-in, saved tickets and guest lists are still being built. Nothing to
-        log into yet - and nothing you need to do before a night.
-      </p>
-
-      <p className="mt-3 max-w-[38ch] text-[0.9375rem] leading-relaxed text-silverdim">
-        Dates, locations and drops go out on Instagram first.
+        Send suggestions to{" "}
+        <a
+          href="https://www.instagram.com/stopaura/"
+          target="_blank"
+          rel="noopener"
+          className="text-chalk underline decoration-line underline-offset-4 transition-colors hover:text-bloodhi hover:decoration-bloodhi"
+        >
+          @stopaura
+        </a>
       </p>
 
       <a
