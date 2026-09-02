@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
 
 // GitHub Pages serves this repo from https://<user>.github.io/wctp/, so the
-// build needs a basePath. Set GITHUB_PAGES=true in CI; local dev stays at /.
-const isPages = process.env.GITHUB_PAGES === "true";
+// build needs a basePath. However, with a custom domain (wecametooparty.com),
+// the site is served from root with no path prefix. Set GITHUB_PAGES=true in CI
+// only when deploying to github.io; local dev and custom domain stay at /.
+const isPages = process.env.GITHUB_PAGES === "true" && !process.env.CUSTOM_DOMAIN;
 const basePath = isPages ? "/wctp" : "";
 
 const nextConfig: NextConfig = {
