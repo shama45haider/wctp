@@ -32,6 +32,9 @@ export const metadata: Metadata = {
   title: "WECAMETOOPARTY",
   description:
     "Nights in New York City. 42 events, 4,342 people. RSVP before the location drops.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
