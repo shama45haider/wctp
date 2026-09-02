@@ -26,7 +26,17 @@ export type Tier = {
   maxPerOrder: number;
   /** Heads this one ticket lets through the door. A table admits its party. */
   admits?: number;
+  /**
+   * A donation, not an admission: the giver names the amount, it admits nobody
+   * and it is left out of stock counts, "from" prices and the service fee.
+   */
+  donation?: boolean;
+  /** Smallest accepted amount, in cents. Donations only. */
+  minCents?: number;
 };
+
+/** Suggested donation amounts, in cents. A custom amount is always allowed. */
+export const DONATION_PRESETS = [500, 1000, 2000, 5000];
 
 /** Tiers keyed by event slug. An event with no entry is not on sale. */
 const TIERS: Record<string, Tier[]> = {
@@ -41,13 +51,18 @@ const TIERS: Record<string, Tier[]> = {
       maxPerOrder: 2,
     },
     {
-      id: "skip",
-      name: "Skip The Line",
-      priceCents: 1000,
-      blurb: "Walk past the queue. Separate door, no waiting.",
-      capacity: 40,
-      sold: 12,
-      maxPerOrder: 4,
+      id: "donate",
+      name: "Donation",
+      priceCents: 0,
+      blurb: "Chip in for sound, lights and the next one. Any amount helps.",
+      // Nothing to run out of, so the capacity here is only there to satisfy
+      // the shape every tier shares; `donation` keeps it out of stock maths.
+      capacity: Number.MAX_SAFE_INTEGER,
+      sold: 0,
+      maxPerOrder: 1,
+      admits: 0,
+      donation: true,
+      minCents: 100,
     },
   ],
   "saviis-21st-color-wave": [
@@ -170,6 +185,16 @@ const TIERS: Record<string, Tier[]> = {
 
 export const tiersFor = (slug: string): Tier[] => TIERS[slug] ?? [];
 
+/**
+ * Tiers that actually get someone through a door.
+ *
+ * Stock counts, "from" prices and the on-sale/sold-out decision all run off
+ * this rather than off `tiersFor`, so an open-ended donation cannot report a
+ * million spots left or drag a listing price down to "Free".
+ */
+export const admissionTiers = (slug: string): Tier[] =>
+  tiersFor(slug).filter((t) => !t.donation);
+
 export const remaining = (t: Tier) => Math.max(0, t.capacity - t.sold);
 export const isSoldOut = (t: Tier) => remaining(t) === 0;
 export const admitsOf = (t: Pick<Tier, "admits">) => t.admits ?? 1;
@@ -183,23 +208,23 @@ export type SaleState = "on-sale" | "sold-out" | "closed";
 
 export function saleState(e: Event): SaleState {
   if (isPastEvent(e)) return "closed";
-  const tiers = tiersFor(e.slug);
+  const tiers = admissionTiers(e.slug);
   if (tiers.length === 0) return "closed";
   return tiers.every(isSoldOut) ? "sold-out" : "on-sale";
 }
 
 /** Cheapest live tier - the "from" price on a listing. Null when nothing is on sale. */
 export function priceFrom(e: Event): number | null {
-  const live = tiersFor(e.slug).filter((t) => !isSoldOut(t));
+  const live = admissionTiers(e.slug).filter((t) => !isSoldOut(t));
   if (live.length === 0) return null;
   return Math.min(...live.map((t) => t.priceCents));
 }
 
 export const ticketsLeft = (slug: string) =>
-  tiersFor(slug).reduce((n, t) => n + remaining(t), 0);
+  admissionTiers(slug).reduce((n, t) => n + remaining(t), 0);
 
 export const capacityOf = (slug: string) =>
-  tiersFor(slug).reduce((n, t) => n + t.capacity, 0);
+  admissionTiers(slug).reduce((n, t) => n + t.capacity, 0);
 
 /* ---------------------------------------------------------------- pricing -- */
 
@@ -216,6 +241,8 @@ export type OrderLine = {
   qty: number;
   unitCents: number;
   admits: number;
+  /** A gift, not an admission. No pass is issued and no fee is charged on it. */
+  donation?: boolean;
 };
 
 export type Promo = {
@@ -245,6 +272,8 @@ export const findPromo = (code: string): Promo | null =>
 export type Cart = {
   eventSlug: string;
   qty: Record<string, number>;
+  /** Chosen amount in cents for donation tiers, keyed by tier id. */
+  amounts?: Record<string, number>;
   promoCode?: string;
 };
 
@@ -262,10 +291,15 @@ export function linesFromCart(cart: Cart | null): OrderLine[] {
       tierId: t.id,
       tierName: t.name,
       qty: Math.min(cart.qty[t.id] ?? 0, maxSelectable(t)),
-      unitCents: t.priceCents,
+      // A donation is worth whatever was typed into it; every other tier is
+      // worth its listed price, whatever an old cart may claim.
+      unitCents: t.donation
+        ? Math.max(t.minCents ?? 0, cart.amounts?.[t.id] ?? 0)
+        : t.priceCents,
       admits: admitsOf(t),
+      donation: t.donation,
     }))
-    .filter((l) => l.qty > 0);
+    .filter((l) => l.qty > 0 && (!l.donation || l.unitCents > 0));
 }
 
 export const cartCount = (cart: Cart | null) =>
@@ -276,23 +310,37 @@ export type Totals = {
   discountCents: number;
   feeCents: number;
   totalCents: number;
-  /** Tickets, not heads. */
+  /** Tickets, not heads, and not donations. */
   ticketCount: number;
   /** Heads - a table for six counts as six. */
   admitCount: number;
+  /** Of the subtotal, the part that is a gift rather than an admission. */
+  donationCents: number;
 };
 
 export function totalsFor(lines: OrderLine[], promo?: Promo | null): Totals {
   const subtotalCents = lines.reduce((n, l) => n + l.unitCents * l.qty, 0);
-  const ticketCount = lines.reduce((n, l) => n + l.qty, 0);
+  const ticketCount = lines.reduce((n, l) => n + (l.donation ? 0 : l.qty), 0);
   const admitCount = lines.reduce((n, l) => n + l.qty * l.admits, 0);
-  const paidCount = lines.reduce((n, l) => n + (l.unitCents > 0 ? l.qty : 0), 0);
+  const donationCents = lines.reduce(
+    (n, l) => n + (l.donation ? l.unitCents * l.qty : 0),
+    0,
+  );
+  // Fees ride on tickets only. Taking a cut of a gift would be a strange thing
+  // to put in front of someone choosing to give.
+  const paidCount = lines.reduce(
+    (n, l) => n + (!l.donation && l.unitCents > 0 ? l.qty : 0),
+    0,
+  );
 
+  // Codes discount tickets, never the gift: a promo should not quietly shrink
+  // the amount someone chose to give.
+  const ticketSubtotal = subtotalCents - donationCents;
   let discountCents = 0;
   if (promo?.kind === "percent")
-    discountCents = Math.round((subtotalCents * (promo.value ?? 0)) / 100);
+    discountCents = Math.round((ticketSubtotal * (promo.value ?? 0)) / 100);
   if (promo?.kind === "flat")
-    discountCents = Math.min(subtotalCents, promo.value ?? 0);
+    discountCents = Math.min(ticketSubtotal, promo.value ?? 0);
 
   const discounted = subtotalCents - discountCents;
 
@@ -309,6 +357,7 @@ export function totalsFor(lines: OrderLine[], promo?: Promo | null): Totals {
     totalCents: discounted + feeCents,
     ticketCount,
     admitCount,
+    donationCents,
   };
 }
 

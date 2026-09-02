@@ -1,11 +1,12 @@
 import type { NextConfig } from "next";
 
-// GitHub Pages serves this repo from https://<user>.github.io/wctp/, so the
-// build needs a basePath. However, with a custom domain (wecametooparty.com),
-// the site is served from root with no path prefix. Set GITHUB_PAGES=true in CI
-// only when deploying to github.io; local dev and custom domain stay at /.
-const isPages = process.env.GITHUB_PAGES === "true" && !process.env.CUSTOM_DOMAIN;
-const basePath = isPages ? "/wctp" : "";
+// The site is served from the root of wecametooparty.com, so there is no path
+// prefix. It used to need basePath "/wctp" for <user>.github.io/wctp/, but a
+// custom domain redirects that URL here, so the prefix is gone for good.
+// Anything that reintroduces one (notably `static_site_generator: next` in
+// actions/configure-pages, which rewrites the config behind your back) will
+// break every asset URL on the site.
+const basePath = "";
 
 const nextConfig: NextConfig = {
   output: "export",

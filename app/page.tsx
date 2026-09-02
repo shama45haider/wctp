@@ -58,13 +58,17 @@ export default function Home() {
               {org.bio}
             </p>
 
-            {/* next-up strip */}
-            <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-4">
-              <span className="dot shrink-0" />
-              <span className="label text-bloodhi">NEXT</span>
+            {/* Next-up strip. Centred as a stack on a phone, where the pieces
+                wrap onto four ragged lines if they stay left-aligned; from sm
+                it is the single row the desktop layout expects. */}
+            <div className="mt-6 flex flex-col items-center gap-3 border-t border-line pt-4 text-center sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2 sm:text-left">
+              <span className="flex items-center gap-2">
+                <span className="dot shrink-0" />
+                <span className="label text-bloodhi">NEXT</span>
+              </span>
               <Link
                 href={`/events/${next.slug}`}
-                className="font-display text-[1.75rem] transition-colors hover:text-bloodhi"
+                className="font-display text-[1.75rem] leading-none transition-colors hover:text-bloodhi"
               >
                 {next.title}
               </Link>
@@ -75,7 +79,7 @@ export default function Home() {
               </span>
               <Link
                 href={`/events/${next.slug}#tickets`}
-                className="label ml-auto flex min-h-11 shrink-0 items-center border border-[rgba(200,16,46,0.5)] px-4 text-chalk transition-all hover:border-bloodhi hover:bg-[rgba(200,16,46,0.08)]"
+                className="label flex min-h-11 w-full shrink-0 items-center justify-center border border-[rgba(200,16,46,0.5)] px-4 text-chalk transition-all hover:border-bloodhi hover:bg-[rgba(200,16,46,0.08)] sm:ml-auto sm:w-auto"
               >
                 GET TICKETS &rarr;
               </Link>

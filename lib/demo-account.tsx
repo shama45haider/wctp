@@ -264,6 +264,31 @@ export function useAccount() {
     [setQty],
   );
 
+  /**
+   * Sets (or clears, with null) the donation amount on a tier.
+   *
+   * The amount lives beside the quantities in the cart rather than in local
+   * component state, for the same reason the quantities do: it has to survive
+   * the trip to checkout.
+   */
+  const setDonation = useCallback(
+    (eventSlug: string, tierId: string, cents: number | null) => {
+      const base: Cart =
+        snapshot.cart?.eventSlug === eventSlug
+          ? snapshot.cart
+          : { eventSlug, qty: {} };
+      const next: Cart = {
+        ...base,
+        qty: { ...base.qty, [tierId]: cents && cents > 0 ? 1 : 0 },
+        amounts: { ...base.amounts, [tierId]: Math.max(0, cents ?? 0) },
+      };
+      patch({
+        cart: Object.values(next.qty).some((n) => n > 0) ? next : null,
+      });
+    },
+    [],
+  );
+
   const setPromoCode = useCallback((code: string | null) => {
     if (!snapshot.cart) return;
     patch({
@@ -290,15 +315,19 @@ export function useAccount() {
       const t = totalsFor(lines, promo);
       const id = makeOrderId();
 
-      const passes: Pass[] = lines.flatMap((l) =>
-        Array.from({ length: l.qty }, (_, i) => ({
-          code: `${id}-${l.tierId.slice(0, 2).toUpperCase()}${i + 1}`,
-          tierId: l.tierId,
-          tierName: l.tierName,
-          admits: l.admits,
-          priceCents: l.unitCents,
-        })),
-      );
+      // Donations buy nobody entry, so they issue no pass. An order that is
+      // only a donation is a receipt, not a ticket.
+      const passes: Pass[] = lines
+        .filter((l) => !l.donation)
+        .flatMap((l) =>
+          Array.from({ length: l.qty }, (_, i) => ({
+            code: `${id}-${l.tierId.slice(0, 2).toUpperCase()}${i + 1}`,
+            tierId: l.tierId,
+            tierName: l.tierName,
+            admits: l.admits,
+            priceCents: l.unitCents,
+          })),
+        );
 
       const order: Order = {
         id,
@@ -353,6 +382,7 @@ export function useAccount() {
     markVerified,
     setQty,
     adjustQty,
+    setDonation,
     setPromoCode,
     clearCart,
     placeOrder,

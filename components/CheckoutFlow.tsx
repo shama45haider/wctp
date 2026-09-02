@@ -310,7 +310,16 @@ export default function CheckoutFlow() {
   if (!cart || lines.length === 0 || !event)
     return <NothingToBuy ticketCount={passCount} />;
 
-  const gate = !user ? "signin" : !user.verified ? "verify" : null;
+  // A donation is a gift, not an admission: no account to attach it to and
+  // nobody's age to check. Only tickets go through the gate.
+  const donationOnly = totals.ticketCount === 0 && totals.donationCents > 0;
+  const gate = donationOnly
+    ? null
+    : !user
+      ? "signin"
+      : !user.verified
+        ? "verify"
+        : null;
   const nameOk = buyer.name.trim().length > 1;
   const emailOk = EMAIL.test(buyer.email.trim());
   const detailsOk = nameOk && emailOk;
@@ -369,16 +378,27 @@ export default function CheckoutFlow() {
                           {l.tierName}
                         </p>
                         <p className="label mt-0.5 text-silverfaint">
-                          {money(l.unitCents)} EACH
+                          {l.donation
+                            ? "GIFT · NO FEE, NO TICKET"
+                            : `${money(l.unitCents)} EACH`}
                           {l.admits > 1 && ` · ADMITS ${l.admits}`}
                         </p>
                       </div>
-                      <QtyStepper
-                        qty={l.qty}
-                        max={tier ? maxSelectable(tier) : l.qty}
-                        label={l.tierName}
-                        onStep={(d) => adjustQty(event.slug, l.tierId, d)}
-                      />
+                      {l.donation ? (
+                        <Link
+                          href={`/events/${event.slug}#tickets`}
+                          className="label border border-line px-3 py-2.5 text-silverdim transition-colors hover:border-linehi hover:text-chalk"
+                        >
+                          CHANGE
+                        </Link>
+                      ) : (
+                        <QtyStepper
+                          qty={l.qty}
+                          max={tier ? maxSelectable(tier) : l.qty}
+                          label={l.tierName}
+                          onStep={(d) => adjustQty(event.slug, l.tierId, d)}
+                        />
+                      )}
                       {/* ml-auto so that when the row wraps on a narrow phone
                           the line total still lands under the stepper. */}
                       <span className="label ml-auto w-16 text-right text-chalk">
@@ -442,18 +462,20 @@ export default function CheckoutFlow() {
               {gate ? (
                 <div className="mt-6 border border-line p-5">
                   <p className="label mb-3 text-bloodhi">
-                    {gate === "signin" ? "ACCOUNT REQUIRED" : "ID CHECK REQUIRED"}
+                    {gate === "signin"
+                      ? "TICKET SALES OPEN SOON"
+                      : "ID CHECK REQUIRED"}
                   </p>
                   <p className="text-sm leading-relaxed text-silverdim">
                     {gate === "signin"
-                      ? "Tickets are tied to an account so they can be re-sent and checked at the door. Your order is held while you sign in."
+                      ? "Tickets attach to an account so they can be re-sent and checked at the door, and accounts are still being built. Your selection stays here. Donations go through now."
                       : "Our nights are 18+. Verify your age once and you are cleared for every date after this one."}
                   </p>
                   <Link
                     href={gate === "signin" ? "/login" : "/verify"}
                     className={`${btnGo} mt-5 w-full`}
                   >
-                    {gate === "signin" ? "Sign in to continue" : "Verify ID"}
+                    {gate === "signin" ? "What's coming" : "Verify ID"}
                   </Link>
                 </div>
               ) : (
@@ -621,9 +643,11 @@ export default function CheckoutFlow() {
 
               <div className="label mt-5 flex justify-between border border-line px-3 py-3">
                 <span className="text-silverfaint">
-                  {totals.ticketCount}{" "}
-                  {totals.ticketCount === 1 ? "TICKET" : "TICKETS"} ·{" "}
-                  {totals.admitCount} IN
+                  {donationOnly
+                    ? "DONATION"
+                    : `${totals.ticketCount} ${
+                        totals.ticketCount === 1 ? "TICKET" : "TICKETS"
+                      } · ${totals.admitCount} IN`}
                 </span>
                 <span className="text-chalk">{usd(totals.totalCents)}</span>
               </div>
@@ -638,7 +662,11 @@ export default function CheckoutFlow() {
                   </div>
                   <p className="label mt-2 flex justify-between text-silverfaint">
                     <span>
-                      {free ? "ISSUING TICKETS" : "AUTHORISING PAYMENT"}
+                      {free
+                        ? "ISSUING TICKETS"
+                        : donationOnly
+                          ? "SENDING DONATION"
+                          : "AUTHORISING PAYMENT"}
                     </span>
                     <span>{progress}%</span>
                   </p>
@@ -662,13 +690,16 @@ export default function CheckoutFlow() {
                     ? "Working…"
                     : free
                       ? "Confirm RSVP"
-                      : `Pay ${usd(totals.totalCents)}`}
+                      : donationOnly
+                        ? `Give ${usd(totals.totalCents)}`
+                        : `Pay ${usd(totals.totalCents)}`}
                 </button>
               </div>
 
               <p className="label mt-5 leading-loose text-silverfaint">
-                BY COMPLETING THIS ORDER YOU AGREE TO THE 18+ DOOR POLICY.
-                TICKETS ARE NON-REFUNDABLE ONCE THE LOCATION DROPS.
+                {donationOnly
+                  ? "DONATIONS SUPPORT SOUND, LIGHTS AND THE NEXT DATE. THEY ARE NOT A TICKET AND DO NOT HOLD A SPOT."
+                  : "BY COMPLETING THIS ORDER YOU AGREE TO THE 18+ DOOR POLICY. TICKETS ARE NON-REFUNDABLE ONCE THE LOCATION DROPS."}
               </p>
             </section>
           )}
@@ -691,6 +722,8 @@ export default function CheckoutFlow() {
 
 function Confirmation({ order }: { order: Order }) {
   const ev = findEvent(order.eventSlug);
+  /** Nothing was admitted, so this is a receipt for a gift rather than a ticket. */
+  const gift = order.passes.length === 0;
 
   const addToCalendar = () => {
     const ics = icsFor(order.eventSlug, order.id);
@@ -712,31 +745,46 @@ function Confirmation({ order }: { order: Order }) {
       <div className="border border-line bg-ink p-6 sm:p-8">
         <p className="label text-bloodhi">ORDER {order.id}</p>
         <h1 className="font-display chrome mt-2 text-[clamp(2.25rem,7vw,4.5rem)] leading-[0.85]">
-          You&rsquo;re in
+          {gift ? "Thank you" : "You’re in"}
         </h1>
         <p className="mt-3 max-w-[52ch] leading-relaxed text-silverdim">
-          {order.passes.length === 1 ? "One ticket" : `${order.passes.length} tickets`}{" "}
-          for {order.eventTitle}
-          {ev && `, ${ev.dow} ${dayOf(ev.date)} ${monthOf(ev.date)}`}. A copy
-          would land in {order.buyer.email} on a live build - here they live in
-          your account, on this device.
+          {gift ? (
+            <>
+              Your {usd(order.totalCents)} goes straight into {order.eventTitle}
+              {ev && `, ${ev.dow} ${dayOf(ev.date)} ${monthOf(ev.date)}`}. This
+              is a gift, not a ticket - it does not hold you a spot, so grab one
+              when sales open.
+            </>
+          ) : (
+            <>
+              {order.passes.length === 1
+                ? "One ticket"
+                : `${order.passes.length} tickets`}{" "}
+              for {order.eventTitle}
+              {ev && `, ${ev.dow} ${dayOf(ev.date)} ${monthOf(ev.date)}`}. A
+              copy would land in {order.buyer.email} on a live build - here they
+              live in your account, on this device.
+            </>
+          )}
         </p>
 
         <dl className="label mt-6 grid gap-x-8 gap-y-3 border-t border-line pt-5 sm:grid-cols-3">
           <div>
-            <dt className="text-silverfaint">PAID</dt>
+            <dt className="text-silverfaint">{gift ? "GIVEN" : "PAID"}</dt>
             <dd className="mt-1 text-chalk">
               {order.totalCents === 0 ? "FREE ENTRY" : usd(order.totalCents)}
             </dd>
           </div>
+          {!gift && (
+            <div>
+              <dt className="text-silverfaint">ADMITS</dt>
+              <dd className="mt-1 text-chalk">
+                {order.passes.reduce((n, p) => n + p.admits, 0)}
+              </dd>
+            </div>
+          )}
           <div>
-            <dt className="text-silverfaint">ADMITS</dt>
-            <dd className="mt-1 text-chalk">
-              {order.passes.reduce((n, p) => n + p.admits, 0)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-silverfaint">ISSUED TO</dt>
+            <dt className="text-silverfaint">{gift ? "FROM" : "ISSUED TO"}</dt>
             <dd className="mt-1 break-words text-chalk">{order.buyer.name}</dd>
           </div>
         </dl>
@@ -745,33 +793,39 @@ function Confirmation({ order }: { order: Order }) {
           <button onClick={addToCalendar} className={btn}>
             Add to calendar
           </button>
-          <Link href="/account" className={btn}>
-            My tickets
-          </Link>
+          {!gift && (
+            <Link href="/account" className={btn}>
+              My tickets
+            </Link>
+          )}
           <Link href="/tickets" className={btnGo}>
             Browse more dates
           </Link>
         </div>
       </div>
 
-      <h2 className="font-display mt-10 mb-5 text-[2rem]">
-        Your tickets
-        <span className="label ml-3 align-middle text-silverfaint">
-          SCAN AT THE DOOR
-        </span>
-      </h2>
+      {order.passes.length > 0 && (
+        <>
+          <h2 className="font-display mt-10 mb-5 text-[2rem]">
+            Your tickets
+            <span className="label ml-3 align-middle text-silverfaint">
+              SCAN AT THE DOOR
+            </span>
+          </h2>
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {order.passes.map((p) => (
-          <TicketPass
-            key={p.code}
-            pass={p}
-            eventSlug={order.eventSlug}
-            eventTitle={order.eventTitle}
-            orderId={order.id}
-          />
-        ))}
-      </div>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {order.passes.map((p) => (
+              <TicketPass
+                key={p.code}
+                pass={p}
+                eventSlug={order.eventSlug}
+                eventTitle={order.eventTitle}
+                orderId={order.id}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </Shell>
   );
 }
