@@ -53,6 +53,59 @@ body::before {
   mix-blend-mode: screen;
 }
 
+/* Drifting dust. Component and rationale in components/Particles.tsx. */
+.particles {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.particles span {
+  position: absolute;
+  bottom: -4px;
+  display: block;
+  border-radius: 50%;
+  background: var(--white);
+  /* Starts invisible: the keyframes fade it in once it is on screen. */
+  opacity: 0;
+  animation-name: drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  12%,
+  88% {
+    opacity: var(--p-opacity);
+  }
+  to {
+    transform: translate3d(var(--p-drift), -100vh, 0);
+    opacity: 0;
+  }
+}
+
+/* Half the dust on a phone: less to composite on the weaker GPU, and a narrow
+   viewport reads busier at the same count. */
+@media (max-width: 639px) {
+  .particles span:nth-child(n + 16) {
+    display: none;
+  }
+}
+
+/* Purely decorative motion, so it goes away entirely rather than freezing
+   mid-flight where the keyframes would leave it stacked at the bottom edge. */
+@media (prefers-reduced-motion: reduce) {
+  .particles {
+    display: none;
+  }
+}
+
 .font-display {
   font-family: var(--font-display), "Arial Narrow", sans-serif;
   font-weight: 900;

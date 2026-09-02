@@ -3,6 +3,7 @@ import { Big_Shoulders, Archivo, Martian_Mono } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import Particles from "@/components/Particles";
 
 const display = Big_Shoulders({
   variable: "--font-display",
@@ -39,6 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${display.variable} ${body.variable} ${mono.variable}`}>
+        <Particles />
         <Nav />
         {children}
         <Footer />
