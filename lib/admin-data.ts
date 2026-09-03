@@ -1,0 +1,419 @@
+"use client";
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getSupabase } from "./supabase";
+
+/**
+ * Reads and writes behind the admin dashboard.
+ *
+ * Every function returns rather than throws. The dashboard is opened on a
+ * phone at a door, usually in a hurry, and the difference between "nobody has
+ * signed up yet" and "the database is not answering" has to survive all the
+ * way to the screen - an exception loses that distinction and takes the page
+ * with it.
+ *
+ * Column names here have to match supabase/migrations/0001_accounts.sql and
+ * 0002_admin_events_verification.sql exactly; PostgREST reports a typo as a
+ * runtime error, not a build one. Rows come back snake_case and are mapped to
+ * camelCase at the edge so nothing above this file has to know that.
+ *
+ * None of these functions is a permission check. Row-level security decides
+ * what comes back, and a non-admin simply sees empty lists and writes that
+ * change nothing - which is why the writes below check that a row actually
+ * moved rather than trusting a quiet response.
+ */
+
+export type AccountRow = {
+  id: string;
+  name: string;
+  email: string;
+  instagram: string | null;
+  phone: string | null;
+  verified: boolean;
+  /** Year only. A full date of birth is never stored - see 0002. */
+  birthYear: number | null;
+  createdAt: string;
+};
+
+export type VerificationMethod = "barcode" | "document";
+export type VerificationStatus = "pending" | "approved" | "rejected";
+
+export type VerificationRow = {
+  id: string;
+  userId: string;
+  method: VerificationMethod;
+  status: VerificationStatus;
+  birthYear: number | null;
+  /** Path in the private id-documents bucket. Null for barcode scans. */
+  documentPath: string | null;
+  documentKind: string | null;
+  note: string | null;
+  createdAt: string;
+  /** Absent when the roster lookup failed; the row itself is still usable. */
+  profile?: { name: string; email: string };
+};
+
+export type EventRow = {
+  slug: string;
+  title: string;
+  date: string;
+  time: string;
+  dow: string;
+  venue: string;
+  flyerUrl: string | null;
+  blurb: string | null;
+  published: boolean;
+  createdAt: string;
+};
+
+const NOT_CONNECTED = "Not connected";
+const UNREACHABLE = "The database did not answer";
+const NO_ROW =
+  "Nothing changed - the row is gone, or this account is not an admin";
+
+/** How long any one query gets before the dashboard stops waiting on it. */
+const TIMEOUT_MS = 8000;
+
+const ID_BUCKET = "id-documents";
+
+/**
+ * Signed link lifetime.
+ *
+ * A minute is long enough to open a photo of somebody's ID and short enough
+ * that the same link, left in a history or pasted into a chat, is already dead
+ * by the time anyone else follows it. The bucket is private for the same
+ * reason; the signed URL is the only way in and should not outlive the look.
+ */
+const SIGNED_URL_SECONDS = 60;
+
+const ACCOUNT_COLUMNS =
+  "id,name,email,instagram,phone,verified,birth_year,created_at";
+const VERIFICATION_COLUMNS =
+  "id,user_id,method,status,birth_year,document_path,document_kind,note,created_at";
+const EVENT_COLUMNS =
+  "slug,title,date,time,dow,venue,flyer_url,blurb,published,created_at";
+
+type Attempt<T> = { ok: true; value: T } | { ok: false; error: string };
+
+/**
+ * Runs one query with a ceiling on how long it may take.
+ *
+ * A request to a host that has gone away does not fail - it waits on the
+ * browser's own timeout, minutes later. Anything that reaches the user here is
+ * a sentence, never a rejected promise.
+ */
+async function attempt<T>(work: PromiseLike<T>): Promise<Attempt<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(work).then((value) => ({ ok: true as const, value })),
+      new Promise<Attempt<T>>((resolve) => {
+        timer = setTimeout(
+          () => resolve({ ok: false, error: UNREACHABLE }),
+          TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error && e.message ? e.message : UNREACHABLE,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+type ProfileRecord = {
+  id: string;
+  name: string;
+  email: string;
+  instagram: string | null;
+  phone: string | null;
+  verified: boolean;
+  birth_year: number | null;
+  created_at: string;
+};
+
+type VerificationRecord = {
+  id: string;
+  user_id: string;
+  method: VerificationMethod;
+  status: VerificationStatus;
+  birth_year: number | null;
+  document_path: string | null;
+  document_kind: string | null;
+  note: string | null;
+  created_at: string;
+};
+
+type EventRecord = {
+  slug: string;
+  title: string;
+  date: string;
+  time: string;
+  dow: string;
+  venue: string;
+  flyer_url: string | null;
+  blurb: string | null;
+  published: boolean;
+  created_at: string;
+};
+
+const toAccount = (r: ProfileRecord): AccountRow => ({
+  id: r.id,
+  name: r.name,
+  email: r.email,
+  instagram: r.instagram,
+  phone: r.phone,
+  verified: r.verified,
+  birthYear: r.birth_year,
+  createdAt: r.created_at,
+});
+
+const toVerification = (r: VerificationRecord): VerificationRow => ({
+  id: r.id,
+  userId: r.user_id,
+  method: r.method,
+  status: r.status,
+  birthYear: r.birth_year,
+  documentPath: r.document_path,
+  documentKind: r.document_kind,
+  note: r.note,
+  createdAt: r.created_at,
+});
+
+const toEvent = (r: EventRecord): EventRow => ({
+  slug: r.slug,
+  title: r.title,
+  date: r.date,
+  time: r.time,
+  dow: r.dow,
+  venue: r.venue,
+  flyerUrl: r.flyer_url,
+  blurb: r.blurb,
+  published: r.published,
+  createdAt: r.created_at,
+});
+
+/** The signed in reviewer, for the reviewed_by stamp. Null rather than a throw. */
+async function currentUserId(supabase: SupabaseClient) {
+  const res = await attempt(supabase.auth.getSession());
+  if (!res.ok) return null;
+  return res.value.data.session?.user.id ?? null;
+}
+
+export async function listAccounts(): Promise<{
+  rows: AccountRow[];
+  error?: string;
+}> {
+  const supabase = getSupabase();
+  if (!supabase) return { rows: [], error: NOT_CONNECTED };
+
+  const res = await attempt(
+    supabase
+      .from("profiles")
+      // Newest first: the reason to open the roster is almost always somebody
+      // who signed up in the last hour.
+      .select(ACCOUNT_COLUMNS)
+      .order("created_at", { ascending: false }),
+  );
+  if (!res.ok) return { rows: [], error: res.error };
+
+  const { data, error } = res.value;
+  if (error) return { rows: [], error: error.message };
+  return { rows: ((data ?? []) as ProfileRecord[]).map(toAccount) };
+}
+
+export async function listVerifications(
+  status?: VerificationStatus,
+): Promise<{ rows: VerificationRow[]; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { rows: [], error: NOT_CONNECTED };
+
+  const all = supabase.from("verifications").select(VERIFICATION_COLUMNS);
+  const res = await attempt(
+    (status ? all.eq("status", status) : all)
+      // Oldest first. This is a queue, and whoever has been waiting longest to
+      // get through a door belongs at the top of it.
+      .order("created_at", { ascending: true }),
+  );
+  if (!res.ok) return { rows: [], error: res.error };
+
+  const { data, error } = res.value;
+  if (error) return { rows: [], error: error.message };
+
+  const rows = ((data ?? []) as VerificationRecord[]).map(toVerification);
+  return { rows: await withProfiles(supabase, rows) };
+}
+
+/**
+ * Attaches the name and email behind each user id.
+ *
+ * Two queries rather than one embedded select: verifications.user_id and
+ * profiles.id both point at auth.users and neither points at the other, so
+ * PostgREST has no foreign key to walk between them and rejects
+ * `profiles(name,email)` outright.
+ *
+ * A failure here is not a failure of the queue. The rows still say who is
+ * waiting, by id, and a missing display name is not worth throwing a review
+ * list away over.
+ */
+async function withProfiles(supabase: SupabaseClient, rows: VerificationRow[]) {
+  const ids = [...new Set(rows.map((r) => r.userId))];
+  if (ids.length === 0) return rows;
+
+  const res = await attempt(
+    supabase.from("profiles").select("id,name,email").in("id", ids),
+  );
+  if (!res.ok) return rows;
+
+  const { data, error } = res.value;
+  if (error) return rows;
+
+  const byId = new Map(
+    ((data ?? []) as Pick<ProfileRecord, "id" | "name" | "email">[]).map((p) => [
+      p.id,
+      { name: p.name, email: p.email },
+    ]),
+  );
+  return rows.map((r) => {
+    const profile = byId.get(r.userId);
+    return profile ? { ...r, profile } : r;
+  });
+}
+
+export async function reviewVerification(
+  id: string,
+  status: "approved" | "rejected",
+  note?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+  const patch: Record<string, unknown> = {
+    status,
+    reviewed_by: await currentUserId(supabase),
+    reviewed_at: new Date().toISOString(),
+  };
+  // Omitted rather than nulled when the caller passes nothing: approving
+  // without typing anything should not wipe what the last reviewer wrote.
+  if (note !== undefined) patch.note = note.trim() || null;
+
+  // profiles.verified is not touched here. The trigger in 0002 flips it, so
+  // the two can never be set to disagree with each other.
+  const res = await attempt(
+    supabase.from("verifications").update(patch).eq("id", id).select("id"),
+  );
+  if (!res.ok) return { ok: false, error: res.error };
+
+  const { data, error } = res.value;
+  if (error) return { ok: false, error: error.message };
+  // An update matching no row is exactly what RLS hands back to somebody who
+  // is not an admin: no error, nothing written. Left unchecked that reads as
+  // success, and the queue would appear to clear itself.
+  if (((data ?? []) as unknown[]).length === 0) {
+    return { ok: false, error: NO_ROW };
+  }
+  return { ok: true };
+}
+
+export async function listEvents(opts?: {
+  publishedOnly?: boolean;
+}): Promise<{ rows: EventRow[]; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { rows: [], error: NOT_CONNECTED };
+
+  const all = supabase.from("events").select(EVENT_COLUMNS);
+  const res = await attempt(
+    (opts?.publishedOnly ? all.eq("published", true) : all)
+      // Latest date first, so the archive sinks to the bottom of the list.
+      .order("date", { ascending: false }),
+  );
+  if (!res.ok) return { rows: [], error: res.error };
+
+  const { data, error } = res.value;
+  if (error) return { rows: [], error: error.message };
+  return { rows: ((data ?? []) as EventRecord[]).map(toEvent) };
+}
+
+export async function upsertEvent(
+  e: Partial<EventRow> & { slug: string; title: string; date: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+  const row: Record<string, unknown> = {
+    slug: e.slug,
+    title: e.title,
+    date: e.date,
+    // Nothing in the database maintains this, so the client has to. Without
+    // it an edited event keeps claiming the moment it was first written.
+    updated_at: new Date().toISOString(),
+  };
+  // Fields the caller left out stay out of the payload entirely: on an insert
+  // the column defaults from 0002 apply, and on a conflict the stored value
+  // survives instead of being blanked.
+  if (e.time !== undefined) row.time = e.time;
+  if (e.dow !== undefined) row.dow = e.dow;
+  if (e.venue !== undefined) row.venue = e.venue;
+  if (e.flyerUrl !== undefined) row.flyer_url = e.flyerUrl;
+  if (e.blurb !== undefined) row.blurb = e.blurb;
+  if (e.published !== undefined) row.published = e.published;
+
+  // created_by is left alone. An upsert cannot tell an insert from an update,
+  // and stamping the current admin on every save would quietly turn "who made
+  // this" into "who touched it last".
+  const res = await attempt(
+    supabase.from("events").upsert(row, { onConflict: "slug" }).select("slug"),
+  );
+  if (!res.ok) return { ok: false, error: res.error };
+
+  const { data, error } = res.value;
+  if (error) return { ok: false, error: error.message };
+  if (((data ?? []) as unknown[]).length === 0) {
+    return { ok: false, error: NO_ROW };
+  }
+  return { ok: true };
+}
+
+export async function deleteEvent(
+  slug: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+  const res = await attempt(
+    supabase.from("events").delete().eq("slug", slug).select("slug"),
+  );
+  if (!res.ok) return { ok: false, error: res.error };
+
+  const { data, error } = res.value;
+  if (error) return { ok: false, error: error.message };
+  // Same silence as an update: a delete a policy refuses removes nothing and
+  // says nothing about it.
+  if (((data ?? []) as unknown[]).length === 0) {
+    return { ok: false, error: NO_ROW };
+  }
+  return { ok: true };
+}
+
+/**
+ * A short-lived link to one uploaded ID document.
+ *
+ * Null covers every way this can fail - no client, no permission, no such
+ * file - because the caller can do exactly one thing about any of them, which
+ * is to not show the photo.
+ */
+export async function signedDocumentUrl(path: string): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const res = await attempt(
+    supabase.storage.from(ID_BUCKET).createSignedUrl(path, SIGNED_URL_SECONDS),
+  );
+  if (!res.ok) return null;
+
+  const { data, error } = res.value;
+  return error ? null : (data?.signedUrl ?? null);
+}

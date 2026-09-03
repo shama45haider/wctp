@@ -43,8 +43,16 @@ jobs:
       # Note: no `static_site_generator: next` on configure-pages below. That
       # option injects a basePath for a project-page URL, which is wrong here -
       # the site is served from the root of its own domain.
+      # Both values are public by design - they are compiled into the bundle the
+      # browser downloads, so they are repo variables rather than secrets. If
+      # they are unset the build still succeeds and the site runs with every
+      # Supabase-backed feature dark, which is the intended fallback rather
+      # than a broken deploy.
       - name: Build static export
         run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
