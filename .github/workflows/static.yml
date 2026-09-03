@@ -40,9 +40,6 @@ jobs:
         run: npm ci
       - name: Fetch Instagram posts
         run: node scripts/fetch-instagram.mjs
-        env:
-          IG_USER_ID: ${{ secrets.IG_USER_ID }}
-          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
       # Note: no `static_site_generator: next` on configure-pages below. That
       # option injects a basePath for a project-page URL, which is wrong here -
       # the site is served from the root of its own domain.

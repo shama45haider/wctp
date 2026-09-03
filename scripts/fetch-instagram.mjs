@@ -1,74 +1,110 @@
 /**
- * Fetches every post from the WECAMETOOPARTY Instagram account and writes them
- * to data/instagram.json, which the site reads at build time.
+ * Stub for Instagram posts. Manually curate post shortcodes in data/instagram-posts.json
+ * and this will convert them to embed data.
  *
- * Requires two env vars:
- *   IG_USER_ID      the Instagram professional account's user id
- *   IG_ACCESS_TOKEN a long-lived access token with instagram_basic scope
- *
- * If either is missing this exits 0 without writing, so builds still succeed —
- * the site just renders its "not connected" state.
- *
- * Note: this needs a Business or Creator account. The old Basic Display API
- * that worked with personal accounts was shut down in December 2024.
+ * To add posts: edit data/instagram-posts.json and add shortcodes (the 11-char ID from
+ * instagram.com/p/SHORTCODE/). This script fetches metadata for each using Instagram's
+ * public oEmbed API (no authentication needed).
  */
 import fs from "node:fs";
 import path from "node:path";
 
-const USER_ID = process.env.IG_USER_ID;
-const TOKEN = process.env.IG_ACCESS_TOKEN;
-
 const OUT_DIR = path.join(process.cwd(), "data");
 const OUT_FILE = path.join(OUT_DIR, "instagram.json");
+const POSTS_FILE = path.join(OUT_DIR, "instagram-posts.json");
 
-const FIELDS = [
-  "id",
-  "permalink",
-  "media_type",
-  "media_url",
-  "thumbnail_url",
-  "caption",
-  "timestamp",
-].join(",");
-
-if (!USER_ID || !TOKEN) {
-  console.log(
-    "[instagram] IG_USER_ID / IG_ACCESS_TOKEN not set — skipping fetch.",
-  );
-  process.exit(0);
-}
-
-const posts = [];
-let url = `https://graph.instagram.com/v21.0/${USER_ID}/media?fields=${FIELDS}&limit=100&access_token=${TOKEN}`;
-
-try {
-  // Walk every page of the media edge so we get the full archive, not just p1.
-  while (url) {
-    const res = await fetch(url);
+/**
+ * Get embed data for an Instagram post using the public oEmbed API.
+ * No authentication needed for public posts.
+ */
+async function getPostEmbed(postShortcode) {
+  try {
+    const oembedUrl = `https://www.instagram.com/oembed/?url=https://www.instagram.com/p/${postShortcode}/`;
+    const res = await fetch(oembedUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    });
     if (!res.ok) {
-      throw new Error(`${res.status} ${res.statusText} — ${await res.text()}`);
+      // Instagram returns 404 HTML for invalid posts
+      return null;
     }
-    const json = await res.json();
-    for (const m of json.data ?? []) {
-      posts.push({
-        id: m.id,
-        permalink: m.permalink,
-        mediaType: m.media_type,
-        mediaUrl: m.media_url,
-        thumbnailUrl: m.thumbnail_url,
-        caption: m.caption,
-        timestamp: m.timestamp,
-      });
+    const text = await res.text();
+    if (!text.startsWith("{")) {
+      // Response is HTML, not JSON (post doesn't exist or is private)
+      return null;
     }
-    url = json.paging?.next ?? null;
+    const data = JSON.parse(text);
+    return {
+      title: data.title || "",
+      thumbnail_url: data.thumbnail_url || "",
+      media_type: "image",
+    };
+  } catch (err) {
+    // Silently fail — post shortcode may be invalid
+    return null;
   }
-
-  fs.mkdirSync(OUT_DIR, { recursive: true });
-  fs.writeFileSync(OUT_FILE, JSON.stringify(posts, null, 2));
-  console.log(`[instagram] wrote ${posts.length} posts to data/instagram.json`);
-} catch (err) {
-  // Never fail the build on a bad token or a rate limit; fall back to the
-  // "not connected" state rather than taking the whole site down.
-  console.error(`[instagram] fetch failed, continuing without posts: ${err}`);
-  process.exit(0);
 }
+
+async function buildInstagramPosts() {
+  try {
+    // If no manual posts file exists, create an empty one
+    if (!fs.existsSync(POSTS_FILE)) {
+      console.log(
+        "[instagram] data/instagram-posts.json not found. Create it with post shortcodes to embed.",
+      );
+      fs.mkdirSync(OUT_DIR, { recursive: true });
+      fs.writeFileSync(POSTS_FILE, JSON.stringify([], null, 2));
+      fs.writeFileSync(OUT_FILE, JSON.stringify([], null, 2));
+      return;
+    }
+
+    const shortcodes = JSON.parse(fs.readFileSync(POSTS_FILE, "utf8"));
+    if (!Array.isArray(shortcodes) || shortcodes.length === 0) {
+      console.log(
+        "[instagram] data/instagram-posts.json is empty. Add shortcodes to embed posts.",
+      );
+      fs.mkdirSync(OUT_DIR, { recursive: true });
+      fs.writeFileSync(OUT_FILE, JSON.stringify([], null, 2));
+      return;
+    }
+
+    console.log(`[instagram] processing ${shortcodes.length} post(s)...`);
+
+    const posts = [];
+    for (const shortcode of shortcodes) {
+      // Delay to avoid rate limits
+      await new Promise((r) => setTimeout(r, 300));
+
+      const embedData = await getPostEmbed(shortcode);
+      if (embedData) {
+        posts.push({
+          id: shortcode,
+          permalink: `https://www.instagram.com/p/${shortcode}/`,
+          mediaType: "IMAGE",
+          mediaUrl: `https://www.instagram.com/p/${shortcode}/`,
+          thumbnailUrl: embedData.thumbnail_url,
+          caption: embedData.title,
+          timestamp: new Date().toISOString(),
+        });
+        console.log(`  ✓ ${shortcode}`);
+      } else {
+        console.log(`  ✗ ${shortcode} (oEmbed failed)`);
+      }
+    }
+
+    fs.mkdirSync(OUT_DIR, { recursive: true });
+    fs.writeFileSync(OUT_FILE, JSON.stringify(posts, null, 2));
+    console.log(
+      `[instagram] wrote ${posts.length}/${shortcodes.length} posts to data/instagram.json`,
+    );
+  } catch (err) {
+    // Never fail the build
+    console.error(`[instagram] error: ${err.message}`);
+    fs.mkdirSync(OUT_DIR, { recursive: true });
+    fs.writeFileSync(OUT_FILE, JSON.stringify([], null, 2));
+  }
+}
+
+await buildInstagramPosts();
