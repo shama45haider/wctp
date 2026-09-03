@@ -13,6 +13,7 @@ import {
 import { isSupabaseConfigured } from "./supabase";
 import { useSupabaseAuth } from "./supabase-auth";
 import { cancelOrderInDb, listOrders, syncOrder } from "./orders-data";
+import { readOwnProfile, type OwnProfile } from "./profile-data";
 
 /**
  * Client-only demo account layer.
@@ -194,13 +195,30 @@ export function useAccount() {
    */
   const auth = useSupabaseAuth();
 
+  /**
+   * The profile row behind the session.
+   *
+   * `verified` is decided in the database - an admin approving an ID sets it
+   * through the trigger in 0002, and a check done on another phone sets it
+   * there too - so reading it only out of this browser meant someone whose ID
+   * had genuinely been approved still met the gate at checkout. Null while it
+   * is being read, and null forever if it cannot be, which is why the two are
+   * ORed below rather than one preferred: a profile that will not load must
+   * never un-verify somebody this device already saw verified.
+   */
+  const [dbProfile, setDbProfile] = useState<OwnProfile | null>(null);
+
   const user: DemoUser | null = isSupabaseConfigured
     ? auth.user
       ? {
           ...localUser,
           email: auth.user.email,
-          name: localUser?.name || auth.user.email.split("@")[0],
-          verified: localUser?.verified ?? false,
+          name:
+            localUser?.name || dbProfile?.name || auth.user.email.split("@")[0],
+          instagram: localUser?.instagram ?? dbProfile?.instagram ?? undefined,
+          phone: localUser?.phone ?? dbProfile?.phone ?? undefined,
+          birthYear: localUser?.birthYear ?? dbProfile?.birthYear ?? undefined,
+          verified: Boolean(dbProfile?.verified || localUser?.verified),
         }
       : null
     : localUser;
@@ -239,6 +257,20 @@ export function useAccount() {
       setDbOrders(rows);
       setOrdersError(error ?? null);
     })();
+    return () => {
+      live = false;
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !userId) {
+      setDbProfile(null);
+      return;
+    }
+    let live = true;
+    void readOwnProfile(userId).then((p) => {
+      if (live) setDbProfile(p);
+    });
     return () => {
       live = false;
     };
