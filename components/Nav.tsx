@@ -1,4 +1,5 @@
 import Link from "next/link";
+import NavAuthButton from "./NavAuthButton";
 
 export const navLinks = [
   { href: "/", label: "HOME" },
@@ -29,12 +30,7 @@ export default function Nav() {
             </Link>
           ))}
         </div>
-        <Link
-          href="/login"
-          className="font-display flex min-h-11 items-center border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] px-[1.15rem] text-base tracking-[0.12em] text-chalk uppercase transition-all hover:border-silverdim hover:shadow-[0_8px_30px_-12px_rgba(180,195,215,0.35)]"
-        >
-          Sign up / Login
-        </Link>
+        <NavAuthButton />
       </div>
 
       {/* Second row below lg, where five inline links stop fitting beside the

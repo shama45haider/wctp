@@ -10,6 +10,8 @@ import {
   type Cart,
   type OrderLine,
 } from "./tickets";
+import { isSupabaseConfigured } from "./supabase";
+import { useSupabaseAuth } from "./supabase-auth";
 
 /**
  * Client-only demo account layer.
@@ -169,11 +171,42 @@ const rand = (n: number) =>
 const makeOrderId = () => `WCTP-${rand(6)}`;
 
 export function useAccount() {
-  const { ready, user, cart, orders } = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getServerSnapshot,
-  );
+  const {
+    ready: storeReady,
+    user: localUser,
+    cart,
+    orders,
+  } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  /**
+   * The session is the account, once there is one to have.
+   *
+   * These two used to be separate people. Signing in wrote a Supabase session
+   * while the ticket flow went on reading a localStorage record that signing
+   * in never touched, so a signed-in guest was sent back to the sign-in page
+   * the moment they picked a ticket. The session wins wherever it exists; the
+   * localStorage record is what a build with no credentials falls back to.
+   *
+   * Name and age check still come from the local record, because the ID scan
+   * writes them and has nowhere else to put them until orders move into the
+   * database. An email makes a poor name, so it is only the fallback.
+   */
+  const auth = useSupabaseAuth();
+
+  const user: DemoUser | null = isSupabaseConfigured
+    ? auth.user
+      ? {
+          ...localUser,
+          email: auth.user.email,
+          name: localUser?.name || auth.user.email.split("@")[0],
+          verified: localUser?.verified ?? false,
+        }
+      : null
+    : localUser;
+
+  // Both must have answered. Reporting ready while the session is still
+  // unknown shows the signed-out screen to somebody who is signed in.
+  const ready = storeReady && (!isSupabaseConfigured || auth.ready);
 
   const signUp = useCallback(
     (u: { name: string; email: string; instagram?: string }) =>
@@ -206,10 +239,18 @@ export function useAccount() {
     [],
   );
 
-  const signOut = useCallback(
-    () => patch({ user: null, cart: null, orders: NO_ORDERS }),
-    [],
-  );
+  /**
+   * Ends the session as well as the local record.
+   *
+   * Clearing localStorage alone would leave the Supabase session standing, and
+   * the user derived above would come straight back from it - a sign-out button
+   * that empties the cart and changes nothing else.
+   */
+  const authSignOut = auth.signOut;
+  const signOut = useCallback(async () => {
+    patch({ user: null, cart: null, orders: NO_ORDERS });
+    if (isSupabaseConfigured) await authSignOut();
+  }, [authSignOut]);
 
   /**
    * Records the outcome of the age check.
