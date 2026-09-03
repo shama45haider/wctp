@@ -452,8 +452,26 @@ export type AdminOrderRow = {
   checkedIn: number;
 };
 
-const ADMIN_ORDER_COLUMNS =
-  "id, event_slug, event_title, promo_code, subtotal_cents, discount_cents, fee_cents, total_cents, buyer_name, buyer_email, buyer_phone, created_at, cancelled_at, order_lines(tier_id, tier_name, qty, unit_cents, admits, donation), passes(used_at)";
+const ORDER_HEAD =
+  "id, event_slug, event_title, promo_code, subtotal_cents, discount_cents, fee_cents, total_cents, buyer_name, buyer_email, buyer_phone, created_at, cancelled_at";
+
+const ADMIN_ORDER_COLUMNS = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty, unit_cents, admits, donation), passes(used_at)`;
+
+/**
+ * The same query for a database where 0004 has not been run yet.
+ *
+ * order_lines.donation is the only thing that migration adds, and without it
+ * PostgREST rejects the whole select rather than returning the columns it does
+ * have - so one unrun migration takes down the entire dashboard rather than
+ * costing it a single distinction. Falling back means a promoter still sees
+ * every number; donations just look like ordinary lines until 0004 is applied.
+ */
+const ADMIN_ORDER_COLUMNS_PRE_0004 = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty, unit_cents, admits), passes(used_at)`;
+
+/** PostgREST's wording for a column the schema does not have. */
+function isMissingDonationColumn(message: string) {
+  return /donation/i.test(message) && /does not exist|could not find/i.test(message);
+}
 
 type AdminOrderRecord = {
   id: string;
@@ -530,15 +548,36 @@ export async function listAllOrders(): Promise<{
   const supabase = getSupabase();
   if (!supabase) return { rows: [], error: NOT_CONNECTED };
 
-  const res = await attempt(
-    supabase
-      .from("orders")
-      .select(ADMIN_ORDER_COLUMNS)
-      .order("created_at", { ascending: false }),
-  );
+  const read = (columns: string) =>
+    attempt(
+      supabase
+        .from("orders")
+        .select(columns)
+        .order("created_at", { ascending: false }),
+    );
+
+  let res = await read(ADMIN_ORDER_COLUMNS);
   if (!res.ok) return { rows: [], error: res.error };
 
-  const { data, error } = res.value;
+  let { data, error } = res.value;
+
+  if (error && isMissingDonationColumn(error.message)) {
+    res = await read(ADMIN_ORDER_COLUMNS_PRE_0004);
+    if (!res.ok) return { rows: [], error: res.error };
+    ({ data, error } = res.value);
+  }
+
   if (error) return { rows: [], error: error.message };
-  return { rows: ((data ?? []) as AdminOrderRecord[]).map(toAdminOrder) };
+
+  // donation is absent entirely on the fallback path rather than false, so it
+  // is defaulted at the edge instead of trusting the row to carry it.
+  // Cast through unknown: select() with a runtime string loses PostgREST's
+  // inferred row type, so it comes back as its error shape instead.
+  const rows = ((data ?? []) as unknown as AdminOrderRecord[]).map((r) =>
+    toAdminOrder({
+      ...r,
+      order_lines: (r.order_lines ?? []).map((l) => ({ ...l, donation: l.donation ?? false })),
+    }),
+  );
+  return { rows };
 }
