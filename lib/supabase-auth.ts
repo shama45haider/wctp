@@ -240,6 +240,50 @@ export function useSupabaseAuth() {
     [],
   );
 
+  const signInWithPassword = useCallback(
+    async (email: string, password: string): Promise<Outcome> => {
+      const supabase = safeClient();
+      if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+      const out = await attempt(
+        supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        }),
+      );
+      if (alive.current) setError(out.error ?? null);
+      return out;
+    },
+    [],
+  );
+
+  /**
+   * First-time password for an address that has none.
+   *
+   * An account created by an emailed code has no password until one is set, so
+   * this exists to give it one. Whether the new account can be used straight
+   * away is the project's decision, not this page's: with email confirmation
+   * switched on Supabase issues no session until the address is confirmed, and
+   * the caller has to say so rather than report a success nobody can act on.
+   */
+  const signUpWithPassword = useCallback(
+    async (email: string, password: string): Promise<Outcome> => {
+      const supabase = safeClient();
+      if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+      const out = await attempt(
+        supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: { emailRedirectTo: returnTo() },
+        }),
+      );
+      if (alive.current) setError(out.error ?? null);
+      return out;
+    },
+    [],
+  );
+
   const signOut = useCallback(async () => {
     const supabase = safeClient();
     if (!supabase) return;
@@ -275,6 +319,8 @@ export function useSupabaseAuth() {
     error,
     signInWithEmail,
     verifyOtp,
+    signInWithPassword,
+    signUpWithPassword,
     signOut,
   };
 }

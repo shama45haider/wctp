@@ -10,97 +10,100 @@ import { btn, btnGo, field } from "@/lib/ui";
 /**
  * Sign in.
  *
- * Email only. There is no password field on this page and there is nowhere in
- * the stack to check one - the site is a static export, so a password would be
- * a box that asks for a secret nothing can verify. Supabase mails a single
- * message carrying both a link back to this page and a six-digit code; whether
- * the guest follows the link or types the digits, the browser ends up holding
- * the same session.
+ * Email and password. Supabase holds the password, hashed, and checks it
+ * server side - nothing here ever sees or stores it, and it is not written to
+ * component state beyond the life of the form.
  *
- * The shell around the form is drawn in every state. When accounts are not
- * connected, the suggestions line and the admin link are the only reasons
- * anyone is still on this screen, so neither may sit inside a branch that a
- * missing database can take away.
+ * Setting a password is its own mode rather than a second page, because the
+ * accounts that already exist were made by an emailed code and so have no
+ * password at all. Whether a new one works immediately is the project's
+ * setting and not this page's: with email confirmation on, Supabase issues no
+ * session until the address is confirmed, and saying "you are in" at that
+ * point would be a lie the guest cannot act on. So the copy below checks
+ * whether a session actually appeared.
+ *
+ * The shell is drawn in every state. When accounts are not connected, the
+ * suggestions line and the admin link are the only reasons anyone is still on
+ * this screen, so neither sits inside a branch a missing database can remove.
  */
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const CODE_LENGTH = 6;
+// Supabase refuses anything shorter by default, so catching it here turns a
+// round trip and a raw API message into an answer the moment they stop typing.
+const MIN_PASSWORD = 6;
 
-type Stage = "idle" | "sending" | "awaiting-code" | "verifying" | "signed-in";
+type Mode = "sign-in" | "set-password";
 
 export default function Login() {
-  const { ready, user, isAdmin, error, signInWithEmail, verifyOtp, signOut } =
-    useSupabaseAuth();
+  const {
+    ready,
+    user,
+    isAdmin,
+    error,
+    signInWithPassword,
+    signUpWithPassword,
+    signOut,
+  } = useSupabaseAuth();
 
+  const [mode, setMode] = useState<Mode>("sign-in");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [stage, setStage] = useState<Stage>("idle");
-  // Which screen is up, tracked separately from the stage. Deriving it from
-  // the stage instead would move the guest back to the email step for as long
-  // as a second code was in flight, taking the code field with it.
-  const [sent, setSent] = useState(false);
-  // Held apart from the hook's own error: the hook rewrites its error on every
-  // call it makes, and the reason a submission was refused has to stay on
-  // screen long enough to be read.
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  // Held apart from the hook's own error, which it rewrites on every call it
+  // makes: the reason a submission was refused has to stay on screen long
+  // enough to be read.
   const [problem, setProblem] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const connected = isSupabaseConfigured;
-  const busy = stage === "sending" || stage === "verifying";
-  // An accepted code and a visible session are two different moments. Taking
-  // the stage as well as the user means the screen does not fall back to the
-  // form for a beat while the auth listener catches up.
-  const signedIn = Boolean(user) || stage === "signed-in";
-  const address = user?.email || email.trim();
+  const signedIn = Boolean(user);
   const emailOk = EMAIL.test(email.trim());
-  // The hook says "not connected" for a build with no credentials, which the
-  // prose below already says at more length. Anything else it reports - a host
-  // that will not answer, a rejected send - belongs on screen.
+  const passwordOk = password.length >= MIN_PASSWORD;
+  const canSubmit = emailOk && passwordOk && !busy;
   const message = problem ?? (connected && !signedIn ? error : null);
 
-  async function requestCode() {
-    if (!emailOk || busy) return;
+  async function submit() {
+    if (!canSubmit) return;
 
     setProblem(null);
-    setStage("sending");
+    setNotice(null);
+    setBusy(true);
 
-    const out = await signInWithEmail(email);
+    const out =
+      mode === "sign-in"
+        ? await signInWithPassword(email, password)
+        : await signUpWithPassword(email, password);
+
+    setBusy(false);
+
     if (!out.ok) {
-      setProblem(out.error ?? "The code could not be sent.");
-      // A failed resend leaves the code screen exactly where it was; only a
-      // first send that fails has an email step to fall back to.
-      setStage(sent ? "awaiting-code" : "idle");
+      setProblem(
+        out.error ??
+          (mode === "sign-in"
+            ? "That email and password were not accepted."
+            : "The password could not be set."),
+      );
       return;
     }
-    setSent(true);
-    setStage("awaiting-code");
-  }
 
-  async function submitCode() {
-    if (code.length < CODE_LENGTH || busy) return;
+    // Clear it either way - there is no state worth keeping a password in.
+    setPassword("");
 
-    setProblem(null);
-    setStage("verifying");
-
-    const out = await verifyOtp(email, code);
-    if (!out.ok) {
-      setProblem(out.error ?? "That code was not accepted.");
-      setStage("awaiting-code");
-      return;
+    if (mode === "set-password") {
+      // signUp resolving does not mean a session exists. With confirmation on,
+      // Supabase has only sent an email, and the auth listener will not fire.
+      setNotice(
+        "Password set. If nothing happens, this project has email confirmation switched on - confirm the address, then sign in.",
+      );
+      setMode("sign-in");
     }
-    setCode("");
-    setStage("signed-in");
   }
 
   async function leave() {
     await signOut();
-    startOver();
-  }
-
-  function startOver() {
-    setCode("");
+    setPassword("");
     setProblem(null);
-    setSent(false);
-    setStage("idle");
+    setNotice(null);
   }
 
   return (
@@ -122,10 +125,8 @@ export default function Login() {
       {signedIn ? (
         <section className="mt-8 w-full text-left">
           <p className="label text-silverfaint">SIGNED IN AS</p>
-          <p className="mt-2 break-all text-chalk">{address}</p>
+          <p className="mt-2 break-all text-chalk">{user?.email}</p>
 
-          {/* Stacked in a column rather than left inline: these controls are
-              inline-flex, and side by side they would fight over one line. */}
           <div className="mt-6 flex flex-col gap-3">
             <Link href="/account" className={btnGo}>
               Your account
@@ -149,73 +150,12 @@ export default function Login() {
           Accounts are not connected in this build, so there is nothing to sign
           in to yet. Everything below still works.
         </p>
-      ) : sent ? (
-        <form
-          className="mt-8 w-full text-left"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submitCode();
-          }}
-        >
-          <label htmlFor="code" className="label text-silverfaint">
-            SIX-DIGIT CODE
-          </label>
-          <input
-            id="code"
-            value={code}
-            onChange={(e) =>
-              setCode(e.target.value.replace(/\D/g, "").slice(0, CODE_LENGTH))
-            }
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={CODE_LENGTH}
-            className={`${field} mt-2 w-full text-center tracking-[0.4em]`}
-          />
-
-          <p className="label mt-3 leading-loose text-silverfaint">
-            SENT TO {address.toUpperCase()}. IT ARRIVES BY EMAIL AND CAN TAKE A
-            MINUTE - CHECK SPAM. THE LINK IN THE SAME MESSAGE SIGNS YOU IN TOO.
-          </p>
-
-          {message && (
-            <p className="label mt-3 text-bloodhi" role="alert">
-              {message}
-            </p>
-          )}
-
-          <div className="mt-6 flex flex-col gap-3">
-            <button
-              type="submit"
-              disabled={code.length < CODE_LENGTH || busy}
-              className={btnGo}
-            >
-              {stage === "verifying" ? "Checking…" : "Sign in"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void requestCode()}
-              disabled={busy}
-              className={btn}
-            >
-              {stage === "sending" ? "Sending…" : "Send another code"}
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={startOver}
-            className="label mt-5 w-full text-silverfaint transition-colors hover:text-chalk"
-          >
-            USE A DIFFERENT EMAIL
-          </button>
-        </form>
       ) : (
         <form
           className="mt-8 w-full text-left"
           onSubmit={(e) => {
             e.preventDefault();
-            void requestCode();
+            void submit();
           }}
         >
           <label htmlFor="email" className="label text-silverfaint">
@@ -231,10 +171,34 @@ export default function Login() {
             className={`${field} mt-2 w-full`}
           />
 
-          <p className="label mt-3 leading-loose text-silverfaint">
-            WE MAIL A SIX-DIGIT CODE AND A LINK THAT DOES THE SAME JOB. NO
-            PASSWORD, EVER. THE MESSAGE CAN TAKE A MINUTE TO ARRIVE.
-          </p>
+          <label htmlFor="password" className="label mt-5 block text-silverfaint">
+            PASSWORD
+          </label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setProblem(null);
+            }}
+            autoComplete={
+              mode === "sign-in" ? "current-password" : "new-password"
+            }
+            className={`${field} mt-2 w-full`}
+          />
+
+          {password.length > 0 && !passwordOk && (
+            <p className="label mt-2 text-silverfaint">
+              AT LEAST {MIN_PASSWORD} CHARACTERS
+            </p>
+          )}
+
+          {notice && (
+            <p className="label mt-3 leading-loose text-silverdim" role="status">
+              {notice.toUpperCase()}
+            </p>
+          )}
 
           {message && (
             <p className="label mt-3 text-bloodhi" role="alert">
@@ -244,10 +208,30 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={!emailOk || busy}
+            disabled={!canSubmit}
             className={`${btnGo} mt-6 w-full`}
           >
-            {stage === "sending" ? "Sending…" : "Email me a code"}
+            {busy
+              ? mode === "sign-in"
+                ? "Signing in…"
+                : "Setting…"
+              : mode === "sign-in"
+                ? "Sign in"
+                : "Set password"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMode(mode === "sign-in" ? "set-password" : "sign-in");
+              setProblem(null);
+              setNotice(null);
+            }}
+            className="label mt-5 w-full text-silverfaint transition-colors hover:text-chalk"
+          >
+            {mode === "sign-in"
+              ? "NO PASSWORD YET? SET ONE"
+              : "← BACK TO SIGNING IN"}
           </button>
         </form>
       )}
@@ -275,15 +259,12 @@ export default function Login() {
         href={org.instagram}
         target="_blank"
         rel="noopener"
-        className="font-display mt-8 flex min-h-11 w-full items-center justify-center border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] px-6 py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-bloodhi hover:shadow-[0_10px_34px_-12px_rgba(200,16,46,0.6)]"
+        className={`${btnGo} mt-8 w-full`}
       >
         Follow {org.instagramHandle}
       </a>
 
-      <Link
-        href="/tickets"
-        className="font-display mt-3 flex min-h-11 w-full items-center justify-center border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] px-6 py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-silverdim"
-      >
+      <Link href="/tickets" className={`${btn} mt-3 w-full`}>
         See the dates
       </Link>
 
