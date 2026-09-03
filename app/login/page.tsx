@@ -14,13 +14,10 @@ import { btn, btnGo, field } from "@/lib/ui";
  * server side - nothing here ever sees or stores it, and it is not written to
  * component state beyond the life of the form.
  *
- * Setting a password is its own mode rather than a second page, because the
- * accounts that already exist were made by an emailed code and so have no
- * password at all. Whether a new one works immediately is the project's
- * setting and not this page's: with email confirmation on, Supabase issues no
- * session until the address is confirmed, and saying "you are in" at that
- * point would be a lie the guest cannot act on. So the copy below checks
- * whether a session actually appeared.
+ * Signing in only. Making an account is /signup, which asks the same things
+ * one screen at a time - this page used to do both from one form behind a
+ * toggle, and a screen that quietly changes what the button does depending on
+ * a link pressed above it is a screen people submit the wrong thing on.
  *
  * The shell is drawn in every state. When accounts are not connected, the
  * suggestions line and the admin link are the only reasons anyone is still on
@@ -32,20 +29,10 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // round trip and a raw API message into an answer the moment they stop typing.
 const MIN_PASSWORD = 6;
 
-type Mode = "sign-in" | "set-password";
-
 export default function Login() {
-  const {
-    ready,
-    user,
-    isAdmin,
-    error,
-    signInWithPassword,
-    signUpWithPassword,
-    signOut,
-  } = useSupabaseAuth();
+  const { ready, user, isAdmin, error, signInWithPassword, signOut } =
+    useSupabaseAuth();
 
-  const [mode, setMode] = useState<Mode>("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -53,7 +40,6 @@ export default function Login() {
   // makes: the reason a submission was refused has to stay on screen long
   // enough to be read.
   const [problem, setProblem] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const connected = isSupabaseConfigured;
   const signedIn = Boolean(user);
@@ -66,44 +52,25 @@ export default function Login() {
     if (!canSubmit) return;
 
     setProblem(null);
-    setNotice(null);
     setBusy(true);
 
-    const out =
-      mode === "sign-in"
-        ? await signInWithPassword(email, password)
-        : await signUpWithPassword(email, password);
+    const out = await signInWithPassword(email, password);
 
     setBusy(false);
 
     if (!out.ok) {
-      setProblem(
-        out.error ??
-          (mode === "sign-in"
-            ? "That email and password were not accepted."
-            : "The password could not be set."),
-      );
+      setProblem(out.error ?? "That email and password were not accepted.");
       return;
     }
 
-    // Clear it either way - there is no state worth keeping a password in.
+    // There is no state worth keeping a password in.
     setPassword("");
-
-    if (mode === "set-password") {
-      // signUp resolving does not mean a session exists. With confirmation on,
-      // Supabase has only sent an email, and the auth listener will not fire.
-      setNotice(
-        "Password set. If nothing happens, this project has email confirmation switched on - confirm the address, then sign in.",
-      );
-      setMode("sign-in");
-    }
   }
 
   async function leave() {
     await signOut();
     setPassword("");
     setProblem(null);
-    setNotice(null);
   }
 
   return (
@@ -182,21 +149,13 @@ export default function Login() {
               setPassword(e.target.value);
               setProblem(null);
             }}
-            autoComplete={
-              mode === "sign-in" ? "current-password" : "new-password"
-            }
+            autoComplete="current-password"
             className={`${field} mt-2 w-full`}
           />
 
           {password.length > 0 && !passwordOk && (
             <p className="label mt-2 text-silverfaint">
               AT LEAST {MIN_PASSWORD} CHARACTERS
-            </p>
-          )}
-
-          {notice && (
-            <p className="label mt-3 leading-loose text-silverdim" role="status">
-              {notice.toUpperCase()}
             </p>
           )}
 
@@ -211,28 +170,15 @@ export default function Login() {
             disabled={!canSubmit}
             className={`${btnGo} mt-6 w-full`}
           >
-            {busy
-              ? mode === "sign-in"
-                ? "Signing in…"
-                : "Setting…"
-              : mode === "sign-in"
-                ? "Sign in"
-                : "Set password"}
+            {busy ? "Signing in…" : "Sign in"}
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setMode(mode === "sign-in" ? "set-password" : "sign-in");
-              setProblem(null);
-              setNotice(null);
-            }}
-            className="label mt-5 w-full text-silverfaint transition-colors hover:text-chalk"
+          <Link
+            href="/signup"
+            className="label mt-5 block w-full text-center text-silverfaint transition-colors hover:text-chalk"
           >
-            {mode === "sign-in"
-              ? "NO PASSWORD YET? SET ONE"
-              : "← BACK TO SIGNING IN"}
-          </button>
+            OR SIGN UP
+          </Link>
         </form>
       )}
 

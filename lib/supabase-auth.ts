@@ -267,15 +267,33 @@ export function useSupabaseAuth() {
    * the caller has to say so rather than report a success nobody can act on.
    */
   const signUpWithPassword = useCallback(
-    async (email: string, password: string): Promise<Outcome> => {
+    async (
+      email: string,
+      password: string,
+      // Carried into raw_user_meta_data, which handle_new_user reads when it
+      // creates the profile row. That trigger fires on the auth user, not on a
+      // session, so these survive email confirmation - there is no signed-in
+      // moment afterwards in which to write them, and asking again would be
+      // asking twice.
+      details?: { name?: string; phone?: string; nickname?: string },
+    ): Promise<Outcome> => {
       const supabase = safeClient();
       if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+      const data = Object.fromEntries(
+        Object.entries(details ?? {})
+          .map(([k, v]) => [k, v?.trim() ?? ""])
+          .filter(([, v]) => v !== ""),
+      );
 
       const out = await attempt(
         supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { emailRedirectTo: returnTo() },
+          options: {
+            emailRedirectTo: returnTo(),
+            ...(Object.keys(data).length > 0 ? { data } : {}),
+          },
         }),
       );
       if (alive.current) setError(out.error ?? null);

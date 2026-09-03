@@ -101,13 +101,11 @@ export default function NavAuthButton() {
             </p>
           </div>
 
-          <Link href="/account" role="menuitem" className={ITEM}>
+          <Link href="/profile" role="menuitem" className={ITEM}>
             Your profile
           </Link>
 
-          {/* Same page, but the tickets are below the profile on it, so this
-              lands where it says rather than at the top again. */}
-          <Link href="/account#tickets" role="menuitem" className={ITEM}>
+          <Link href="/account" role="menuitem" className={ITEM}>
             Your tickets
           </Link>
 
