@@ -56,9 +56,22 @@ export default function IdScanner({
       // PDF417 only. Narrowing the formats makes each frame markedly cheaper,
       // which matters when this is running on a phone at a door.
       hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.PDF_417]);
-      hints.set(DecodeHintType.TRY_HARDER, true);
-
-      const reader = new BrowserMultiFormatReader(hints);
+      // No TRY_HARDER: it is built for a single still image, where it is worth
+      // spending extra time - rotations, harder thresholding - because there is
+      // no second chance. Here there is a new frame every few milliseconds, so
+      // a frame that fails decodes again almost immediately for free; paying
+      // the TRY_HARDER cost on every one of them was pure waste.
+      //
+      // zxing's own default gap between attempts is 500ms, which was the
+      // actual source of "slow" - not the decode itself, a fixed half-second
+      // pause after every attempt that does not find a code, which is most of
+      // them. Set to 0 so the next frame is tried the instant this one clears;
+      // decodeFromCanvas is synchronous, so this cannot run frames concurrently
+      // with itself, only back to back instead of half a second apart.
+      const reader = new BrowserMultiFormatReader(hints, {
+        delayBetweenScanAttempts: 0,
+        delayBetweenScanSuccess: 0,
+      });
 
       // The barcode on an ID is dense, so ask for the highest resolution the
       // camera will give: at 640x480 the bars blur together and nothing reads.

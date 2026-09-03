@@ -15,8 +15,10 @@ import IdDocumentUpload from "@/components/IdDocumentUpload";
  * browser. Nothing is uploaded, and only the birth year and the name on the
  * card are kept - see markVerified.
  *
- * What that check establishes is that the barcode is well formed, unexpired and
- * says the holder is over 18. It does not establish that the card is genuine:
+ * What that check establishes is that the barcode is well formed and says the
+ * holder is over 18 - an expired card still says that, so expiry is shown but
+ * never refuses someone on its own. It does not establish that the card is
+ * genuine:
  * the payload is unsigned, and a browser cannot inspect the physical security
  * features that separate a real licence from a good copy. So the wording here
  * says "pre-checked", not "verified", and the card still gets looked at on the
@@ -218,19 +220,11 @@ function ScanOutcome({
     );
   }
 
-  const { id, age, expired } = scan;
+  const { id, age } = scan;
 
-  if (expired) {
-    return (
-      <Refused
-        title="Expired"
-        body={`That card expired on ${id.expiry}. Bring one in date, or send another ID.`}
-        onRetry={onRetry}
-        onOther={onOther}
-      />
-    );
-  }
-
+  // Expired cards are accepted. All the door needs from this check is a birth
+  // date over MIN_AGE; a licence past its own renewal date still carries a
+  // genuine one. EXPIRES is still shown below so a person can see it.
   if (age === null || age < MIN_AGE) {
     return (
       <Refused
