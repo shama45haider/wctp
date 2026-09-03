@@ -26,12 +26,16 @@ import { getSupabase } from "./supabase";
 export type AccountRow = {
   id: string;
   name: string;
+  /** What they asked to be called. Null until they set one, or before 0006. */
+  nickname: string | null;
   email: string;
   instagram: string | null;
   phone: string | null;
   verified: boolean;
   /** Year only. A full date of birth is never stored - see 0002. */
   birthYear: number | null;
+  /** Path in the public avatars bucket, or null. */
+  avatarPath: string | null;
   createdAt: string;
 };
 
@@ -88,6 +92,15 @@ const SIGNED_URL_SECONDS = 60;
 
 const ACCOUNT_COLUMNS =
   "id,name,email,instagram,phone,verified,birth_year,created_at";
+/** With the two columns 0006 adds. Fallen back from when they are not there. */
+const ACCOUNT_COLUMNS_FULL = `${ACCOUNT_COLUMNS},nickname,avatar_path`;
+
+function isMissingProfileColumn(message: string) {
+  return (
+    /nickname|avatar_path/i.test(message) &&
+    /does not exist|could not find/i.test(message)
+  );
+}
 const VERIFICATION_COLUMNS =
   "id,user_id,method,status,birth_year,document_path,document_kind,note,created_at";
 const EVENT_COLUMNS =
@@ -133,6 +146,8 @@ type ProfileRecord = {
   verified: boolean;
   birth_year: number | null;
   created_at: string;
+  nickname?: string | null;
+  avatar_path?: string | null;
 };
 
 type NamedProfile = Pick<ProfileRecord, "id" | "name" | "email">;
@@ -165,11 +180,13 @@ type EventRecord = {
 const toAccount = (r: ProfileRecord): AccountRow => ({
   id: r.id,
   name: r.name,
+  nickname: r.nickname ?? null,
   email: r.email,
   instagram: r.instagram,
   phone: r.phone,
   verified: r.verified,
   birthYear: r.birth_year,
+  avatarPath: r.avatar_path ?? null,
   createdAt: r.created_at,
 });
 
@@ -212,19 +229,52 @@ export async function listAccounts(): Promise<{
   const supabase = getSupabase();
   if (!supabase) return { rows: [], error: NOT_CONNECTED };
 
+  // Newest first: the reason to open the roster is almost always somebody
+  // who signed up in the last hour.
+  const read = (columns: string) =>
+    attempt(
+      supabase
+        .from("profiles")
+        .select(columns)
+        .order("created_at", { ascending: false }),
+    );
+
+  let res = await read(ACCOUNT_COLUMNS_FULL);
+  if (!res.ok) return { rows: [], error: res.error };
+  let { data, error } = res.value;
+
+  if (error && isMissingProfileColumn(error.message)) {
+    res = await read(ACCOUNT_COLUMNS);
+    if (!res.ok) return { rows: [], error: res.error };
+    ({ data, error } = res.value);
+  }
+
+  if (error) return { rows: [], error: error.message };
+  return { rows: ((data ?? []) as unknown as ProfileRecord[]).map(toAccount) };
+}
+
+/**
+ * Every check one guest has ever filed, newest first, for their row on the
+ * roster. No profile join: the roster row is already the profile.
+ */
+export async function listVerificationsForUser(
+  userId: string,
+): Promise<{ rows: VerificationRow[]; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { rows: [], error: NOT_CONNECTED };
+
   const res = await attempt(
     supabase
-      .from("profiles")
-      // Newest first: the reason to open the roster is almost always somebody
-      // who signed up in the last hour.
-      .select(ACCOUNT_COLUMNS)
+      .from("verifications")
+      .select(VERIFICATION_COLUMNS)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false }),
   );
   if (!res.ok) return { rows: [], error: res.error };
 
   const { data, error } = res.value;
   if (error) return { rows: [], error: error.message };
-  return { rows: ((data ?? []) as ProfileRecord[]).map(toAccount) };
+  return { rows: ((data ?? []) as VerificationRecord[]).map(toVerification) };
 }
 
 export async function listVerifications(

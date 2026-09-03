@@ -7,6 +7,7 @@ import { useAccount } from "@/lib/demo-account";
 import { scanName, type ScanResult } from "@/lib/aamva";
 import IdScanner from "@/components/IdScanner";
 import IdDocumentUpload from "@/components/IdDocumentUpload";
+import IdPhotoCapture from "@/components/IdPhotoCapture";
 
 /**
  * Age check.
@@ -32,6 +33,9 @@ type Stage =
   | { k: "choose" }
   | { k: "scan" }
   | { k: "result"; scan: ScanResult }
+  // The barcode cleared; now the front of the card, for the door to match a
+  // face against. Carries the birth year so the record can be filed with it.
+  | { k: "photo"; birthYear: number }
   | { k: "other" }
   // Filed, not decided. The barcode path can clear somebody on the spot; a
   // photo of a student card cannot, and this stage exists so the two never
@@ -65,8 +69,10 @@ export default function Verify() {
 
   const accept = (scan: ScanResult) => {
     if (!scan.ok || !scan.id.dob) return;
-    markVerified(Number(scan.id.dob.slice(0, 4)), scanName(scan.id));
-    setStage({ k: "done" });
+    const birthYear = Number(scan.id.dob.slice(0, 4));
+    // Cleared locally first, so the photo step can never un-clear it.
+    markVerified(birthYear, scanName(scan.id));
+    setStage({ k: "photo", birthYear });
   };
 
   return (
@@ -74,6 +80,8 @@ export default function Verify() {
       <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
         {stage.k === "done"
           ? "You're cleared"
+          : stage.k === "photo"
+            ? "One more"
           : stage.k === "sent"
             ? "With us"
             : "Age check"}
@@ -122,6 +130,14 @@ export default function Verify() {
           control and the date-of-birth copy - it is the only thing that knows
           whether there is a session to file the photo against. A second lead
           paragraph or a second Back here would double both. */}
+      {stage.k === "photo" && (
+        <IdPhotoCapture
+          birthYear={stage.birthYear}
+          onDone={() => setStage({ k: "done" })}
+          onSkip={() => setStage({ k: "done" })}
+        />
+      )}
+
       {stage.k === "other" && (
         <IdDocumentUpload
           onSubmitted={() => setStage({ k: "sent" })}

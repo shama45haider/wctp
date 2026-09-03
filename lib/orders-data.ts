@@ -54,17 +54,27 @@ export async function syncOrder(order: Order, userId: string): Promise<Outcome> 
   if (orderErr) return { ok: false, error: messageOf(orderErr, "The order did not save.") };
 
   if (order.lines.length > 0) {
-    const { error } = await supabase.from("order_lines").insert(
-      order.lines.map((l) => ({
-        order_id: order.id,
-        tier_id: l.tierId,
-        tier_name: l.tierName,
-        qty: l.qty,
-        unit_cents: l.unitCents,
-        admits: l.admits,
-        donation: l.donation ?? false,
-      })),
-    );
+    const base = order.lines.map((l) => ({
+      order_id: order.id,
+      tier_id: l.tierId,
+      tier_name: l.tierName,
+      qty: l.qty,
+      unit_cents: l.unitCents,
+      admits: l.admits,
+    }));
+
+    let { error } = await supabase
+      .from("order_lines")
+      .insert(base.map((row, i) => ({ ...row, donation: order.lines[i].donation ?? false })));
+
+    // donation is added by 0004. On a project that has not run it, PostgREST
+    // refuses the whole insert over that one column - which left the order row
+    // in place with no tickets on it, and the dashboard showing 0 RSVPs for a
+    // guest holding a ticket. Written again without it rather than failed.
+    if (error && /donation/i.test(error.message) && /does not exist|could not find/i.test(error.message)) {
+      ({ error } = await supabase.from("order_lines").insert(base));
+    }
+
     // Duplicate-key here means a previous attempt already wrote these lines
     // for this order id - not a real failure, so it is not reported as one.
     if (error && error.code !== "23505") {

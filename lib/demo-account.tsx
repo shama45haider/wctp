@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   findPromo,
   linesFromCart,
@@ -275,6 +282,50 @@ export function useAccount() {
       live = false;
     };
   }, [userId]);
+
+  /**
+   * Backfill.
+   *
+   * An order placed before syncing existed lives only in this browser. One
+   * whose lines failed to write - 0004 unrun at the time - sits in the
+   * database with no tickets on it. Either way the dashboard cannot see a
+   * ticket the guest can, and "I got my ticket but I am not on the list" is
+   * exactly what that looks like from the other side. Each is pushed once per
+   * id per session; syncOrder upserts the row and tolerates duplicate lines,
+   * so repeating it against one that half-landed is safe.
+   */
+  const pushed = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isSupabaseConfigured || !userId || dbOrders === null) return;
+
+    const inDb = new Map(dbOrders.map((o) => [o.id, o]));
+    const stale = localOrders.filter((o) => {
+      if (pushed.current.has(o.id)) return false;
+      const db = inDb.get(o.id);
+      return !db || (db.lines.length === 0 && o.lines.length > 0);
+    });
+    if (stale.length === 0) return;
+    stale.forEach((o) => pushed.current.add(o.id));
+
+    let live = true;
+    (async () => {
+      let landed = false;
+      for (const o of stale) {
+        const out = await syncOrder(o, userId);
+        if (!live) return;
+        if (out.ok) landed = true;
+        else setOrdersError(out.error ?? "An order did not sync.");
+      }
+      if (!landed) return;
+      const { orders: rows, error } = await listOrders(userId);
+      if (!live) return;
+      setDbOrders(rows);
+      if (error) setOrdersError(error);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [userId, dbOrders, localOrders]);
 
   // The database copy is the one other devices can see, so it wins on a
   // shared id - a door marking a pass used should show up here. Anything only

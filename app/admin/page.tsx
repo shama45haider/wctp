@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { btn, btnGo, field } from "@/lib/ui";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
@@ -8,6 +8,7 @@ import {
   listAccounts,
   listAllOrders,
   listVerifications,
+  listVerificationsForUser,
   restorePass,
   reviewVerification,
   revokeOrder,
@@ -21,6 +22,7 @@ import {
 import { useRuntimeEvents } from "@/lib/events-runtime";
 import { isPastEvent, usd } from "@/lib/tickets";
 import Flyer from "@/components/Flyer";
+import { avatarUrl } from "@/lib/profile-data";
 
 /**
  * The dashboard.
@@ -292,6 +294,11 @@ export default function Admin() {
 
   // Which party is open in the PARTIES tab, by slug. Null is the grid.
   const [party, setParty] = useState<string | null>(null);
+  // Which account row is open on the roster, and each one's checks, fetched
+  // the first time it is opened and kept - a roster is browsed, and re-reading
+  // on every tap would put a loading flash between an admin and a face.
+  const [openAccount, setOpenAccount] = useState<string | null>(null);
+  const [checks, setChecks] = useState<Record<string, Load<VerificationRow>>>({});
   const [partyQuery, setPartyQuery] = useState("");
   // The one revoke in flight, keyed so only its own button says "working".
   const [revoking, setRevoking] = useState<string | null>(null);
@@ -353,6 +360,21 @@ export default function Admin() {
     // dead weight by the time a new one lands.
     setDocs({});
   }, []);
+
+  const openRow = useCallback(
+    async (id: string) => {
+      setOpenAccount((cur) => (cur === id ? null : id));
+      if (checks[id]) return;
+      setChecks((c) => ({ ...c, [id]: { kind: "loading" } }));
+      const { rows, error } = await listVerificationsForUser(id);
+      if (!alive.current) return;
+      setChecks((c) => ({
+        ...c,
+        [id]: error ? { kind: "error", message: error } : { kind: "ready", rows },
+      }));
+    },
+    [checks],
+  );
 
   const loadOrders = useCallback(async () => {
     const { rows, error } = await listAllOrders();
@@ -1217,10 +1239,36 @@ export default function Admin() {
                     </tr>
                   </thead>
                   <tbody>
-                    {accounts.rows.map((a) => (
-                      <tr key={a.id} className="border-b border-line align-baseline">
+                    {accounts.rows.map((a) => {
+                      const open = openAccount === a.id;
+                      const load = checks[a.id];
+                      const pic = avatarUrl(a.avatarPath);
+                      return (
+                        <React.Fragment key={a.id}>
+                      <tr
+                        onClick={() => void openRow(a.id)}
+                        aria-expanded={open}
+                        className={`cursor-pointer border-b border-line align-baseline transition-colors hover:bg-ink2 ${
+                          open ? "bg-ink2" : ""
+                        }`}
+                      >
                         <td className="py-3 pr-4 text-[0.9375rem] text-chalk">
-                          {a.name.trim() || "—"}
+                          <span className="flex items-center gap-2">
+                            {pic ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={pic} alt="" className="h-7 w-7 shrink-0 rounded-full border border-line object-cover" />
+                            ) : (
+                              <span className="label flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line text-silverfaint">
+                                {(a.nickname || a.name || a.email)[0]?.toUpperCase()}
+                              </span>
+                            )}
+                            <span className="min-w-0">
+                              <span className="block truncate">{a.nickname || a.name.trim() || "—"}</span>
+                              {a.nickname && a.name.trim() && (
+                                <span className="label block truncate text-silverfaint">{a.name}</span>
+                              )}
+                            </span>
+                          </span>
                         </td>
                         <td className="label py-3 pr-4 break-all text-silverdim">
                           {a.email}
@@ -1243,7 +1291,143 @@ export default function Admin() {
                           </span>
                         </td>
                       </tr>
-                    ))}
+
+                      {open && (
+                        <tr className="border-b border-line bg-ink">
+                          <td colSpan={5} className="p-4 sm:p-5">
+                            <div className="flex flex-col gap-6 sm:flex-row">
+                              {/* ------------------------------ the person -- */}
+                              <div className="flex shrink-0 gap-4 sm:w-64 sm:flex-col">
+                                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border border-linehi bg-ink2">
+                                  {pic ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={pic} alt="" className="h-full w-full object-cover" />
+                                  ) : (
+                                    <div className="flex h-full items-center justify-center">
+                                      <span className="font-display text-[1.5rem] text-silverfaint">
+                                        {(a.nickname || a.name || a.email)[0]?.toUpperCase()}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                <dl className="min-w-0 flex-1">
+                                  {[
+                                    ["NICKNAME", a.nickname || "—"],
+                                    ["NAME ON ID", a.name.trim() || "—"],
+                                    ["EMAIL", a.email],
+                                    ["PHONE", a.phone || "—"],
+                                    ["INSTAGRAM", a.instagram ? `@${a.instagram.replace(/^@/, "")}` : "—"],
+                                    ["BORN", a.birthYear ? String(a.birthYear) : "—"],
+                                    ["JOINED", when(a.createdAt)],
+                                  ].map(([k, v]) => (
+                                    <div key={k} className="label flex items-baseline justify-between gap-3 border-b border-line py-2">
+                                      <dt className="text-silverfaint">{k}</dt>
+                                      <dd className="min-w-0 text-right break-all text-chalk">{v}</dd>
+                                    </div>
+                                  ))}
+                                </dl>
+                              </div>
+
+                              {/* ------------------------------ their checks -- */}
+                              <div className="min-w-0 flex-1">
+                                <p className="label border-b border-line py-2 text-silverfaint">
+                                  ID CHECKS{" "}
+                                  <span className="text-chalk">
+                                    {load?.kind === "ready" ? load.rows.length : "…"}
+                                  </span>
+                                </p>
+
+                                {(!load || load.kind === "loading") && (
+                                  <Waiting what="READING THEIR CHECKS…" />
+                                )}
+                                {load?.kind === "error" && (
+                                  <Failed message={load.message} onRetry={() => {
+                                    setChecks((c) => { const n = { ...c }; delete n[a.id]; return n; });
+                                    void openRow(a.id);
+                                    setOpenAccount(a.id);
+                                  }} />
+                                )}
+                                {load?.kind === "ready" && load.rows.length === 0 && (
+                                  <Empty>Nothing filed. They have not run the age check yet.</Empty>
+                                )}
+                                {load?.kind === "ready" && load.rows.length > 0 && (
+                                  <ul className="mt-3 flex flex-col gap-3">
+                                    {load.rows.map((v) => {
+                                      const doc = docs[v.id];
+                                      const documentPath = v.documentPath;
+                                      return (
+                                        <li key={v.id} className="border border-line p-3">
+                                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                            <span className="label text-chalk">
+                                              {v.method === "barcode" ? "LICENCE SCAN" : (v.documentKind ?? "DOCUMENT").toUpperCase()}
+                                            </span>
+                                            <span
+                                              className={`label border px-2 py-1 ${
+                                                v.status === "approved"
+                                                  ? "border-linehi text-chalk"
+                                                  : v.status === "rejected"
+                                                    ? "border-[rgba(200,16,46,0.5)] text-bloodhi"
+                                                    : "border-line text-silverdim"
+                                              }`}
+                                            >
+                                              {v.status.toUpperCase()}
+                                            </span>
+                                          </div>
+                                          <p className="label mt-1 text-silverfaint">
+                                            {when(v.createdAt)}
+                                            {v.birthYear ? ` · BORN ${v.birthYear}` : ""}
+                                          </p>
+                                          {v.note && (
+                                            <p className="mt-2 text-[0.875rem] leading-relaxed text-silverdim">{v.note}</p>
+                                          )}
+
+                                          {documentPath ? (
+                                            <div className="mt-3">
+                                              <button
+                                                type="button"
+                                                onClick={() => void showDocument(v.id, documentPath)}
+                                                className="label inline-flex min-h-11 items-center text-silverfaint underline decoration-line underline-offset-4 transition-colors hover:text-chalk hover:decoration-silverdim"
+                                              >
+                                                {doc?.kind === "ready" ? "RELOAD ID PHOTO" : "SHOW ID PHOTO"}
+                                              </button>
+                                              {doc?.kind === "loading" && (
+                                                <p className="label animate-pulse text-silverfaint">FETCHING A SIGNED LINK…</p>
+                                              )}
+                                              {doc?.kind === "error" && (
+                                                <p className="label text-bloodhi" role="alert">
+                                                  COULD NOT OPEN IT. THE FILE IS MISSING, OR STORAGE REFUSED THE READ.
+                                                </p>
+                                              )}
+                                              {doc?.kind === "ready" && (
+                                                <div className="mt-2">
+                                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                  <img
+                                                    src={doc.url}
+                                                    alt={`ID on file for ${a.email}`}
+                                                    className="max-h-[60vh] w-full border border-line object-contain"
+                                                  />
+                                                  <p className="label mt-2 text-silverfaint">
+                                                    THIS LINK DIES AFTER A MINUTE. RELOAD IT IF THE IMAGE GOES BLANK.
+                                                  </p>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <p className="label mt-2 text-silverfaint">NO PHOTO ON THIS ONE</p>
+                                          )}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
