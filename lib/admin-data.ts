@@ -135,6 +135,8 @@ type ProfileRecord = {
   created_at: string;
 };
 
+type NamedProfile = Pick<ProfileRecord, "id" | "name" | "email">;
+
 type VerificationRecord = {
   id: string;
   user_id: string;
@@ -272,7 +274,7 @@ async function withProfiles(supabase: SupabaseClient, rows: VerificationRow[]) {
   if (error) return rows;
 
   const byId = new Map(
-    ((data ?? []) as Pick<ProfileRecord, "id" | "name" | "email">[]).map((p) => [
+    ((data ?? []) as NamedProfile[]).map((p) => [
       p.id,
       { name: p.name, email: p.email },
     ]),

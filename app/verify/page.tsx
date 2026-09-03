@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAccount } from "@/lib/demo-account";
 import { scanName, type ScanResult } from "@/lib/aamva";
 import IdScanner from "@/components/IdScanner";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import IdDocumentUpload from "@/components/IdDocumentUpload";
 
 /**
  * Age check.
@@ -31,6 +31,10 @@ type Stage =
   | { k: "scan" }
   | { k: "result"; scan: ScanResult }
   | { k: "other" }
+  // Filed, not decided. The barcode path can clear somebody on the spot; a
+  // photo of a student card cannot, and this stage exists so the two never
+  // land on the same screen.
+  | { k: "sent" }
   | { k: "done" };
 
 export default function Verify() {
@@ -66,7 +70,11 @@ export default function Verify() {
   return (
     <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(2.5rem,7vw,5rem)]">
       <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
-        {stage.k === "done" ? "You're cleared" : "Age check"}
+        {stage.k === "done"
+          ? "You're cleared"
+          : stage.k === "sent"
+            ? "With us"
+            : "Age check"}
       </h1>
 
       {stage.k === "choose" && (
@@ -112,23 +120,44 @@ export default function Verify() {
 
       {stage.k === "result" && <ScanOutcome scan={stage.scan} onAccept={accept} onRetry={() => setStage({ k: "scan" })} onOther={() => setStage({ k: "other" })} />}
 
+      {/* The upload owns every word under this heading, including its own back
+          control and the date-of-birth copy - it is the only thing that knows
+          whether there is a session to file the photo against. A second lead
+          paragraph or a second Back here would double both. */}
       {stage.k === "other" && (
+        <IdDocumentUpload
+          onSubmitted={() => setStage({ k: "sent" })}
+          onBack={() => setStage({ k: "choose" })}
+        />
+      )}
+
+      {stage.k === "sent" && (
         <>
           <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-            Send a photo of a student or college ID and we&rsquo;ll check it by
-            hand. You&rsquo;ll hear back before the next date.
+            Your ID is in the queue. A person reads every one of these, so it is
+            not instant - you&rsquo;ll hear back before the next date, and only
+            the year of the date of birth you typed is kept.
           </p>
-          <div className="label mt-7 border border-line px-4 py-5 leading-loose text-silverfaint">
-            {isSupabaseConfigured
-              ? "UPLOAD IS BEING WIRED UP."
-              : "NOT AVAILABLE YET - THIS NEEDS THE BACKEND CONNECTED."}
+          <div className="label mt-6 flex items-center justify-between border border-line px-3 py-3">
+            <span className="text-silverfaint">ID STATUS</span>
+            <span className="text-chalk">AWAITING REVIEW</span>
           </div>
-          <button
-            onClick={() => setStage({ k: "choose" })}
-            className="label mt-5 text-silverfaint underline transition-colors hover:text-chalk"
-          >
-            &larr; BACK
-          </button>
+          {/* Not "cleared". Nothing is approved until an admin says so, and the
+              buttons below go on with the evening rather than promising it. */}
+          <div className="mt-6 flex flex-col gap-3">
+            <button
+              onClick={() => router.push(cart ? "/checkout" : "/tickets")}
+              className="font-display min-h-11 border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase transition-colors hover:border-silverdim"
+            >
+              {cart ? "Back to checkout" : "Browse tickets"}
+            </button>
+            <Link
+              href="/account"
+              className="font-display min-h-11 border border-line py-3 text-center tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk"
+            >
+              My account
+            </Link>
+          </div>
         </>
       )}
 

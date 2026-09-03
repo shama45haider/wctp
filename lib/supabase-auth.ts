@@ -25,7 +25,7 @@ export type AuthUser = { id: string; email: string } | null;
 type Outcome = { ok: boolean; error?: string };
 
 const NOT_CONNECTED =
-  "Accounts are not connected. This build has no Supabase credentials.";
+  "Accounts are not connected. This build has no working Supabase credentials.";
 const UNREACHABLE = "Could not reach the account service.";
 
 /** How long any one call gets before the page stops waiting on it. */
@@ -88,6 +88,19 @@ async function readsAsAdmin(supabase: SupabaseClient, id: string) {
 }
 
 /**
+ * getSupabase(), which can throw on its first call - createClient parses the
+ * project URL, and a mangled one in the environment would land the error
+ * inside a render instead of on the screen.
+ */
+function safeClient() {
+  try {
+    return getSupabase();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Where the emailed link comes back to.
  *
  * The page it was requested from, so signing in at the door screen returns to
@@ -101,9 +114,14 @@ function returnTo() {
 }
 
 export function useSupabaseAuth() {
-  const [sessionKnown, setSessionKnown] = useState(false);
+  // Seeded from a build-time constant rather than set from the effect below,
+  // so a build with no credentials renders its "not connected" state on the
+  // first pass instead of a loading state it would never leave.
+  const [sessionKnown, setSessionKnown] = useState(!isSupabaseConfigured);
   const [user, setUser] = useState<AuthUser>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    isSupabaseConfigured ? null : NOT_CONNECTED,
+  );
   // Carries the id it was decided for, so an answer about the previous user
   // can never be read as an answer about this one.
   const [adminFor, setAdminFor] = useState<{
@@ -120,28 +138,28 @@ export function useSupabaseAuth() {
   }, []);
 
   useEffect(() => {
-    const supabase = getSupabase();
-    if (!supabase) {
-      setError(NOT_CONNECTED);
-      setSessionKnown(true);
-      return;
-    }
-
+    const supabase = safeClient();
     let live = true;
 
-    // INITIAL_SESSION arrives as soon as the client has read storage, and
-    // normally settles this within a frame. A client whose token refresh is
-    // waiting on a host that never answers emits nothing at all, though, and
-    // the page cannot sit unrendered for as long as that takes.
-    const giveUp = setTimeout(() => {
-      if (!live) return;
-      setSessionKnown(true);
-      setError(UNREACHABLE);
-    }, TIMEOUT_MS);
+    // The backstop that guarantees `ready` flips.
+    //
+    // With a client, INITIAL_SESSION lands as soon as storage has been read
+    // and cancels this. But a client whose token refresh is waiting on a host
+    // that never answers emits nothing at all, and the page cannot stay on a
+    // spinner for as long as the browser takes to give up. With no client
+    // there is nothing to wait for, so it settles on the next tick.
+    const settle = setTimeout(
+      () => {
+        if (!live) return;
+        setSessionKnown(true);
+        setError(supabase ? UNREACHABLE : NOT_CONNECTED);
+      },
+      supabase ? TIMEOUT_MS : 0,
+    );
 
     const apply = (session: Session | null) => {
       if (!live) return;
-      clearTimeout(giveUp);
+      clearTimeout(settle);
       const next: AuthUser = session?.user
         ? { id: session.user.id, email: session.user.email ?? "" }
         : null;
@@ -158,21 +176,21 @@ export function useSupabaseAuth() {
     // Deliberately not an async callback. Awaiting inside this handler can
     // deadlock against the client's own token refresh, so the admin lookup
     // happens in the effect below, outside the callback entirely.
-    const { data } = supabase.auth.onAuthStateChange((_event, session) =>
+    const sub = supabase?.auth.onAuthStateChange((_event, session) =>
       apply(session),
     );
 
     return () => {
       live = false;
-      clearTimeout(giveUp);
-      data.subscription.unsubscribe();
+      clearTimeout(settle);
+      sub?.data.subscription.unsubscribe();
     };
   }, []);
 
   const id = user?.id;
   useEffect(() => {
     if (!id) return;
-    const supabase = getSupabase();
+    const supabase = safeClient();
     if (!supabase) return;
 
     let live = true;
@@ -186,24 +204,27 @@ export function useSupabaseAuth() {
     };
   }, [id]);
 
-  const signInWithEmail = useCallback(async (email: string): Promise<Outcome> => {
-    const supabase = getSupabase();
-    if (!supabase) return { ok: false, error: NOT_CONNECTED };
+  const signInWithEmail = useCallback(
+    async (email: string): Promise<Outcome> => {
+      const supabase = safeClient();
+      if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
-    const out = await attempt(
-      supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: returnTo() },
-      }),
-    );
-    if (alive.current) setError(out.error ?? null);
-    return out;
-  }, []);
+      const out = await attempt(
+        supabase.auth.signInWithOtp({
+          email: email.trim(),
+          options: { emailRedirectTo: returnTo() },
+        }),
+      );
+      if (alive.current) setError(out.error ?? null);
+      return out;
+    },
+    [],
+  );
 
   /** For guests who would rather type the six digits than follow the link. */
   const verifyOtp = useCallback(
     async (email: string, token: string): Promise<Outcome> => {
-      const supabase = getSupabase();
+      const supabase = safeClient();
       if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
       const out = await attempt(
@@ -220,7 +241,7 @@ export function useSupabaseAuth() {
   );
 
   const signOut = useCallback(async () => {
-    const supabase = getSupabase();
+    const supabase = safeClient();
     if (!supabase) return;
 
     // Local scope. The default signs out every device at once, and a phone

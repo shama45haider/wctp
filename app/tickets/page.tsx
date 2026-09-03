@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import TicketsBrowser from "@/components/TicketsBrowser";
+import RuntimeEvents from "@/components/RuntimeEvents";
 import { upcoming, past, org, monthOf, dayOf } from "@/lib/events";
 import { money, priceFrom, saleState, ticketsLeft } from "@/lib/tickets";
 
@@ -75,6 +76,11 @@ export default function TicketsPage() {
       </header>
 
       <TicketsBrowser upcoming={upcoming} past={past} />
+
+      {/* Dates posted from the dashboard since the last deploy. Renders nothing
+          at all when there are none, which is most nights - see the component
+          for why a database that is down has to look the same as an empty one. */}
+      <RuntimeEvents />
 
       <section className="mt-14 border-t border-line pt-8">
         <h2 className="font-display text-[1.75rem]">How the door works</h2>
