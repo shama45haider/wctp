@@ -11,7 +11,6 @@ import {
   listVerificationsForUser,
   restorePass,
   reviewVerification,
-  revokeOrder,
   revokePass,
   signedDocumentUrl,
   type AccountRow,
@@ -994,7 +993,7 @@ export default function Admin() {
                   <Kpi
                     label="CHECKED IN"
                     value={`${st.checkedIn} / ${st.passCount}`}
-                    sub={revokedCount > 0 ? `${revokedCount} REVOKED` : "AT THE DOOR"}
+                    sub={revokedCount > 0 ? `${revokedCount} CANCELLED` : "AT THE DOOR"}
                   />
                 </div>
                 {st.donationCents > 0 && (
@@ -1063,8 +1062,6 @@ export default function Admin() {
 
                     <ul className="mt-4 flex flex-col gap-3">
                       {live.map((o) => {
-                        const orderKey = `order:${o.id}`;
-                        const orderBusy = revoking === orderKey;
                         return (
                           <li key={o.id} className="border border-line p-4">
                             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -1091,7 +1088,7 @@ export default function Admin() {
                                 {o.passes.map((ps) => {
                                   const key = `pass:${ps.code}`;
                                   const busy = revoking === key;
-                                  const state = ps.revokedAt ? "REVOKED" : ps.usedAt ? "CHECKED IN" : "VALID";
+                                  const state = ps.revokedAt ? "CANCELLED" : ps.usedAt ? "CHECKED IN" : "VALID";
                                   return (
                                     <li
                                       key={ps.code}
@@ -1134,7 +1131,7 @@ export default function Admin() {
                                             onClick={() => void act(key, () => revokePass(ps.code))}
                                             className="label min-h-9 border border-line px-2 text-silverdim transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi disabled:opacity-50"
                                           >
-                                            {busy ? "…" : "REVOKE"}
+                                            {busy ? "…" : "CANCEL"}
                                           </button>
                                         )}
                                       </span>
@@ -1149,26 +1146,7 @@ export default function Admin() {
                               </ul>
                             )}
 
-                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-                              <span className="label text-silverfaint">{o.id}</span>
-                              <button
-                                type="button"
-                                disabled={revoking !== null}
-                                onClick={() => {
-                                  if (window.confirm(`Cancel the whole order for ${o.buyerName || o.buyerEmail}? Every ticket on it stops working.`)) {
-                                    void act(orderKey, () => revokeOrder(o.id));
-                                  }
-                                }}
-                                className="label min-h-9 border border-line px-3 text-silverdim transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi disabled:opacity-50"
-                              >
-                                {orderBusy ? "CANCELLING…" : "CANCEL WHOLE ORDER"}
-                              </button>
-                            </div>
-                            {revokeError?.key === orderKey && (
-                              <p className="label mt-2 text-bloodhi" role="alert">
-                                {revokeError.message}
-                              </p>
-                            )}
+                            <p className="label mt-3 border-t border-line pt-3 text-silverfaint">{o.id}</p>
                           </li>
                         );
                       })}
