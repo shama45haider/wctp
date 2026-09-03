@@ -86,11 +86,11 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Tilted flyer stack. Shown at every width - it used to be
-              `hidden md:block`, so phones opened the site with no artwork at
-              all. Below md it sits above the headline at 58vw, wide enough to
-              read the flyer and short enough to keep the name in view. */}
-          <div className="relative -order-1 mx-auto mb-8 w-[min(58vw,240px)] shrink-0 md:order-none md:mx-0 md:mb-0 md:w-[clamp(190px,22vw,270px)]">
+          {/* Tilted flyer stack, md and up only. On a phone it sat above the
+              headline and pushed the name and the next date below the fold;
+              the flyer is one tap away in the strip underneath, and the
+              headline is what the top of the page is for. */}
+          <div className="relative hidden shrink-0 md:block md:w-[clamp(190px,22vw,270px)]">
             <div className="absolute -top-3 -right-3 aspect-[4/5] w-full rotate-[5deg] border border-line bg-ink" />
             <Link
               href={`/events/${next.slug}#tickets`}
