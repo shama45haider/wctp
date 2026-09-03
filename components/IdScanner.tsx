@@ -177,8 +177,6 @@ export default function IdScanner({
             {phase === "idle" && (
               <p className="label leading-loose text-silverfaint">
                 HOLD THE BACK OF YOUR LICENCE UP TO THE CAMERA.
-                <br />
-                NOTHING IS UPLOADED - IT IS READ ON THIS DEVICE.
               </p>
             )}
             {phase === "starting" && (

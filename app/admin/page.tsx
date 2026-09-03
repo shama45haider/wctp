@@ -499,11 +499,6 @@ export default function Admin() {
           Clear scan list
         </button>
       )}
-
-      <p className="label mt-6 leading-loose text-silverfaint">
-        THIS LIST IS THIS PHONE&apos;S ONLY. TWO DOORS SCANNING THE SAME CODE
-        WILL NOT SEE EACH OTHER.
-      </p>
     </>
   );
 

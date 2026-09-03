@@ -451,11 +451,6 @@ export default function IdDocumentUpload({
         </button>
       </div>
 
-      <p className="label mt-6 leading-loose text-silverfaint">
-        THE PHOTO GOES TO PRIVATE STORAGE THAT ONLY THE DOOR TEAM CAN OPEN, AND
-        ONLY THE YEAR OF YOUR DATE OF BIRTH IS KEPT. A PERSON REVIEWS IT - THIS
-        IS NOT INSTANT.
-      </p>
     </>
   );
 }

@@ -100,10 +100,6 @@ export default function Verify() {
               Use another ID
             </button>
           </div>
-          <p className="label mt-6 leading-loose text-silverfaint">
-            A LICENCE IS READ ON THIS DEVICE AND NEVER UPLOADED. WE KEEP YOUR
-            BIRTH YEAR AND YOUR NAME - NOT YOUR ADDRESS OR DOCUMENT NUMBER.
-          </p>
         </>
       )}
 
@@ -258,9 +254,6 @@ function ScanOutcome({
           </div>
         ))}
       </dl>
-      <p className="label mt-4 leading-loose text-silverfaint">
-        ONLY YOUR NAME AND BIRTH YEAR ARE KEPT.
-      </p>
       <div className="mt-6 flex flex-col gap-3">
         <button
           onClick={() => onAccept(scan)}

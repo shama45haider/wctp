@@ -165,11 +165,6 @@ export default function Pass() {
           Mark as used
         </button>
       )}
-
-      <p className="label mt-6 leading-loose text-silverfaint">
-        USED-STATUS IS STORED ON THIS DEVICE ONLY. TWO DOORS SCANNING THE SAME
-        CODE WILL NOT SEE EACH OTHER UNTIL THERE IS A BACKEND.
-      </p>
     </main>
   );
 }

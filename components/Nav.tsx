@@ -4,7 +4,6 @@ import NavAuthButton from "./NavAuthButton";
 export const navLinks = [
   { href: "/", label: "HOME" },
   { href: "/tickets", label: "TICKETS" },
-  { href: "/account", label: "MY TICKETS" },
   { href: "/artists", label: "ARTISTS" },
   { href: "/partners", label: "PARTNERS" },
 ];

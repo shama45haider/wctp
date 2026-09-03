@@ -68,7 +68,10 @@ export default function Account() {
         </div>
       </div>
 
-      <div className="mt-8 mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div
+        id="tickets"
+        className="mt-8 mb-6 flex flex-wrap items-end justify-between gap-4 scroll-mt-28"
+      >
         <h2 className="font-display text-[2rem]">
           Tickets
           <span className="label ml-3 align-middle text-silverfaint">
@@ -161,10 +164,6 @@ export default function Account() {
           })}
         </div>
       )}
-
-      <p className="label mt-10 border-t border-line pt-5 leading-loose text-silverfaint">
-        TICKETS LIVE IN THIS BROWSER ONLY. CLEARING SITE DATA CLEARS THEM.
-      </p>
 
       <Link href="/tickets" className={`${btn} mt-6`}>
         Back to tickets
