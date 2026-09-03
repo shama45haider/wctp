@@ -8,7 +8,8 @@ import TicketPass from "@/components/TicketPass";
 import { btn, btnGo } from "@/lib/ui";
 
 export default function Account() {
-  const { ready, user, orders, passCount, signOut, cancelOrder } = useAccount();
+  const { ready, user, orders, ordersError, passCount, signOut, cancelOrder } =
+    useAccount();
 
   if (!ready) {
     return (
@@ -79,6 +80,17 @@ export default function Account() {
           BROWSE DATES &rarr;
         </Link>
       </div>
+
+      {ordersError && (
+        // What is below is still real - this says there may be more of it
+        // than what loaded, not that the list itself is wrong.
+        <p
+          className="label mb-6 border border-[rgba(200,16,46,0.5)] px-4 py-3 leading-loose text-bloodhi"
+          role="alert"
+        >
+          ORDERS FROM OTHER DEVICES MAY BE MISSING - {ordersError.toUpperCase()}
+        </p>
+      )}
 
       {orders.length === 0 ? (
         <div className="border border-dashed border-linehi p-8 text-center">

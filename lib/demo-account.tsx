@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   findPromo,
   linesFromCart,
@@ -12,6 +12,7 @@ import {
 } from "./tickets";
 import { isSupabaseConfigured } from "./supabase";
 import { useSupabaseAuth } from "./supabase-auth";
+import { cancelOrderInDb, listOrders, syncOrder } from "./orders-data";
 
 /**
  * Client-only demo account layer.
@@ -175,7 +176,7 @@ export function useAccount() {
     ready: storeReady,
     user: localUser,
     cart,
-    orders,
+    orders: localOrders,
   } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   /**
@@ -207,6 +208,53 @@ export function useAccount() {
   // Both must have answered. Reporting ready while the session is still
   // unknown shows the signed-out screen to somebody who is signed in.
   const ready = storeReady && (!isSupabaseConfigured || auth.ready);
+
+  /**
+   * Orders placed on other devices.
+   *
+   * orders/order_lines/passes have existed since the schema was first written
+   * for exactly this, and nothing ever wrote to them - placeOrder only ever
+   * touched localStorage, so a ticket bought on a phone was invisible on a
+   * laptop signed into the same account. This fetches what the database has;
+   * placeOrder below writes to it.
+   *
+   * null means "not fetched yet", not "no orders" - the merge below falls back
+   * to the local list while it is null, so a signed-in guest is never shown an
+   * empty order history for the few hundred milliseconds before this answers.
+   */
+  const [dbOrders, setDbOrders] = useState<Order[] | null>(null);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const userId = auth.user?.id;
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !userId) {
+      setDbOrders(null);
+      setOrdersError(null);
+      return;
+    }
+    let live = true;
+    (async () => {
+      const { orders: rows, error } = await listOrders(userId);
+      if (!live) return;
+      setDbOrders(rows);
+      setOrdersError(error ?? null);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [userId]);
+
+  // The database copy is the one other devices can see, so it wins on a
+  // shared id - a door marking a pass used should show up here. Anything only
+  // in localStorage is an order this device has not finished syncing yet.
+  const orders = useMemo(() => {
+    if (!isSupabaseConfigured || !userId) return localOrders;
+    const base = dbOrders ?? [];
+    const seen = new Set(base.map((o) => o.id));
+    return [...base, ...localOrders.filter((o) => !seen.has(o.id))].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    );
+  }, [localOrders, dbOrders, userId]);
 
   const signUp = useCallback(
     (u: { name: string; email: string; instagram?: string }) =>
@@ -402,15 +450,33 @@ export function useAccount() {
       };
 
       patch({ cart: null, orders: [order, ...snapshot.orders] });
+
+      // Fire and forget. The confirmation on screen is already correct without
+      // this - it is what makes the same order visible on another device, not
+      // what makes this one work. A failure here is surfaced the next time
+      // /account fetches, not blocked on now.
+      if (isSupabaseConfigured && userId) {
+        void syncOrder(order, userId).then((out) => {
+          if (!out.ok) setOrdersError(out.error ?? "The order did not sync.");
+        });
+      }
+
       return order;
     },
     [],
   );
 
   const cancelOrder = useCallback(
-    (id: string) =>
-      patch({ orders: snapshot.orders.filter((o) => o.id !== id) }),
-    [],
+    (id: string) => {
+      patch({ orders: snapshot.orders.filter((o) => o.id !== id) });
+      setDbOrders((rows) => (rows ? rows.filter((o) => o.id !== id) : rows));
+      if (isSupabaseConfigured && userId) {
+        void cancelOrderInDb(id).then((out) => {
+          if (!out.ok) setOrdersError(out.error ?? "The cancellation did not sync.");
+        });
+      }
+    },
+    [userId],
   );
 
   const findOrder = useCallback(
@@ -431,6 +497,10 @@ export function useAccount() {
     /** The cart priced against current stock. Empty when there is no cart. */
     lines,
     orders,
+    /** Set when an order placed elsewhere might not be showing here. The
+     * orders that ARE visible are still correct - this is a "there may be
+     * more" notice, not a load failure for the whole screen. */
+    ordersError,
     passCount,
     signUp,
     signIn,
