@@ -1,59 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAccount } from "@/lib/demo-account";
+import { scanName, type ScanResult } from "@/lib/aamva";
+import IdScanner from "@/components/IdScanner";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 /**
- * Age check. This deliberately never accepts a document file — the "scan" is a
- * simulation, so nobody can hand a real government ID to a static site. A live
- * build should hand this step to a KYC provider (Stripe Identity, Persona,
- * Veriff) and keep the document off our own infrastructure entirely.
+ * Age check.
+ *
+ * The licence path reads the PDF417 barcode on the back of the card in this
+ * browser. Nothing is uploaded, and only the birth year and the name on the
+ * card are kept - see markVerified.
+ *
+ * What that check establishes is that the barcode is well formed, unexpired and
+ * says the holder is over 18. It does not establish that the card is genuine:
+ * the payload is unsigned, and a browser cannot inspect the physical security
+ * features that separate a real licence from a good copy. So the wording here
+ * says "pre-checked", not "verified", and the card still gets looked at on the
+ * night. Anything stronger needs a KYC provider that examines the document
+ * itself and matches a face to it.
  */
-
-type Stage = "dob" | "scanning" | "done";
 
 const MIN_AGE = 18;
 
-const field =
-  "border border-line bg-[#0a0b0d] px-3.5 py-2.5 text-chalk transition-colors focus:border-silverdim focus:outline-none";
-
-function ageFrom(dob: string) {
-  const d = new Date(dob);
-  if (Number.isNaN(d.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - d.getFullYear();
-  const m = now.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
-  return age;
-}
+type Stage =
+  | { k: "choose" }
+  | { k: "scan" }
+  | { k: "result"; scan: ScanResult }
+  | { k: "other" }
+  | { k: "done" };
 
 export default function Verify() {
   const router = useRouter();
   const { ready, user, cart, markVerified } = useAccount();
-
-  const [stage, setStage] = useState<Stage>("dob");
-  const [dob, setDob] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    if (stage !== "scanning") return;
-    const id = window.setInterval(() => {
-      setProgress((p) => {
-        if (p >= 100) {
-          window.clearInterval(id);
-          const age = ageFrom(dob);
-          if (age !== null) markVerified(new Date(dob).getFullYear());
-          setStage("done");
-          return 100;
-        }
-        return p + 5;
-      });
-    }, 60);
-    return () => window.clearInterval(id);
-  }, [stage, dob, markVerified]);
+  const [stage, setStage] = useState<Stage>({ k: "choose" });
 
   if (ready && !user) {
     return (
@@ -74,122 +57,92 @@ export default function Verify() {
     );
   }
 
-  const start = (e: React.FormEvent) => {
-    e.preventDefault();
-    const age = ageFrom(dob);
-    if (age === null) return setError("Enter a valid date.");
-    if (age < MIN_AGE) return setError(`You must be ${MIN_AGE} or over.`);
-    if (age > 120) return setError("Enter a valid date.");
-    setError(null);
-    setProgress(0);
-    setStage("scanning");
+  const accept = (scan: ScanResult) => {
+    if (!scan.ok || !scan.id.dob) return;
+    markVerified(Number(scan.id.dob.slice(0, 4)), scanName(scan.id));
+    setStage({ k: "done" });
   };
 
   return (
     <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(2.5rem,7vw,5rem)]">
-      <div className="label mb-5 flex gap-2 text-silverfaint">
-        {["DETAILS", "ID CHECK", "CLEARED"].map((s, i) => {
-          const active =
-            (stage === "dob" && i === 1) ||
-            (stage === "scanning" && i === 1) ||
-            (stage === "done" && i === 2);
-          const passed = i === 0 || (stage === "done" && i < 2);
-          return (
-            <span
-              key={s}
-              className={`flex-1 border-t-2 pt-2 ${
-                active
-                  ? "border-blood text-bloodhi"
-                  : passed
-                    ? "border-linehi text-silverdim"
-                    : "border-line"
-              }`}
-            >
-              {s}
-            </span>
-          );
-        })}
-      </div>
+      <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
+        {stage.k === "done" ? "You're cleared" : "Age check"}
+      </h1>
 
-      {stage === "dob" && (
+      {stage.k === "choose" && (
         <>
-          <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
-            Age check
-          </h1>
           <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-            Our nights are {MIN_AGE}+. Confirm your date of birth and we&rsquo;ll
-            run a quick ID check. You only do this once.
+            Our nights are {MIN_AGE}+. Scan the back of your licence and
+            you&rsquo;re done in a second - or send another ID and we&rsquo;ll
+            check it by hand.
           </p>
-
-          <form className="mt-7" onSubmit={start}>
-            <div className="mb-2 flex flex-col gap-2">
-              <label htmlFor="dob" className="label text-silverfaint">
-                DATE OF BIRTH
-              </label>
-              <input
-                id="dob"
-                type="date"
-                required
-                value={dob}
-                onChange={(e) => setDob(e.target.value)}
-                className={`${field} [color-scheme:dark]`}
-              />
-            </div>
-            {error && (
-              <p className="label mt-3 text-bloodhi" role="alert">
-                {error.toUpperCase()}
-              </p>
-            )}
+          <div className="mt-7 flex flex-col gap-3">
             <button
-              type="submit"
-              className="font-display mt-6 w-full border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-bloodhi"
+              onClick={() => setStage({ k: "scan" })}
+              className="font-display min-h-11 border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-bloodhi"
             >
-              Continue
+              Scan my licence
             </button>
-          </form>
-
-          <p className="label mt-5 leading-loose text-silverfaint">
-            WE KEEP YOUR BIRTH YEAR ONLY. NO DOCUMENT IS UPLOADED OR STORED.
+            <button
+              onClick={() => setStage({ k: "other" })}
+              className="font-display min-h-11 border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase transition-colors hover:border-silverdim"
+            >
+              Use another ID
+            </button>
+          </div>
+          <p className="label mt-6 leading-loose text-silverfaint">
+            A LICENCE IS READ ON THIS DEVICE AND NEVER UPLOADED. WE KEEP YOUR
+            BIRTH YEAR AND YOUR NAME - NOT YOUR ADDRESS OR DOCUMENT NUMBER.
           </p>
         </>
       )}
 
-      {stage === "scanning" && (
+      {stage.k === "scan" && (
         <>
-          <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
-            Checking ID
-          </h1>
-          <div className="mt-8 border border-line bg-ink p-6">
-            <div className="hairline-x mb-5 flex aspect-[8/5] items-center justify-center opacity-40" />
-            <div className="h-1 w-full bg-line">
-              <div
-                className="h-full bg-blood transition-[width] duration-100"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="label mt-3 flex justify-between text-silverfaint">
-              <span>READING DOCUMENT</span>
-              <span>{progress}%</span>
-            </p>
-          </div>
+          <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
+            Hold the <strong className="text-chalk">back</strong> of the card up
+            to the camera - the barcode side, not the photo.
+          </p>
+          <IdScanner
+            onResult={(scan) => setStage({ k: "result", scan })}
+            onCancel={() => setStage({ k: "other" })}
+          />
         </>
       )}
 
-      {stage === "done" && (
+      {stage.k === "result" && <ScanOutcome scan={stage.scan} onAccept={accept} onRetry={() => setStage({ k: "scan" })} onOther={() => setStage({ k: "other" })} />}
+
+      {stage.k === "other" && (
         <>
-          <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
-            You&rsquo;re cleared
-          </h1>
           <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-            {user?.name}, you&rsquo;re verified for {MIN_AGE}+ nights. RSVP to
-            anything on the calendar.
+            Send a photo of a student or college ID and we&rsquo;ll check it by
+            hand. You&rsquo;ll hear back before the next date.
+          </p>
+          <div className="label mt-7 border border-line px-4 py-5 leading-loose text-silverfaint">
+            {isSupabaseConfigured
+              ? "UPLOAD IS BEING WIRED UP."
+              : "NOT AVAILABLE YET - THIS NEEDS THE BACKEND CONNECTED."}
+          </div>
+          <button
+            onClick={() => setStage({ k: "choose" })}
+            className="label mt-5 text-silverfaint underline transition-colors hover:text-chalk"
+          >
+            &larr; BACK
+          </button>
+        </>
+      )}
+
+      {stage.k === "done" && (
+        <>
+          <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
+            {user?.name}, you&rsquo;re pre-checked for {MIN_AGE}+ nights. Bring
+            the same ID - door staff still look at the card itself.
           </p>
           <div className="label mt-6 flex items-center justify-between border border-line px-3 py-3">
             <span className="text-silverfaint">ID STATUS</span>
-            <span className="text-bloodhi">VERIFIED</span>
+            <span className="text-bloodhi">PRE-CHECKED</span>
           </div>
           <div className="mt-6 flex flex-col gap-3">
-            {/* Straight back to the order they were held out of, if there is one. */}
             <button
               onClick={() => router.push(cart ? "/checkout" : "/tickets")}
               className="font-display border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase hover:border-bloodhi"
@@ -206,5 +159,136 @@ export default function Verify() {
         </>
       )}
     </main>
+  );
+}
+
+/** What the scan found, and whether it clears the door. */
+function ScanOutcome({
+  scan,
+  onAccept,
+  onRetry,
+  onOther,
+}: {
+  scan: ScanResult;
+  onAccept: (s: ScanResult) => void;
+  onRetry: () => void;
+  onOther: () => void;
+}) {
+  if (!scan.ok) {
+    return (
+      <Refused
+        title={scan.reason === "no-dob" ? "No date of birth" : "Not an ID"}
+        body={
+          scan.reason === "no-dob"
+            ? "That barcode scanned, but carried no readable date of birth."
+            : "That barcode is not a driver's licence or state ID."
+        }
+        onRetry={onRetry}
+        onOther={onOther}
+      />
+    );
+  }
+
+  const { id, age, expired } = scan;
+
+  if (expired) {
+    return (
+      <Refused
+        title="Expired"
+        body={`That card expired on ${id.expiry}. Bring one in date, or send another ID.`}
+        onRetry={onRetry}
+        onOther={onOther}
+      />
+    );
+  }
+
+  if (age === null || age < MIN_AGE) {
+    return (
+      <Refused
+        title="Under 18"
+        body="Our nights are 18+. Come back when the card says so."
+        onRetry={onRetry}
+        onOther={onOther}
+      />
+    );
+  }
+
+  return (
+    <>
+      <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
+        Read off the card. Check it&rsquo;s you, then confirm.
+      </p>
+      <dl className="mt-6 border-t border-line">
+        {[
+          ["NAME", scanName(id)],
+          ["DATE OF BIRTH", id.dob!],
+          ["AGE", `${age}`],
+          ["EXPIRES", id.expiry ?? "—"],
+          ["ISSUED BY", id.jurisdiction || "—"],
+        ].map(([k, v]) => (
+          <div
+            key={k}
+            className="label flex items-baseline justify-between gap-4 border-b border-line py-3"
+          >
+            <dt className="text-silverfaint">{k}</dt>
+            <dd className="text-right text-chalk">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="label mt-4 leading-loose text-silverfaint">
+        ONLY YOUR NAME AND BIRTH YEAR ARE KEPT.
+      </p>
+      <div className="mt-6 flex flex-col gap-3">
+        <button
+          onClick={() => onAccept(scan)}
+          className="font-display min-h-11 border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-bloodhi"
+        >
+          That&rsquo;s me
+        </button>
+        <button
+          onClick={onRetry}
+          className="font-display min-h-11 border border-line py-3 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk"
+        >
+          Scan again
+        </button>
+      </div>
+    </>
+  );
+}
+
+function Refused({
+  title,
+  body,
+  onRetry,
+  onOther,
+}: {
+  title: string;
+  body: string;
+  onRetry: () => void;
+  onOther: () => void;
+}) {
+  return (
+    <>
+      <div className="label mt-6 border border-[rgba(200,16,46,0.5)] px-4 py-4 leading-loose text-bloodhi">
+        {title.toUpperCase()}
+      </div>
+      <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
+        {body}
+      </p>
+      <div className="mt-6 flex flex-col gap-3">
+        <button
+          onClick={onRetry}
+          className="font-display min-h-11 border border-linehi py-3 tracking-[0.12em] text-chalk uppercase transition-colors hover:border-silverdim"
+        >
+          Scan again
+        </button>
+        <button
+          onClick={onOther}
+          className="font-display min-h-11 border border-line py-3 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk"
+        >
+          Use another ID
+        </button>
+      </div>
+    </>
   );
 }

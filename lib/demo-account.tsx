@@ -211,9 +211,25 @@ export function useAccount() {
     [],
   );
 
-  const markVerified = useCallback((birthYear: number) => {
+  /**
+   * Records the outcome of the age check.
+   *
+   * Only the birth year and, when a scan supplied one, the name on the card.
+   * A licence barcode also carries an address, a document number and a full
+   * date of birth; none of that is kept. A door needs to know someone is over
+   * 18 and what to call them, and anything stored beyond that is only ever a
+   * liability - the more so here, where it would sit in localStorage.
+   */
+  const markVerified = useCallback((birthYear: number, legalName?: string) => {
     if (!snapshot.user) return;
-    patch({ user: { ...snapshot.user, verified: true, birthYear } });
+    patch({
+      user: {
+        ...snapshot.user,
+        verified: true,
+        birthYear,
+        name: legalName?.trim() || snapshot.user.name,
+      },
+    });
   }, []);
 
   /**
