@@ -75,12 +75,23 @@ export default function IdScanner({
 
       // The barcode on an ID is dense, so ask for the highest resolution the
       // camera will give: at 640x480 the bars blur together and nothing reads.
+      //
+      // continuous focusMode is the other real lever, after the decode loop
+      // itself: some phones default a getUserMedia track to single-shot
+      // autofocus, which locks once on whatever the camera first sees - often
+      // an arm's length away, before the card is held up close - and then does
+      // not refocus. Every frame after that decodes against a blurred image
+      // and fails, which reads as "slow" but is really "never in focus until
+      // something else nudges it." advanced constraint sets are
+      // skip-if-unsupported per spec rather than throwing, so this costs
+      // nothing on a camera that does not support naming the mode explicitly.
       const controls = await reader.decodeFromConstraints(
         {
           video: {
             facingMode: { ideal: "environment" },
             width: { ideal: 1920 },
             height: { ideal: 1080 },
+            advanced: [{ focusMode: "continuous" } as never],
           },
         },
         videoRef.current!,
@@ -102,6 +113,20 @@ export default function IdScanner({
       const track = (videoRef.current?.srcObject as MediaStream | null)
         ?.getVideoTracks?.()[0];
       setHasTorch(Boolean((track?.getCapabilities?.() as never as { torch?: boolean })?.torch));
+
+      // Belt and suspenders: the advanced set above is not honoured by every
+      // browser at getUserMedia time, but applying it to the live track
+      // usually is. Swallowed on failure - a camera that declines this still
+      // scans, just however quickly it would have focused on its own.
+      const focusModes = (track?.getCapabilities?.() as never as { focusMode?: string[] })
+        ?.focusMode;
+      if (track && focusModes?.includes("continuous")) {
+        try {
+          await track.applyConstraints({ advanced: [{ focusMode: "continuous" } as never] });
+        } catch {
+          // Not fatal - see above.
+        }
+      }
     } catch (err) {
       const name = (err as Error)?.name;
       setPhase(name === "NotAllowedError" ? "denied" : "unsupported");
