@@ -309,17 +309,38 @@ export function useAccount() {
    * 18 and what to call them, and anything stored beyond that is only ever a
    * liability - the more so here, where it would sit in localStorage.
    */
-  const markVerified = useCallback((birthYear: number, legalName?: string) => {
-    if (!snapshot.user) return;
-    patch({
-      user: {
-        ...snapshot.user,
-        verified: true,
-        birthYear,
-        name: legalName?.trim() || snapshot.user.name,
-      },
-    });
-  }, []);
+  /**
+   * Records the outcome of the age check.
+   *
+   * snapshot.user can be null here even for someone genuinely signed in: since
+   * the session became the source of identity, nothing writes a local record
+   * on sign-in any more, so a guest who has never touched anything else on
+   * /account arrives with no local user to update. This used to bail out
+   * silently in exactly that case - the scan still ran and computed the right
+   * answer, it just had nowhere to save it, which read as "I submitted my ID
+   * and it does not save" with no error anywhere to explain why. It now
+   * starts a local record from the session's email rather than requiring one
+   * to already exist.
+   */
+  const markVerified = useCallback(
+    (birthYear: number, legalName?: string) => {
+      const base: DemoUser | null =
+        snapshot.user ??
+        (auth.user
+          ? { name: auth.user.email.split("@")[0], email: auth.user.email, verified: false }
+          : null);
+      if (!base) return;
+      patch({
+        user: {
+          ...base,
+          verified: true,
+          birthYear,
+          name: legalName?.trim() || base.name,
+        },
+      });
+    },
+    [auth.user],
+  );
 
   /**
    * Sets the quantity of one tier.
