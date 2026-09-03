@@ -8,7 +8,10 @@ import {
   listAccounts,
   listAllOrders,
   listVerifications,
+  restorePass,
   reviewVerification,
+  revokeOrder,
+  revokePass,
   signedDocumentUrl,
   type AccountRow,
   type AdminOrderRow,
@@ -17,6 +20,7 @@ import {
 } from "@/lib/admin-data";
 import { useRuntimeEvents } from "@/lib/events-runtime";
 import { isPastEvent, usd } from "@/lib/tickets";
+import Flyer from "@/components/Flyer";
 
 /**
  * The dashboard.
@@ -37,7 +41,7 @@ import { isPastEvent, usd } from "@/lib/tickets";
 
 const SCAN_KEY = "wctp.scanned";
 
-type Tab = "overview" | "accounts" | "review" | "door";
+type Tab = "parties" | "accounts" | "review" | "door";
 
 type Load<T> =
   | { kind: "loading" }
@@ -272,7 +276,7 @@ export default function Admin() {
   // whole page waits one tick rather than rendering a locked state it would
   // immediately have to correct.
   const [mounted, setMounted] = useState(false);
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>("parties");
 
   const [accounts, setAccounts] = useState<Load<AccountRow>>({
     kind: "loading",
@@ -285,6 +289,13 @@ export default function Admin() {
   });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const runtimeEvents = useRuntimeEvents();
+
+  // Which party is open in the PARTIES tab, by slug. Null is the grid.
+  const [party, setParty] = useState<string | null>(null);
+  const [partyQuery, setPartyQuery] = useState("");
+  // The one revoke in flight, keyed so only its own button says "working".
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const [revokeError, setRevokeError] = useState<{ key: string; message: string } | null>(null);
   const [docs, setDocs] = useState<Record<string, DocState>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   // Carries the decision as well as the row, so the button that was pressed is
@@ -609,6 +620,66 @@ export default function Admin() {
 
   const pending = queue.kind === "ready" ? queue.rows.length : null;
 
+  /**
+   * Revoke, then re-read every order rather than patching one row in place.
+   * The list under it is about to be rebuilt from the database either way,
+   * and a local edit that disagrees with what comes back is the one thing
+   * this screen must never show a door.
+   */
+  const act = async (key: string, work: () => Promise<{ ok: boolean; error?: string }>) => {
+    setRevoking(key);
+    setRevokeError(null);
+    const out = await work();
+    if (!alive.current) return;
+    if (!out.ok) {
+      setRevokeError({ key, message: out.error ?? "That did not go through." });
+      setRevoking(null);
+      return;
+    }
+    await loadOrders();
+    if (!alive.current) return;
+    setRevoking(null);
+  };
+
+  /** The guest list as a spreadsheet, for a door that would rather have paper. */
+  const exportCsv = (slug: string, title: string, rows: AdminOrderRow[]) => {
+    const esc = (v: string | number | null | undefined) => {
+      const t = String(v ?? "");
+      return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    };
+    const lines = [
+      ["name", "email", "phone", "tier", "pass", "status", "paid", "ordered"].join(","),
+    ];
+    for (const o of rows) {
+      const status = o.cancelledAt ? "cancelled" : "";
+      if (o.passes.length === 0) {
+        lines.push(
+          [o.buyerName, o.buyerEmail, o.buyerPhone, "gift", "", status || "gift", usd(o.totalCents), o.createdAt]
+            .map(esc)
+            .join(","),
+        );
+        continue;
+      }
+      for (const ps of o.passes) {
+        const st = status || (ps.revokedAt ? "revoked" : ps.usedAt ? "checked in" : "valid");
+        lines.push(
+          [o.buyerName, o.buyerEmail, o.buyerPhone, ps.tierName, ps.code, st, usd(o.totalCents), o.createdAt]
+            .map(esc)
+            .join(","),
+        );
+      }
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}-guest-list.csv`;
+    a.click();
+    // Released on the next tick so the click above has already started it.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    void title;
+  };
+
   const toggleExpanded = (slug: string) =>
     setExpanded((cur) => {
       const next = new Set(cur);
@@ -619,8 +690,8 @@ export default function Admin() {
 
   const tabs: { id: Tab; label: string; badge: React.ReactNode }[] = [
     {
-      id: "overview",
-      label: "OVERVIEW",
+      id: "parties",
+      label: "PARTIES",
       badge: <Badge state={orders} />,
     },
     { id: "accounts", label: "ACCOUNTS", badge: <Badge state={accounts} /> },
@@ -681,17 +752,10 @@ export default function Admin() {
         ))}
       </div>
 
-      {tab === "overview" && (
+      {tab === "parties" && (
         <section>
-          <div className="label mt-7 flex items-center justify-between border-b border-line py-3">
-            <span className="text-silverfaint">MONEY AND RSVPS</span>
-            <span className="text-chalk">
-              {orders.kind === "ready" ? `${orders.rows.length} ORDERS TOTAL` : "—"}
-            </span>
-          </div>
-
           {runtimeEvents.error && (
-            <p className="label mt-3 text-silverfaint">
+            <p className="label mt-5 text-silverfaint">
               THE EVENT LIST FELL BACK TO THE BUILT-IN DATES - {runtimeEvents.error.toUpperCase()}. ANYTHING POSTED FROM /ADMIN/EVENTS SINCE MAY NOT SHOW UP YET.
             </p>
           )}
@@ -701,237 +765,423 @@ export default function Admin() {
             <Failed message={orders.message} onRetry={retryOrders} />
           )}
 
-          {orders.kind === "ready" &&
-            (orders.rows.length === 0 ? (
-              <Empty>
-                Every order loaded and there are none yet. Numbers show up
-                here the moment the first ticket sells.
-              </Empty>
-            ) : (
-              <>
-                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <Kpi label="UPCOMING RSVPS" value={String(upcomingTotal.admitCount)} />
-                  <Kpi
-                    label="TICKET REVENUE"
-                    value={usd(upcomingTotal.ticketNetCents)}
-                    sub="AFTER PROMOS, BEFORE FEES"
-                  />
-                  <Kpi
-                    label="COLLECTED"
-                    value={usd(upcomingTotal.grossCents)}
-                    sub="WHAT GUESTS PAID, FEES INCLUDED"
-                  />
-                  <Kpi
-                    label="CHECKED IN"
-                    value={`${upcomingTotal.checkedIn} / ${upcomingTotal.passCount}`}
-                    sub="ACROSS ALL DOORS"
-                  />
-                </div>
-                {upcomingTotal.donationCents > 0 && (
-                  <p className="label mt-3 text-silverfaint">
-                    PLUS {usd(upcomingTotal.donationCents)} IN GIFTS ACROSS UPCOMING DATES
-                  </p>
-                )}
+          {orders.kind === "ready" && party === null && (
+            <>
+              {/* ------------------------------------------------ totals -- */}
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Kpi label="UPCOMING RSVPS" value={String(upcomingTotal.admitCount)} />
+                <Kpi
+                  label="TICKET REVENUE"
+                  value={usd(upcomingTotal.ticketNetCents)}
+                  sub="AFTER PROMOS, BEFORE FEES"
+                />
+                <Kpi
+                  label="COLLECTED"
+                  value={usd(upcomingTotal.grossCents)}
+                  sub="WHAT GUESTS PAID, FEES INCLUDED"
+                />
+                <Kpi
+                  label="CHECKED IN"
+                  value={`${upcomingTotal.checkedIn} / ${upcomingTotal.passCount}`}
+                  sub="ACROSS ALL DOORS"
+                />
+              </div>
+              {upcomingTotal.donationCents > 0 && (
+                <p className="label mt-3 text-silverfaint">
+                  PLUS {usd(upcomingTotal.donationCents)} IN GIFTS ACROSS UPCOMING DATES
+                </p>
+              )}
 
-                <h2 className="font-display mt-9 text-[1.5rem]">Upcoming</h2>
-                {upcomingEvents.length === 0 ? (
-                  <Empty>No upcoming dates on the list right now.</Empty>
-                ) : (
-                  <div className="mt-4 flex flex-col gap-6">
-                    {upcomingEvents.map((e) => {
-                      const s = statsBySlug.get(e.slug) ?? emptyStats();
-                      const open = expanded.has(e.slug);
-                      return (
-                        <div key={e.slug} className="border border-line p-4 sm:p-5">
-                          <div className="flex flex-wrap items-baseline justify-between gap-2">
-                            <div>
-                              <p className="text-[1.125rem] text-chalk">{e.title}</p>
-                              <p className="label mt-1 text-silverfaint">
-                                {e.dow} {e.date} · {e.time} · {e.venue}
-                              </p>
-                            </div>
-                            {s.cancelledCount > 0 && (
-                              <span className="label border border-line px-2 py-1 text-silverfaint">
-                                {s.cancelledCount} CANCELLED
-                              </span>
-                            )}
-                          </div>
+              {/* ----------------------------------------------- upcoming -- */}
+              <div className="label mt-9 flex items-center justify-between border-b border-line py-3">
+                <span className="text-silverfaint">UPCOMING</span>
+                <span className="text-chalk">{upcomingEvents.length}</span>
+              </div>
 
-                          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                            <Kpi label="RSVPS" value={String(s.admitCount)} />
-                            <Kpi label="TICKET REVENUE" value={usd(s.ticketNetCents)} />
-                            <Kpi label="COLLECTED" value={usd(s.grossCents)} />
-                            <Kpi label="CHECKED IN" value={`${s.checkedIn} / ${s.passCount}`} />
-                          </div>
-                          {s.donationCents > 0 && (
-                            <p className="label mt-3 text-silverfaint">
-                              PLUS {usd(s.donationCents)} IN GIFTS
-                            </p>
-                          )}
-
-                          {s.tiers.size > 0 && (
-                            <div className="mt-5 overflow-x-auto">
-                              <table className="w-full min-w-[420px] border-collapse text-left">
-                                <thead>
-                                  <tr className="label border-b border-line text-silverfaint">
-                                    <th className="py-2 pr-4 font-normal">TIER</th>
-                                    <th className="py-2 pr-4 font-normal">SOLD</th>
-                                    <th className="py-2 pr-4 font-normal">ADMITS</th>
-                                    <th className="py-2 font-normal">REVENUE</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {[...s.tiers.entries()].map(([tierId, t]) => (
-                                    <tr key={tierId} className="border-b border-line">
-                                      <td className="py-2 pr-4 text-[0.9375rem] text-chalk">
-                                        {t.tierName}
-                                      </td>
-                                      <td className="label py-2 pr-4 text-silverdim">{t.qty}</td>
-                                      <td className="label py-2 pr-4 text-silverdim">{t.admits}</td>
-                                      <td className="label py-2 text-silverdim">
-                                        {usd(t.revenueCents)}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-
-                          {s.rows.length === 0 && s.cancelledRows.length === 0 ? (
-                            <p className="mt-4 text-[0.9375rem] text-silverdim">
-                              Nobody has RSVP&apos;d yet.
-                            </p>
+              {upcomingEvents.length === 0 ? (
+                <Empty>No upcoming dates on the list right now.</Empty>
+              ) : (
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {upcomingEvents.map((e) => {
+                    const st = statsBySlug.get(e.slug) ?? emptyStats();
+                    return (
+                      <button
+                        key={e.slug}
+                        type="button"
+                        onClick={() => {
+                          setParty(e.slug);
+                          setPartyQuery("");
+                          setRevokeError(null);
+                        }}
+                        className="group flex flex-col border border-line bg-ink text-left transition-colors hover:border-bloodhi"
+                      >
+                        <span className="relative block aspect-[3/4] overflow-hidden">
+                          {e.imageId ? (
+                            <Flyer
+                              id={e.imageId}
+                              alt={e.title}
+                              sizes="(max-width:639px) 46vw, (max-width:1023px) 30vw, 280px"
+                              maxWidth={400}
+                              className="transition-transform duration-500 group-hover:scale-[1.03]"
+                            />
                           ) : (
-                            <>
-                              <button
-                                onClick={() => toggleExpanded(e.slug)}
-                                className="label mt-5 text-silverfaint underline decoration-line underline-offset-4 transition-colors hover:text-chalk hover:decoration-silverdim"
-                              >
-                                {open
-                                  ? "HIDE GUEST LIST"
-                                  : `SHOW GUEST LIST (${s.rows.length})`}
-                              </button>
-
-                              {open && (
-                                <div className="mt-4 overflow-x-auto">
-                                  <table className="w-full min-w-[560px] border-collapse text-left">
-                                    <thead>
-                                      <tr className="label border-b border-line text-silverfaint">
-                                        <th className="py-2 pr-4 font-normal">GUEST</th>
-                                        <th className="py-2 pr-4 font-normal">TIER</th>
-                                        <th className="py-2 pr-4 font-normal">PAID</th>
-                                        <th className="py-2 font-normal">WHEN</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {s.rows.map((o) => (
-                                        <tr
-                                          key={o.id}
-                                          className="border-b border-line align-baseline"
-                                        >
-                                          <td className="py-2 pr-4 text-[0.9375rem] text-chalk">
-                                            {o.buyerName || "—"}
-                                            <span className="label block text-silverfaint">
-                                              {o.buyerEmail}
-                                            </span>
-                                          </td>
-                                          <td className="label py-2 pr-4 text-silverdim">
-                                            {o.lines
-                                              .map((l) => `${l.qty}× ${l.tierName}`)
-                                              .join(", ") || "—"}
-                                          </td>
-                                          <td className="label py-2 pr-4 text-silverdim">
-                                            {usd(o.totalCents)}
-                                          </td>
-                                          <td className="label py-2 whitespace-nowrap text-silverfaint">
-                                            {when(o.createdAt)}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                      {s.cancelledRows.map((o) => (
-                                        <tr
-                                          key={o.id}
-                                          className="border-b border-line align-baseline opacity-50"
-                                        >
-                                          <td className="py-2 pr-4 text-[0.9375rem] text-chalk line-through">
-                                            {o.buyerName || "—"}
-                                            <span className="label block text-silverfaint no-underline">
-                                              {o.buyerEmail}
-                                            </span>
-                                          </td>
-                                          <td className="label py-2 pr-4 text-silverdim">
-                                            CANCELLED
-                                          </td>
-                                          <td className="label py-2 pr-4 text-silverdim">
-                                            {usd(o.totalCents)}
-                                          </td>
-                                          <td className="label py-2 whitespace-nowrap text-silverfaint">
-                                            {when(o.createdAt)}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                            </>
+                            <span className="hairline-x label flex h-full items-center justify-center bg-ink2 text-silverfaint">
+                              NO FLYER
+                            </span>
                           )}
-                        </div>
+                          <span className="absolute inset-0 bg-gradient-to-t from-[rgba(5,5,5,0.94)] via-[rgba(5,5,5,0.2)] to-transparent" />
+                          <span className="absolute right-2 bottom-2 left-2">
+                            <span className="font-display block text-[1.5rem] leading-none text-chalk">
+                              {st.admitCount}
+                            </span>
+                            <span className="label text-silverfaint">
+                              {st.admitCount === 1 ? "RSVP" : "RSVPS"} · {usd(st.ticketNetCents)}
+                            </span>
+                          </span>
+                        </span>
+                        <span className="block p-3">
+                          <span className="block truncate text-[0.9375rem] text-chalk">
+                            {e.title}
+                          </span>
+                          <span className="label mt-1 block text-silverfaint">
+                            {e.dow} {e.date}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* --------------------------------------------------- past -- */}
+              {pastEvents.length > 0 && (
+                <>
+                  <div className="label mt-10 flex items-center justify-between border-b border-line py-3">
+                    <span className="text-silverfaint">PAST</span>
+                    <span className="text-chalk">{pastEvents.length}</span>
+                  </div>
+                  <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                    {pastEvents.map((e) => {
+                      const st = statsBySlug.get(e.slug) ?? emptyStats();
+                      return (
+                        <button
+                          key={e.slug}
+                          type="button"
+                          onClick={() => {
+                            setParty(e.slug);
+                            setPartyQuery("");
+                            setRevokeError(null);
+                          }}
+                          className="group flex flex-col border border-line bg-ink text-left opacity-70 transition-opacity hover:opacity-100"
+                        >
+                          <span className="relative block aspect-[3/4] overflow-hidden">
+                            {e.imageId ? (
+                              <Flyer
+                                id={e.imageId}
+                                alt={e.title}
+                                sizes="(max-width:639px) 30vw, 160px"
+                                maxWidth={256}
+                                className="grayscale"
+                              />
+                            ) : (
+                              <span className="hairline-x flex h-full bg-ink2" />
+                            )}
+                          </span>
+                          <span className="block p-2">
+                            <span className="label block truncate text-chalk">{e.title}</span>
+                            <span className="label mt-0.5 block text-silverfaint">
+                              {st.admitCount} · {usd(st.ticketNetCents)}
+                            </span>
+                          </span>
+                        </button>
                       );
                     })}
                   </div>
-                )}
+                </>
+              )}
 
-                {pastEvents.length > 0 && (
-                  <>
-                    <h2 className="font-display mt-10 text-[1.5rem]">Past</h2>
-                    <div className="mt-4 overflow-x-auto">
-                      <table className="w-full min-w-[560px] border-collapse text-left">
-                        <thead>
-                          <tr className="label border-b border-line text-silverfaint">
-                            <th className="py-2 pr-4 font-normal">EVENT</th>
-                            <th className="py-2 pr-4 font-normal">DATE</th>
-                            <th className="py-2 pr-4 font-normal">RSVPS</th>
-                            <th className="py-2 font-normal">TICKET REVENUE</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {pastEvents.map((e) => {
-                            const s = statsBySlug.get(e.slug) ?? emptyStats();
-                            return (
-                              <tr key={e.slug} className="border-b border-line">
-                                <td className="py-2 pr-4 text-[0.9375rem] text-chalk">
-                                  {e.title}
-                                </td>
-                                <td className="label py-2 pr-4 whitespace-nowrap text-silverfaint">
-                                  {e.date}
-                                </td>
-                                <td className="label py-2 pr-4 text-silverdim">
-                                  {s.admitCount}
-                                </td>
-                                <td className="label py-2 text-silverdim">
-                                  {usd(s.ticketNetCents)}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+              {orphanSlugs.length > 0 && (
+                <p className="label mt-8 border border-line p-3 leading-loose text-silverfaint">
+                  {orphanStats.orderCount} ORDER{orphanStats.orderCount === 1 ? "" : "S"} (
+                  {usd(orphanStats.ticketNetCents)}) AGAINST {orphanSlugs.length} EVENT SLUG
+                  {orphanSlugs.length === 1 ? "" : "S"} NOT ON THE CURRENT LIST -{" "}
+                  {orphanSlugs.join(", ")}. INCLUDED IN NOTHING ABOVE.
+                </p>
+              )}
+            </>
+          )}
+
+          {/* ================================================= one party == */}
+          {orders.kind === "ready" && party !== null && (() => {
+            const e = runtimeEvents.events.find((x) => x.slug === party);
+            const st = statsBySlug.get(party) ?? emptyStats();
+            const q = partyQuery.trim().toLowerCase();
+            const hit = (o: AdminOrderRow) =>
+              !q ||
+              o.buyerName.toLowerCase().includes(q) ||
+              o.buyerEmail.toLowerCase().includes(q) ||
+              o.passes.some((ps) => ps.code.toLowerCase().includes(q));
+            const live = st.rows.filter(hit);
+            const gone = st.cancelledRows.filter(hit);
+            const revokedCount = st.rows.reduce(
+              (n, o) => n + o.passes.filter((ps) => ps.revokedAt).length,
+              0,
+            );
+
+            return (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setParty(null)}
+                  className="label mt-6 text-silverfaint transition-colors hover:text-chalk"
+                >
+                  &larr; ALL PARTIES
+                </button>
+
+                {/* ---------------------------------------------- header -- */}
+                <div className="mt-4 flex gap-4">
+                  <div className="relative w-24 shrink-0 overflow-hidden border border-line sm:w-32">
+                    <div className="aspect-[3/4]">
+                      {e?.imageId ? (
+                        <Flyer id={e.imageId} alt={e.title} sizes="128px" maxWidth={256} />
+                      ) : (
+                        <div className="hairline-x h-full bg-ink2" />
+                      )}
                     </div>
-                  </>
-                )}
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="font-display text-[clamp(1.5rem,5vw,2.25rem)] leading-[0.9] break-words">
+                      {e?.title ?? party}
+                    </h2>
+                    <p className="label mt-2 text-silverfaint">
+                      {e ? `${e.dow} ${e.date} · ${e.time} · ${e.venue}` : "NOT ON THE CURRENT EVENT LIST"}
+                    </p>
+                    {e && isPastEvent(e) && (
+                      <span className="label mt-2 inline-block border border-line px-2 py-1 text-silverfaint">
+                        PAST
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-                {orphanSlugs.length > 0 && (
-                  <p className="label mt-8 border border-line p-3 leading-loose text-silverfaint">
-                    {orphanStats.orderCount} ORDER{orphanStats.orderCount === 1 ? "" : "S"} (
-                    {usd(orphanStats.ticketNetCents)}) AGAINST {orphanSlugs.length} EVENT SLUG
-                    {orphanSlugs.length === 1 ? "" : "S"} NOT ON THE CURRENT LIST -{" "}
-                    {orphanSlugs.join(", ")}. INCLUDED IN NOTHING ABOVE.
+                {/* --------------------------------------------- numbers -- */}
+                <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Kpi label="RSVPS" value={String(st.admitCount)} sub={`${st.orderCount} ORDERS`} />
+                  <Kpi label="TICKET REVENUE" value={usd(st.ticketNetCents)} sub="AFTER PROMOS, BEFORE FEES" />
+                  <Kpi label="COLLECTED" value={usd(st.grossCents)} sub="FEES INCLUDED" />
+                  <Kpi
+                    label="CHECKED IN"
+                    value={`${st.checkedIn} / ${st.passCount}`}
+                    sub={revokedCount > 0 ? `${revokedCount} REVOKED` : "AT THE DOOR"}
+                  />
+                </div>
+                {st.donationCents > 0 && (
+                  <p className="label mt-3 text-silverfaint">
+                    PLUS {usd(st.donationCents)} IN GIFTS
                   </p>
                 )}
+
+                {/* ----------------------------------------------- tiers -- */}
+                {st.tiers.size > 0 && (
+                  <div className="mt-6 overflow-x-auto">
+                    <table className="w-full min-w-[420px] border-collapse text-left">
+                      <thead>
+                        <tr className="label border-b border-line text-silverfaint">
+                          <th className="py-2 pr-4 font-normal">TIER</th>
+                          <th className="py-2 pr-4 font-normal">SOLD</th>
+                          <th className="py-2 pr-4 font-normal">ADMITS</th>
+                          <th className="py-2 font-normal">REVENUE</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...st.tiers.entries()].map(([tierId, t]) => (
+                          <tr key={tierId} className="border-b border-line">
+                            <td className="py-2 pr-4 text-[0.9375rem] text-chalk">{t.tierName}</td>
+                            <td className="label py-2 pr-4 text-silverdim">{t.qty}</td>
+                            <td className="label py-2 pr-4 text-silverdim">{t.admits}</td>
+                            <td className="label py-2 text-silverdim">{usd(t.revenueCents)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* ------------------------------------------ guest list -- */}
+                <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-b border-line py-3">
+                  <span className="label text-silverfaint">
+                    WHO&rsquo;S COMING <span className="text-chalk">{st.rows.length}</span>
+                  </span>
+                  {st.rows.length + st.cancelledRows.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => exportCsv(party, e?.title ?? party, [...st.rows, ...st.cancelledRows])}
+                      className="label border border-line px-3 py-2 text-silverdim transition-colors hover:border-linehi hover:text-chalk"
+                    >
+                      DOWNLOAD CSV
+                    </button>
+                  )}
+                </div>
+
+                {st.rows.length + st.cancelledRows.length === 0 ? (
+                  <Empty>Nobody has RSVP&rsquo;d to this one yet.</Empty>
+                ) : (
+                  <>
+                    <input
+                      value={partyQuery}
+                      onChange={(ev) => setPartyQuery(ev.target.value)}
+                      placeholder="Find a name, email or ticket code"
+                      aria-label="Search the guest list"
+                      className={`${field} mt-4 w-full`}
+                    />
+
+                    {live.length === 0 && gone.length === 0 && (
+                      <Empty>Nobody on this list matches that.</Empty>
+                    )}
+
+                    <ul className="mt-4 flex flex-col gap-3">
+                      {live.map((o) => {
+                        const orderKey = `order:${o.id}`;
+                        const orderBusy = revoking === orderKey;
+                        return (
+                          <li key={o.id} className="border border-line p-4">
+                            <div className="flex flex-wrap items-baseline justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate text-[1rem] text-chalk">{o.buyerName || "—"}</p>
+                                <p className="label mt-0.5 break-all text-silverdim">{o.buyerEmail}</p>
+                                {o.buyerPhone && (
+                                  <p className="label text-silverfaint">{o.buyerPhone}</p>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <p className="label text-chalk">{usd(o.totalCents)}</p>
+                                <p className="label text-silverfaint">{when(o.createdAt)}</p>
+                                {o.promoCode && (
+                                  <p className="label text-silverfaint">PROMO {o.promoCode}</p>
+                                )}
+                              </div>
+                            </div>
+
+                            {o.passes.length === 0 ? (
+                              <p className="label mt-3 text-silverfaint">GIFT - NO TICKET ON THIS ORDER</p>
+                            ) : (
+                              <ul className="mt-3 flex flex-col gap-2">
+                                {o.passes.map((ps) => {
+                                  const key = `pass:${ps.code}`;
+                                  const busy = revoking === key;
+                                  const state = ps.revokedAt ? "REVOKED" : ps.usedAt ? "CHECKED IN" : "VALID";
+                                  return (
+                                    <li
+                                      key={ps.code}
+                                      className={`flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 ${
+                                        ps.revokedAt ? "opacity-60" : ""
+                                      }`}
+                                    >
+                                      <span className="min-w-0">
+                                        <span className={`label ${ps.revokedAt ? "line-through" : ""} text-chalk`}>
+                                          {ps.tierName}
+                                          {ps.admits > 1 ? ` · ADMITS ${ps.admits}` : ""}
+                                        </span>
+                                        <span className="label ml-2 text-silverfaint">{ps.code}</span>
+                                      </span>
+                                      <span className="flex items-center gap-2">
+                                        <span
+                                          className={`label border px-2 py-1 ${
+                                            ps.revokedAt
+                                              ? "border-[rgba(200,16,46,0.5)] text-bloodhi"
+                                              : ps.usedAt
+                                                ? "border-linehi text-chalk"
+                                                : "border-line text-silverdim"
+                                          }`}
+                                        >
+                                          {state}
+                                        </span>
+                                        {ps.revokedAt ? (
+                                          <button
+                                            type="button"
+                                            disabled={revoking !== null}
+                                            onClick={() => void act(key, () => restorePass(ps.code))}
+                                            className="label min-h-9 border border-line px-2 text-silverdim transition-colors hover:border-linehi hover:text-chalk disabled:opacity-50"
+                                          >
+                                            {busy ? "…" : "RESTORE"}
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            disabled={revoking !== null}
+                                            onClick={() => void act(key, () => revokePass(ps.code))}
+                                            className="label min-h-9 border border-line px-2 text-silverdim transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi disabled:opacity-50"
+                                          >
+                                            {busy ? "…" : "REVOKE"}
+                                          </button>
+                                        )}
+                                      </span>
+                                      {revokeError?.key === key && (
+                                        <p className="label w-full text-bloodhi" role="alert">
+                                          {revokeError.message}
+                                        </p>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+                              <span className="label text-silverfaint">{o.id}</span>
+                              <button
+                                type="button"
+                                disabled={revoking !== null}
+                                onClick={() => {
+                                  if (window.confirm(`Cancel the whole order for ${o.buyerName || o.buyerEmail}? Every ticket on it stops working.`)) {
+                                    void act(orderKey, () => revokeOrder(o.id));
+                                  }
+                                }}
+                                className="label min-h-9 border border-line px-3 text-silverdim transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi disabled:opacity-50"
+                              >
+                                {orderBusy ? "CANCELLING…" : "CANCEL WHOLE ORDER"}
+                              </button>
+                            </div>
+                            {revokeError?.key === orderKey && (
+                              <p className="label mt-2 text-bloodhi" role="alert">
+                                {revokeError.message}
+                              </p>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    {gone.length > 0 && (
+                      <>
+                        <div className="label mt-8 border-b border-line py-3 text-silverfaint">
+                          CANCELLED <span className="text-chalk">{gone.length}</span>
+                        </div>
+                        <ul className="mt-3 flex flex-col gap-2">
+                          {gone.map((o) => (
+                            <li
+                              key={o.id}
+                              className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line py-2 opacity-60"
+                            >
+                              <span className="min-w-0">
+                                <span className="text-[0.9375rem] text-chalk line-through">
+                                  {o.buyerName || "—"}
+                                </span>
+                                <span className="label ml-2 break-all text-silverfaint">{o.buyerEmail}</span>
+                              </span>
+                              <span className="label text-silverfaint">
+                                {usd(o.totalCents)} · {when(o.cancelledAt ?? o.createdAt)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </>
+                )}
               </>
-            ))}
+            );
+          })()}
         </section>
       )}
 

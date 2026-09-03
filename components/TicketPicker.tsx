@@ -329,7 +329,10 @@ export default function TicketPicker({ event }: { event: Event }) {
 
         <p className="label mt-3 text-center text-silverfaint">
           18+ WITH ID ·{" "}
-          <Link href="/tickets" className="underline hover:text-chalk">
+          <Link
+            href="/tickets"
+            className="-my-3 inline-block py-3 underline hover:text-chalk"
+          >
             ALL DATES
           </Link>
         </p>

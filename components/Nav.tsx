@@ -14,7 +14,7 @@ export default function Nav() {
       <div className="mx-auto flex w-[92vw] max-w-[1180px] items-center justify-between gap-8 py-4">
         <Link
           href="/"
-          className="font-display -my-2 py-2 text-[1.0625rem] tracking-[0.14em]"
+          className="font-display -my-3 flex min-h-11 items-center text-[1.0625rem] tracking-[0.14em]"
         >
           WCTP
         </Link>

@@ -450,12 +450,22 @@ export type AdminOrderRow = {
   passCount: number;
   /** Of those, how many a door has already scanned in. */
   checkedIn: number;
+  /** Every pass on the order, so one can be revoked without the rest. */
+  passes: AdminPass[];
+};
+
+export type AdminPass = {
+  code: string;
+  tierName: string;
+  admits: number;
+  usedAt: string | null;
+  revokedAt: string | null;
 };
 
 const ORDER_HEAD =
   "id, event_slug, event_title, promo_code, subtotal_cents, discount_cents, fee_cents, total_cents, buyer_name, buyer_email, buyer_phone, created_at, cancelled_at";
 
-const ADMIN_ORDER_COLUMNS = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty, unit_cents, admits, donation), passes(used_at)`;
+const ADMIN_ORDER_COLUMNS = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty, unit_cents, admits, donation), passes(code, tier_name, admits, used_at, revoked_at)`;
 
 /**
  * The same query for a database where 0004 has not been run yet.
@@ -466,12 +476,18 @@ const ADMIN_ORDER_COLUMNS = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty,
  * costing it a single distinction. Falling back means a promoter still sees
  * every number; donations just look like ordinary lines until 0004 is applied.
  */
-const ADMIN_ORDER_COLUMNS_PRE_0004 = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty, unit_cents, admits), passes(used_at)`;
+const ADMIN_ORDER_COLUMNS_PRE_0004 = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty, unit_cents, admits), passes(code, tier_name, admits, used_at, revoked_at)`;
 
 /** PostgREST's wording for a column the schema does not have. */
 function isMissingDonationColumn(message: string) {
-  return /donation/i.test(message) && /does not exist|could not find/i.test(message);
+  return (
+    /donation|revoked_at|revoked_by/i.test(message) &&
+    /does not exist|could not find/i.test(message)
+  );
 }
+
+/** The same query for a database that has run neither 0004 nor 0008. */
+const ADMIN_ORDER_COLUMNS_MINIMAL = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty, unit_cents, admits), passes(code, tier_name, admits, used_at)`;
 
 type AdminOrderRecord = {
   id: string;
@@ -495,7 +511,13 @@ type AdminOrderRecord = {
     admits: number;
     donation: boolean;
   }[];
-  passes: { used_at: string | null }[];
+  passes: {
+    code: string;
+    tier_name: string;
+    admits: number;
+    used_at: string | null;
+    revoked_at?: string | null;
+  }[];
 };
 
 function toAdminOrder(r: AdminOrderRecord): AdminOrderRow {
@@ -524,6 +546,13 @@ function toAdminOrder(r: AdminOrderRecord): AdminOrderRow {
     })),
     passCount: passes.length,
     checkedIn: passes.filter((p) => p.used_at !== null).length,
+    passes: passes.map((p) => ({
+      code: p.code,
+      tierName: p.tier_name,
+      admits: p.admits,
+      usedAt: p.used_at,
+      revokedAt: p.revoked_at ?? null,
+    })),
   };
 }
 
@@ -566,6 +595,11 @@ export async function listAllOrders(): Promise<{
     if (!res.ok) return { rows: [], error: res.error };
     ({ data, error } = res.value);
   }
+  if (error && isMissingDonationColumn(error.message)) {
+    res = await read(ADMIN_ORDER_COLUMNS_MINIMAL);
+    if (!res.ok) return { rows: [], error: res.error };
+    ({ data, error } = res.value);
+  }
 
   if (error) return { rows: [], error: error.message };
 
@@ -580,4 +614,107 @@ export async function listAllOrders(): Promise<{
     }),
   );
   return { rows };
+}
+
+
+// ------------------------------------------------------------------ revoke --
+
+/**
+ * Cancels a whole order: every pass on it stops admitting anyone.
+ *
+ * Soft, like a guest's own cancel - cancelled_at rather than a delete - so the
+ * dashboard can still show that it happened and how much it was for. Needs
+ * "admins cancel any order" from 0008; without it the update matches nothing
+ * and the answer says so rather than reporting a revoke that did not take.
+ */
+export async function revokeOrder(
+  orderId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+  const res = await attempt(
+    supabase
+      .from("orders")
+      .update({ cancelled_at: new Date().toISOString() })
+      .eq("id", orderId)
+      .is("cancelled_at", null)
+      .select("id"),
+  );
+  if (!res.ok) return { ok: false, error: res.error };
+
+  const { data, error } = res.value;
+  if (error) return { ok: false, error: error.message };
+  if (((data ?? []) as unknown[]).length === 0) {
+    return {
+      ok: false,
+      error: "Nothing changed - already cancelled, or this project has not run 0008.",
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Voids one pass and leaves the rest of its order standing.
+ *
+ * Distinct from used_at, which means the opposite - scanned in. Needs the
+ * revoked_at column from 0008.
+ */
+export async function revokePass(
+  code: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+  const who = await currentUserId(supabase);
+
+  const res = await attempt(
+    supabase
+      .from("passes")
+      .update({ revoked_at: new Date().toISOString(), revoked_by: who })
+      .eq("code", code)
+      .is("revoked_at", null)
+      .select("code"),
+  );
+  if (!res.ok) return { ok: false, error: res.error };
+
+  const { data, error } = res.value;
+  if (error) {
+    if (/revoked_at|revoked_by/i.test(error.message)) {
+      return {
+        ok: false,
+        error: "This project has not run migration 0008, so a single pass cannot be revoked yet.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+  if (((data ?? []) as unknown[]).length === 0) {
+    return { ok: false, error: "Nothing changed - already revoked, or not an admin." };
+  }
+  return { ok: true };
+}
+
+/** Puts a revoked pass back. The mirror of revokePass, for a mis-tap. */
+export async function restorePass(
+  code: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+  const res = await attempt(
+    supabase
+      .from("passes")
+      .update({ revoked_at: null, revoked_by: null })
+      .eq("code", code)
+      .not("revoked_at", "is", null)
+      .select("code"),
+  );
+  if (!res.ok) return { ok: false, error: res.error };
+
+  const { data, error } = res.value;
+  if (error) return { ok: false, error: error.message };
+  if (((data ?? []) as unknown[]).length === 0) {
+    return { ok: false, error: "Nothing changed - it was not revoked." };
+  }
+  return { ok: true };
 }

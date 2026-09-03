@@ -140,6 +140,20 @@ body::before {
   font-variant-numeric: tabular-nums;
 }
 
+/* Anything tappable that is only a line of small mono text - "BACK HOME",
+   "OR SIGN UP", a handle - measures 13 to 17px tall on its own, and both
+   platforms put the floor for a thumb at 44. Padding rather than an invisible
+   hit-slop because the slop would overlap the next link down when two sit a
+   few pixels apart, and a mis-tap is worse than a little air. Skipped where
+   the element already sets its own height. */
+a.label:not([class*="min-h-"]),
+button.label:not([class*="min-h-"]) {
+  padding-top: 0.8rem;
+  padding-bottom: 0.8rem;
+  margin-top: -0.8rem;
+  margin-bottom: -0.8rem;
+}
+
 :focus-visible {
   outline: 2px solid var(--blood-hi);
   outline-offset: 3px;
