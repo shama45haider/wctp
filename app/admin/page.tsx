@@ -1,18 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { btn, btnGo, field } from "@/lib/ui";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import {
   listAccounts,
+  listAllOrders,
   listVerifications,
   reviewVerification,
   signedDocumentUrl,
   type AccountRow,
+  type AdminOrderRow,
   type VerificationRow,
   type VerificationStatus,
 } from "@/lib/admin-data";
+import { useRuntimeEvents } from "@/lib/events-runtime";
+import { isPastEvent, usd } from "@/lib/tickets";
 
 /**
  * The dashboard.
@@ -33,7 +37,7 @@ import {
 
 const SCAN_KEY = "wctp.scanned";
 
-type Tab = "accounts" | "review" | "door";
+type Tab = "overview" | "accounts" | "review" | "door";
 
 type Load<T> =
   | { kind: "loading" }
@@ -124,6 +128,143 @@ function Badge<T>({ state }: { state: Load<T> }) {
   return <span className="text-silver">{state.rows.length}</span>;
 }
 
+function Kpi({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="border border-line p-4">
+      <p className="label text-silverfaint">{label}</p>
+      <p className="font-display mt-1 text-[1.75rem] leading-none text-chalk">
+        {value}
+      </p>
+      {sub && <p className="label mt-1 text-silverfaint">{sub}</p>}
+    </div>
+  );
+}
+
+type TierStat = {
+  tierName: string;
+  qty: number;
+  admits: number;
+  revenueCents: number;
+};
+
+type EventStats = {
+  admitCount: number;
+  orderCount: number;
+  cancelledCount: number;
+  /** Ticket sales after any promo discount, before the service fee. */
+  ticketNetCents: number;
+  donationCents: number;
+  /** What guests actually paid, service fee included. */
+  grossCents: number;
+  passCount: number;
+  checkedIn: number;
+  tiers: Map<string, TierStat>;
+  rows: AdminOrderRow[];
+  cancelledRows: AdminOrderRow[];
+};
+
+function emptyStats(): EventStats {
+  return {
+    admitCount: 0,
+    orderCount: 0,
+    cancelledCount: 0,
+    ticketNetCents: 0,
+    donationCents: 0,
+    grossCents: 0,
+    passCount: 0,
+    checkedIn: 0,
+    tiers: new Map(),
+    rows: [],
+    cancelledRows: [],
+  };
+}
+
+function addStats(a: EventStats, b: EventStats): EventStats {
+  const tiers = new Map(a.tiers);
+  for (const [id, t] of b.tiers) {
+    const cur = tiers.get(id);
+    tiers.set(
+      id,
+      cur
+        ? {
+            tierName: cur.tierName,
+            qty: cur.qty + t.qty,
+            admits: cur.admits + t.admits,
+            revenueCents: cur.revenueCents + t.revenueCents,
+          }
+        : t,
+    );
+  }
+  return {
+    admitCount: a.admitCount + b.admitCount,
+    orderCount: a.orderCount + b.orderCount,
+    cancelledCount: a.cancelledCount + b.cancelledCount,
+    ticketNetCents: a.ticketNetCents + b.ticketNetCents,
+    donationCents: a.donationCents + b.donationCents,
+    grossCents: a.grossCents + b.grossCents,
+    passCount: a.passCount + b.passCount,
+    checkedIn: a.checkedIn + b.checkedIn,
+    tiers,
+    rows: [...a.rows, ...b.rows],
+    cancelledRows: [...a.cancelledRows, ...b.cancelledRows],
+  };
+}
+
+/**
+ * One order folded into its event's running totals.
+ *
+ * Cancelled orders are counted and kept on hand for the guest list to show,
+ * but contribute nothing to revenue or headcount - cancelling is what makes
+ * that true everywhere else in the system, and a dashboard that disagreed
+ * would be the one place on the site telling a promoter the wrong number.
+ */
+function foldOrder(s: EventStats, o: AdminOrderRow): EventStats {
+  if (o.cancelledAt) {
+    return { ...s, cancelledCount: s.cancelledCount + 1, cancelledRows: [...s.cancelledRows, o] };
+  }
+
+  const donationCents = o.lines
+    .filter((l) => l.donation)
+    .reduce((n, l) => n + l.unitCents * l.qty, 0);
+  const ticketNetCents = o.subtotalCents - donationCents - o.discountCents;
+
+  const tiers = new Map(s.tiers);
+  let admitCount = s.admitCount;
+  for (const l of o.lines) {
+    if (l.donation) continue;
+    admitCount += l.admits * l.qty;
+    const cur = tiers.get(l.tierId);
+    tiers.set(l.tierId, {
+      tierName: l.tierName,
+      qty: (cur?.qty ?? 0) + l.qty,
+      admits: (cur?.admits ?? 0) + l.admits * l.qty,
+      revenueCents: (cur?.revenueCents ?? 0) + l.unitCents * l.qty,
+    });
+  }
+
+  return {
+    admitCount,
+    orderCount: s.orderCount + 1,
+    cancelledCount: s.cancelledCount,
+    ticketNetCents: s.ticketNetCents + ticketNetCents,
+    donationCents: s.donationCents + donationCents,
+    grossCents: s.grossCents + o.totalCents,
+    passCount: s.passCount + o.passCount,
+    checkedIn: s.checkedIn + o.checkedIn,
+    tiers,
+    rows: [...s.rows, o],
+    cancelledRows: s.cancelledRows,
+  };
+}
+
 export default function Admin() {
   const auth = useSupabaseAuth();
 
@@ -131,7 +272,7 @@ export default function Admin() {
   // whole page waits one tick rather than rendering a locked state it would
   // immediately have to correct.
   const [mounted, setMounted] = useState(false);
-  const [tab, setTab] = useState<Tab>("review");
+  const [tab, setTab] = useState<Tab>("overview");
 
   const [accounts, setAccounts] = useState<Load<AccountRow>>({
     kind: "loading",
@@ -139,6 +280,11 @@ export default function Admin() {
   const [queue, setQueue] = useState<Load<VerificationRow>>({
     kind: "loading",
   });
+  const [orders, setOrders] = useState<Load<AdminOrderRow>>({
+    kind: "loading",
+  });
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const runtimeEvents = useRuntimeEvents();
   const [docs, setDocs] = useState<Record<string, DocState>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   // Carries the decision as well as the row, so the button that was pressed is
@@ -197,6 +343,12 @@ export default function Admin() {
     setDocs({});
   }, []);
 
+  const loadOrders = useCallback(async () => {
+    const { rows, error } = await listAllOrders();
+    if (!alive.current) return;
+    setOrders(error ? { kind: "error", message: error } : { kind: "ready", rows });
+  }, []);
+
   const retryAccounts = () => {
     setAccounts({ kind: "loading" });
     void loadAccounts();
@@ -207,12 +359,51 @@ export default function Admin() {
     void loadQueue();
   };
 
+  const retryOrders = () => {
+    setOrders({ kind: "loading" });
+    void loadOrders();
+  };
+
+  // One pass over every order, grouped by the event it belongs to. Cheap
+  // enough not to worry about at this scale, and simpler to trust than a
+  // second, incremental version that has to agree with this one forever.
+  const statsBySlug = useMemo(() => {
+    const map = new Map<string, EventStats>();
+    if (orders.kind !== "ready") return map;
+    for (const o of orders.rows) {
+      map.set(o.eventSlug, foldOrder(map.get(o.eventSlug) ?? emptyStats(), o));
+    }
+    return map;
+  }, [orders]);
+
+  const knownSlugs = new Set(runtimeEvents.events.map((e) => e.slug));
+  const upcomingEvents = runtimeEvents.events
+    .filter((e) => !isPastEvent(e))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const pastEvents = runtimeEvents.events
+    .filter((e) => isPastEvent(e))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  // Orders for a slug the current event list does not recognise - a deleted
+  // or renamed event, most likely. Folded out separately so the total below
+  // never silently drops money nobody can otherwise see accounted for.
+  const orphanStats = [...statsBySlug.entries()]
+    .filter(([slug]) => !knownSlugs.has(slug))
+    .reduce((acc, [, s]) => addStats(acc, s), emptyStats());
+  const orphanSlugs = [...statsBySlug.keys()].filter((s) => !knownSlugs.has(s));
+
+  const upcomingTotal = upcomingEvents.reduce(
+    (acc, e) => addStats(acc, statsBySlug.get(e.slug) ?? emptyStats()),
+    emptyStats(),
+  );
+
   const isAdmin = auth.isAdmin;
   useEffect(() => {
     if (!isAdmin) return;
     void loadAccounts();
     void loadQueue();
-  }, [isAdmin, loadAccounts, loadQueue]);
+    void loadOrders();
+  }, [isAdmin, loadAccounts, loadQueue, loadOrders]);
 
   const showDocument = async (id: string, path: string) => {
     setDocs((d) => ({ ...d, [id]: { kind: "loading" } }));
@@ -423,7 +614,20 @@ export default function Admin() {
 
   const pending = queue.kind === "ready" ? queue.rows.length : null;
 
+  const toggleExpanded = (slug: string) =>
+    setExpanded((cur) => {
+      const next = new Set(cur);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+
   const tabs: { id: Tab; label: string; badge: React.ReactNode }[] = [
+    {
+      id: "overview",
+      label: "OVERVIEW",
+      badge: <Badge state={orders} />,
+    },
     { id: "accounts", label: "ACCOUNTS", badge: <Badge state={accounts} /> },
     { id: "review", label: "ID REVIEW", badge: <Badge state={queue} /> },
     {
@@ -434,7 +638,7 @@ export default function Admin() {
   ];
 
   return (
-    <main className={`${shell} max-w-[880px]`}>
+    <main className={`${shell} max-w-[1180px]`}>
       <h1 className="font-display chrome text-[clamp(2rem,8vw,3.25rem)] leading-[0.85]">
         Admin
       </h1>
@@ -481,6 +685,260 @@ export default function Admin() {
           </button>
         ))}
       </div>
+
+      {tab === "overview" && (
+        <section>
+          <div className="label mt-7 flex items-center justify-between border-b border-line py-3">
+            <span className="text-silverfaint">MONEY AND RSVPS</span>
+            <span className="text-chalk">
+              {orders.kind === "ready" ? `${orders.rows.length} ORDERS TOTAL` : "—"}
+            </span>
+          </div>
+
+          {runtimeEvents.error && (
+            <p className="label mt-3 text-silverfaint">
+              THE EVENT LIST FELL BACK TO THE BUILT-IN DATES - {runtimeEvents.error.toUpperCase()}. ANYTHING POSTED FROM /ADMIN/EVENTS SINCE MAY NOT SHOW UP YET.
+            </p>
+          )}
+
+          {orders.kind === "loading" && <Waiting what="READING EVERY ORDER…" />}
+          {orders.kind === "error" && (
+            <Failed message={orders.message} onRetry={retryOrders} />
+          )}
+
+          {orders.kind === "ready" &&
+            (orders.rows.length === 0 ? (
+              <Empty>
+                Every order loaded and there are none yet. Numbers show up
+                here the moment the first ticket sells.
+              </Empty>
+            ) : (
+              <>
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Kpi label="UPCOMING RSVPS" value={String(upcomingTotal.admitCount)} />
+                  <Kpi
+                    label="TICKET REVENUE"
+                    value={usd(upcomingTotal.ticketNetCents)}
+                    sub="AFTER PROMOS, BEFORE FEES"
+                  />
+                  <Kpi
+                    label="COLLECTED"
+                    value={usd(upcomingTotal.grossCents)}
+                    sub="WHAT GUESTS PAID, FEES INCLUDED"
+                  />
+                  <Kpi
+                    label="CHECKED IN"
+                    value={`${upcomingTotal.checkedIn} / ${upcomingTotal.passCount}`}
+                    sub="ACROSS ALL DOORS"
+                  />
+                </div>
+                {upcomingTotal.donationCents > 0 && (
+                  <p className="label mt-3 text-silverfaint">
+                    PLUS {usd(upcomingTotal.donationCents)} IN GIFTS ACROSS UPCOMING DATES
+                  </p>
+                )}
+
+                <h2 className="font-display mt-9 text-[1.5rem]">Upcoming</h2>
+                {upcomingEvents.length === 0 ? (
+                  <Empty>No upcoming dates on the list right now.</Empty>
+                ) : (
+                  <div className="mt-4 flex flex-col gap-6">
+                    {upcomingEvents.map((e) => {
+                      const s = statsBySlug.get(e.slug) ?? emptyStats();
+                      const open = expanded.has(e.slug);
+                      return (
+                        <div key={e.slug} className="border border-line p-4 sm:p-5">
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <div>
+                              <p className="text-[1.125rem] text-chalk">{e.title}</p>
+                              <p className="label mt-1 text-silverfaint">
+                                {e.dow} {e.date} · {e.time} · {e.venue}
+                              </p>
+                            </div>
+                            {s.cancelledCount > 0 && (
+                              <span className="label border border-line px-2 py-1 text-silverfaint">
+                                {s.cancelledCount} CANCELLED
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            <Kpi label="RSVPS" value={String(s.admitCount)} />
+                            <Kpi label="TICKET REVENUE" value={usd(s.ticketNetCents)} />
+                            <Kpi label="COLLECTED" value={usd(s.grossCents)} />
+                            <Kpi label="CHECKED IN" value={`${s.checkedIn} / ${s.passCount}`} />
+                          </div>
+                          {s.donationCents > 0 && (
+                            <p className="label mt-3 text-silverfaint">
+                              PLUS {usd(s.donationCents)} IN GIFTS
+                            </p>
+                          )}
+
+                          {s.tiers.size > 0 && (
+                            <div className="mt-5 overflow-x-auto">
+                              <table className="w-full min-w-[420px] border-collapse text-left">
+                                <thead>
+                                  <tr className="label border-b border-line text-silverfaint">
+                                    <th className="py-2 pr-4 font-normal">TIER</th>
+                                    <th className="py-2 pr-4 font-normal">SOLD</th>
+                                    <th className="py-2 pr-4 font-normal">ADMITS</th>
+                                    <th className="py-2 font-normal">REVENUE</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {[...s.tiers.entries()].map(([tierId, t]) => (
+                                    <tr key={tierId} className="border-b border-line">
+                                      <td className="py-2 pr-4 text-[0.9375rem] text-chalk">
+                                        {t.tierName}
+                                      </td>
+                                      <td className="label py-2 pr-4 text-silverdim">{t.qty}</td>
+                                      <td className="label py-2 pr-4 text-silverdim">{t.admits}</td>
+                                      <td className="label py-2 text-silverdim">
+                                        {usd(t.revenueCents)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {s.rows.length === 0 && s.cancelledRows.length === 0 ? (
+                            <p className="mt-4 text-[0.9375rem] text-silverdim">
+                              Nobody has RSVP&apos;d yet.
+                            </p>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => toggleExpanded(e.slug)}
+                                className="label mt-5 text-silverfaint underline decoration-line underline-offset-4 transition-colors hover:text-chalk hover:decoration-silverdim"
+                              >
+                                {open
+                                  ? "HIDE GUEST LIST"
+                                  : `SHOW GUEST LIST (${s.rows.length})`}
+                              </button>
+
+                              {open && (
+                                <div className="mt-4 overflow-x-auto">
+                                  <table className="w-full min-w-[560px] border-collapse text-left">
+                                    <thead>
+                                      <tr className="label border-b border-line text-silverfaint">
+                                        <th className="py-2 pr-4 font-normal">GUEST</th>
+                                        <th className="py-2 pr-4 font-normal">TIER</th>
+                                        <th className="py-2 pr-4 font-normal">PAID</th>
+                                        <th className="py-2 font-normal">WHEN</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {s.rows.map((o) => (
+                                        <tr
+                                          key={o.id}
+                                          className="border-b border-line align-baseline"
+                                        >
+                                          <td className="py-2 pr-4 text-[0.9375rem] text-chalk">
+                                            {o.buyerName || "—"}
+                                            <span className="label block text-silverfaint">
+                                              {o.buyerEmail}
+                                            </span>
+                                          </td>
+                                          <td className="label py-2 pr-4 text-silverdim">
+                                            {o.lines
+                                              .map((l) => `${l.qty}× ${l.tierName}`)
+                                              .join(", ") || "—"}
+                                          </td>
+                                          <td className="label py-2 pr-4 text-silverdim">
+                                            {usd(o.totalCents)}
+                                          </td>
+                                          <td className="label py-2 whitespace-nowrap text-silverfaint">
+                                            {when(o.createdAt)}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                      {s.cancelledRows.map((o) => (
+                                        <tr
+                                          key={o.id}
+                                          className="border-b border-line align-baseline opacity-50"
+                                        >
+                                          <td className="py-2 pr-4 text-[0.9375rem] text-chalk line-through">
+                                            {o.buyerName || "—"}
+                                            <span className="label block text-silverfaint no-underline">
+                                              {o.buyerEmail}
+                                            </span>
+                                          </td>
+                                          <td className="label py-2 pr-4 text-silverdim">
+                                            CANCELLED
+                                          </td>
+                                          <td className="label py-2 pr-4 text-silverdim">
+                                            {usd(o.totalCents)}
+                                          </td>
+                                          <td className="label py-2 whitespace-nowrap text-silverfaint">
+                                            {when(o.createdAt)}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {pastEvents.length > 0 && (
+                  <>
+                    <h2 className="font-display mt-10 text-[1.5rem]">Past</h2>
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="w-full min-w-[560px] border-collapse text-left">
+                        <thead>
+                          <tr className="label border-b border-line text-silverfaint">
+                            <th className="py-2 pr-4 font-normal">EVENT</th>
+                            <th className="py-2 pr-4 font-normal">DATE</th>
+                            <th className="py-2 pr-4 font-normal">RSVPS</th>
+                            <th className="py-2 font-normal">TICKET REVENUE</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pastEvents.map((e) => {
+                            const s = statsBySlug.get(e.slug) ?? emptyStats();
+                            return (
+                              <tr key={e.slug} className="border-b border-line">
+                                <td className="py-2 pr-4 text-[0.9375rem] text-chalk">
+                                  {e.title}
+                                </td>
+                                <td className="label py-2 pr-4 whitespace-nowrap text-silverfaint">
+                                  {e.date}
+                                </td>
+                                <td className="label py-2 pr-4 text-silverdim">
+                                  {s.admitCount}
+                                </td>
+                                <td className="label py-2 text-silverdim">
+                                  {usd(s.ticketNetCents)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+
+                {orphanSlugs.length > 0 && (
+                  <p className="label mt-8 border border-line p-3 leading-loose text-silverfaint">
+                    {orphanStats.orderCount} ORDER{orphanStats.orderCount === 1 ? "" : "S"} (
+                    {usd(orphanStats.ticketNetCents)}) AGAINST {orphanSlugs.length} EVENT SLUG
+                    {orphanSlugs.length === 1 ? "" : "S"} NOT ON THE CURRENT LIST -{" "}
+                    {orphanSlugs.join(", ")}. INCLUDED IN NOTHING ABOVE.
+                  </p>
+                )}
+              </>
+            ))}
+        </section>
+      )}
 
       {tab === "accounts" && (
         <section>

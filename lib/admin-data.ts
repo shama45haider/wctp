@@ -419,3 +419,126 @@ export async function signedDocumentUrl(path: string): Promise<string | null> {
   const { data, error } = res.value;
   return error ? null : (data?.signedUrl ?? null);
 }
+
+// -------------------------------------------------------------- all orders --
+
+export type AdminOrderLine = {
+  tierId: string;
+  tierName: string;
+  qty: number;
+  unitCents: number;
+  admits: number;
+  donation: boolean;
+};
+
+export type AdminOrderRow = {
+  id: string;
+  eventSlug: string;
+  eventTitle: string;
+  promoCode: string | null;
+  subtotalCents: number;
+  discountCents: number;
+  feeCents: number;
+  totalCents: number;
+  buyerName: string;
+  buyerEmail: string;
+  buyerPhone: string | null;
+  createdAt: string;
+  cancelledAt: string | null;
+  lines: AdminOrderLine[];
+  /** Passes this order issued in total - 0 for a donation-only order. */
+  passCount: number;
+  /** Of those, how many a door has already scanned in. */
+  checkedIn: number;
+};
+
+const ADMIN_ORDER_COLUMNS =
+  "id, event_slug, event_title, promo_code, subtotal_cents, discount_cents, fee_cents, total_cents, buyer_name, buyer_email, buyer_phone, created_at, cancelled_at, order_lines(tier_id, tier_name, qty, unit_cents, admits, donation), passes(used_at)";
+
+type AdminOrderRecord = {
+  id: string;
+  event_slug: string;
+  event_title: string;
+  promo_code: string | null;
+  subtotal_cents: number;
+  discount_cents: number;
+  fee_cents: number;
+  total_cents: number;
+  buyer_name: string;
+  buyer_email: string;
+  buyer_phone: string | null;
+  created_at: string;
+  cancelled_at: string | null;
+  order_lines: {
+    tier_id: string;
+    tier_name: string;
+    qty: number;
+    unit_cents: number;
+    admits: number;
+    donation: boolean;
+  }[];
+  passes: { used_at: string | null }[];
+};
+
+function toAdminOrder(r: AdminOrderRecord): AdminOrderRow {
+  const passes = r.passes ?? [];
+  return {
+    id: r.id,
+    eventSlug: r.event_slug,
+    eventTitle: r.event_title,
+    promoCode: r.promo_code,
+    subtotalCents: r.subtotal_cents,
+    discountCents: r.discount_cents,
+    feeCents: r.fee_cents,
+    totalCents: r.total_cents,
+    buyerName: r.buyer_name,
+    buyerEmail: r.buyer_email,
+    buyerPhone: r.buyer_phone,
+    createdAt: r.created_at,
+    cancelledAt: r.cancelled_at,
+    lines: (r.order_lines ?? []).map((l) => ({
+      tierId: l.tier_id,
+      tierName: l.tier_name,
+      qty: l.qty,
+      unitCents: l.unit_cents,
+      admits: l.admits,
+      donation: l.donation,
+    })),
+    passCount: passes.length,
+    checkedIn: passes.filter((p) => p.used_at !== null).length,
+  };
+}
+
+/**
+ * Every order across every guest - the roster and the revenue behind it.
+ *
+ * Not filtered to the caller's own rows, unlike listOrders in orders-data.ts:
+ * this is only ever reached from a screen already gated on auth.isAdmin, and
+ * "read own orders" in 0001_accounts.sql grants exactly this -
+ * auth.uid() = user_id OR public.is_admin() - to that same session. A
+ * non-admin calling this gets nothing back, because the policy hides the rows
+ * rather than this function choosing not to ask for them.
+ *
+ * Cancelled orders are included rather than filtered out here, unlike the
+ * guest-facing version - a dashboard totalling money needs to be able to show
+ * that a cancellation happened, not just quietly stop counting it.
+ */
+export async function listAllOrders(): Promise<{
+  rows: AdminOrderRow[];
+  error?: string;
+}> {
+  const supabase = getSupabase();
+  if (!supabase) return { rows: [], error: NOT_CONNECTED };
+
+  const res = await attempt(
+    supabase
+      .from("orders")
+      .select(ADMIN_ORDER_COLUMNS)
+      .order("created_at", { ascending: false }),
+  );
+  if (!res.ok) return { rows: [], error: res.error };
+
+  const { data, error } = res.value;
+  if (error) return { rows: [], error: error.message };
+  return { rows: ((data ?? []) as AdminOrderRecord[]).map(toAdminOrder) };
+}
