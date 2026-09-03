@@ -1,6 +1,7 @@
-import { findEvent, monthOf, dayOf } from "@/lib/events";
+import { findEvent, monthOf, dayOf, SITE_ORIGIN } from "@/lib/events";
 import { admitsOf, money } from "@/lib/tickets";
 import type { Pass } from "@/lib/demo-account";
+import { passUrl } from "@/lib/pass-token";
 import TicketQr from "./TicketQr";
 
 /**
@@ -15,16 +16,34 @@ export default function TicketPass({
   eventSlug,
   eventTitle,
   orderId,
-  qrSize = 132,
+  guestName,
+  issuedAt,
+  qrSize = 156,
 }: {
   pass: Pass;
   eventSlug: string;
   eventTitle: string;
   orderId: string;
+  /** Who the ticket is for. Travels inside the QR so the door sees it. */
+  guestName: string;
+  /** ISO string from the order. */
+  issuedAt: string;
   qrSize?: number;
 }) {
   const ev = findEvent(eventSlug);
   const admits = admitsOf(pass);
+  const url = passUrl(
+    {
+      c: pass.code,
+      n: guestName,
+      e: eventSlug,
+      t: pass.tierName,
+      a: admits,
+      o: orderId,
+      i: Date.parse(issuedAt) || Date.now(),
+    },
+    SITE_ORIGIN,
+  );
 
   return (
     <article className="flex flex-col border border-line bg-ink">
@@ -44,10 +63,13 @@ export default function TicketPass({
             {admits === 1 ? "ADMITS ONE" : `ADMITS ${admits}`}
           </span>
         </p>
+        <p className="label mt-2 text-silverfaint">
+          <span className="text-silverdim">{guestName.toUpperCase()}</span>
+        </p>
       </div>
 
       <div className="mt-auto border-t border-dashed border-linehi px-4 py-5">
-        <TicketQr code={pass.code} size={qrSize} />
+        <TicketQr code={pass.code} value={url} size={qrSize} />
         <p className="label mt-3 text-center text-silverfaint">
           ORDER {orderId}
         </p>

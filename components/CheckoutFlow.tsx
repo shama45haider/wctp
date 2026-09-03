@@ -821,6 +821,8 @@ function Confirmation({ order }: { order: Order }) {
                 eventSlug={order.eventSlug}
                 eventTitle={order.eventTitle}
                 orderId={order.id}
+                guestName={order.buyer.name}
+                issuedAt={order.createdAt}
               />
             ))}
           </div>

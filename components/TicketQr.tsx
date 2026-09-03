@@ -10,15 +10,22 @@ import { QRCodeSVG } from "qrcode.react";
  * dark door is worse than no QR at all. The white stub reads as a torn ticket
  * against the page, so it earns its contrast.
  *
- * The payload is the raw ticket code rather than a URL, so door staff can scan
- * and match it with no signal in the venue.
+ * `value` is a full https://…/pass#… URL, so any phone camera opens the ticket
+ * without an app. Error correction sits at M rather than Q on purpose: the
+ * payload carries the whole ticket, and at Q the extra recovery data pushes the
+ * grid dense enough that a phone struggles at this size. These are read off a
+ * clean screen, where density is the real risk and abrasion is not.
  */
 export default function TicketQr({
   code,
-  size = 148,
+  value,
+  size = 156,
   className = "",
 }: {
+  /** Shown under the code. Also the fallback payload if no URL is given. */
   code: string;
+  /** What the QR actually encodes. Defaults to the bare code. */
+  value?: string;
   size?: number;
   className?: string;
 }) {
@@ -26,9 +33,9 @@ export default function TicketQr({
     <div className={`flex flex-col items-center ${className}`}>
       <div className="bg-[#f2f4f7] p-3">
         <QRCodeSVG
-          value={code}
+          value={value ?? code}
           size={size}
-          level="Q"
+          level="M"
           marginSize={2}
           bgColor="#f2f4f7"
           fgColor="#050505"

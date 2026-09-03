@@ -6,7 +6,6 @@ import type { Event } from "@/lib/events";
 import { useState } from "react";
 import {
   admitsOf,
-  DONATION_PRESETS,
   isPastEvent,
   isSoldOut,
   maxSelectable,
@@ -76,10 +75,8 @@ function parseAmount(raw: string): number | null {
 }
 
 /**
- * Give-what-you-want row.
- *
- * Presets cover the common case in one tap; the field underneath takes any
- * amount, because the whole point of asking is not to cap the answer.
+ * Give-what-you-want row. One open field and no suggested amounts, so the
+ * question never anchors the answer.
  */
 function DonationRow({
   tier,
@@ -93,7 +90,6 @@ function DonationRow({
 }) {
   const [custom, setCustom] = useState("");
   const min = tier.minCents ?? 100;
-  const isPreset = DONATION_PRESETS.includes(amountCents);
   const parsed = parseAmount(custom);
   const tooSmall = parsed !== null && parsed > 0 && parsed < min;
 
@@ -120,33 +116,9 @@ function DonationRow({
         <p className="mt-1 max-w-[42ch] text-sm text-silverdim">{tier.blurb}</p>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {DONATION_PRESETS.map((cents) => {
-          const on = amountCents === cents;
-          return (
-            <button
-              key={cents}
-              type="button"
-              aria-pressed={on}
-              onClick={() => {
-                setCustom("");
-                onChange(on ? null : cents);
-              }}
-              className={`font-display flex min-h-11 min-w-[4.5rem] items-center justify-center border px-4 transition-colors ${
-                on
-                  ? "border-bloodhi bg-[rgba(200,16,46,0.12)] text-chalk"
-                  : "border-line text-silverdim hover:border-linehi hover:text-chalk"
-              }`}
-            >
-              {usd(cents)}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <label htmlFor={`amt-${tier.id}`} className="label text-silverfaint">
-          OR ENTER AN AMOUNT
+          ENTER AN AMOUNT
         </label>
         <div className="flex items-center">
           <span className="label border border-r-0 border-line px-3 py-2.5 text-silverfaint">
@@ -181,7 +153,7 @@ function DonationRow({
           MINIMUM {usd(min)}
         </p>
       )}
-      {!isPreset && amountCents > 0 && (
+      {amountCents > 0 && (
         <p className="label mt-2 text-silverfaint">
           GIVING {usd(amountCents)} - THANK YOU
         </p>

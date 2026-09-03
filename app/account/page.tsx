@@ -133,6 +133,8 @@ export default function Account() {
                       eventSlug={o.eventSlug}
                       eventTitle={o.eventTitle}
                       orderId={o.id}
+                      guestName={o.buyer.name}
+                      issuedAt={o.createdAt}
                     />
                   ))}
                 </div>

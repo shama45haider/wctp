@@ -113,6 +113,13 @@ export const past: Event[] = [
   { slug: "wecametoopride", title: "WECAMETOOPRIDE", date: "2026-06-28", dow: "SUN", time: "11:00 AM", venue: "Washington Square Park", imageId: "69d0cb36be817e799bb69245" },
 ];
 
+/**
+ * Canonical origin. Ticket QRs always point here, even when rendered from a dev
+ * server - a ticket is scanned by someone else's phone, where localhost is not
+ * a place.
+ */
+export const SITE_ORIGIN = "https://wecametooparty.com";
+
 export const org = {
   name: "WECAMETOOPARTY",
   handle: "@wecametooparty",

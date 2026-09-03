@@ -42,6 +42,13 @@ export default function Login() {
         </a>
       </p>
 
+      <Link
+        href="/admin"
+        className="label mt-3 text-silverfaint underline decoration-line underline-offset-4 transition-colors hover:text-chalk hover:decoration-silverdim"
+      >
+        ADMIN LOGIN
+      </Link>
+
       <a
         href={org.instagram}
         target="_blank"

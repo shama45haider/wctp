@@ -35,9 +35,6 @@ export type Tier = {
   minCents?: number;
 };
 
-/** Suggested donation amounts, in cents. A custom amount is always allowed. */
-export const DONATION_PRESETS = [500, 1000, 2000, 5000];
-
 /** Tiers keyed by event slug. An event with no entry is not on sale. */
 const TIERS: Record<string, Tier[]> = {
   wecametoofurr: [
