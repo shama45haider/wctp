@@ -768,3 +768,39 @@ export async function restorePass(
   }
   return { ok: true };
 }
+
+
+// ------------------------------------------------------------------- reset --
+
+/**
+ * Sends a verified guest back through the ID check.
+ *
+ * reset_verification in 0010 does the work as security definer - flips
+ * profiles.verified, clears birth_year, stamps verification_reset_at so the
+ * guest's own phone stops trusting its local copy, and marks their approved
+ * rows rejected with a note. The function checks is_admin() itself; a
+ * non-admin gets P0001 back, not a quiet no-op.
+ */
+export async function resetVerification(
+  userId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+  const res = await attempt(
+    supabase.rpc("reset_verification", { p_user_id: userId }),
+  );
+  if (!res.ok) return { ok: false, error: res.error };
+
+  const { error } = res.value;
+  if (error) {
+    if (/function|does not exist|schema cache/i.test(error.message)) {
+      return {
+        ok: false,
+        error: "This project has not run migration 0010, so a check cannot be reset yet.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}

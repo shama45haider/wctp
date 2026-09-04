@@ -29,10 +29,15 @@ export type OwnProfile = {
   verified: boolean;
   birthYear: number | null;
   avatarPath: string | null;
+  /**
+   * When an admin last sent them back through the check, or null. The site
+   * drops any local "verified" older than this - see useAccount.
+   */
+  verificationResetAt: string | null;
 };
 
 const BASE_COLUMNS = "id,name,email,instagram,phone,verified,birth_year";
-const FULL_COLUMNS = `${BASE_COLUMNS},nickname,avatar_path`;
+const FULL_COLUMNS = `${BASE_COLUMNS},nickname,avatar_path,verification_reset_at`;
 
 const AVATARS = "avatars";
 const TIMEOUT_MS = 8000;
@@ -55,11 +60,12 @@ type ProfileRecord = {
   birth_year: number | null;
   nickname?: string | null;
   avatar_path?: string | null;
+  verification_reset_at?: string | null;
 };
 
 function isMissingColumn(message: string) {
   return (
-    /nickname|avatar_path/i.test(message) &&
+    /nickname|avatar_path|verification_reset_at/i.test(message) &&
     /does not exist|could not find/i.test(message)
   );
 }
@@ -94,6 +100,7 @@ function toProfile(r: ProfileRecord): OwnProfile {
     verified: Boolean(r.verified),
     birthYear: r.birth_year,
     avatarPath: r.avatar_path ?? null,
+    verificationResetAt: r.verification_reset_at ?? null,
   };
 }
 

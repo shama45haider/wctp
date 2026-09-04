@@ -9,6 +9,7 @@ import {
   listAllOrders,
   listVerifications,
   listVerificationsForUser,
+  resetVerification,
   restorePass,
   reviewVerification,
   revokePass,
@@ -298,6 +299,8 @@ export default function Admin() {
   // on every tap would put a loading flash between an admin and a face.
   const [openAccount, setOpenAccount] = useState<string | null>(null);
   const [checks, setChecks] = useState<Record<string, Load<VerificationRow>>>({});
+  const [resetting, setResetting] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<{ id: string; message: string } | null>(null);
   const [partyQuery, setPartyQuery] = useState("");
   // The one revoke in flight, keyed so only its own button says "working".
   const [revoking, setRevoking] = useState<string | null>(null);
@@ -374,6 +377,32 @@ export default function Admin() {
     },
     [checks],
   );
+
+  /**
+   * Reset, then re-read the roster and that guest's checks, so the badge and
+   * the list underneath say the same thing the database now does.
+   */
+  const resetCheck = async (id: string) => {
+    setResetting(id);
+    setResetError(null);
+    const out = await resetVerification(id);
+    if (!alive.current) return;
+    if (!out.ok) {
+      setResetError({ id, message: out.error ?? "That did not go through." });
+      setResetting(null);
+      return;
+    }
+    setChecks((c) => ({ ...c, [id]: { kind: "loading" } }));
+    const [, theirs] = await Promise.all([loadAccounts(), listVerificationsForUser(id)]);
+    if (!alive.current) return;
+    setChecks((c) => ({
+      ...c,
+      [id]: theirs.error
+        ? { kind: "error", message: theirs.error }
+        : { kind: "ready", rows: theirs.rows },
+    }));
+    setResetting(null);
+  };
 
   const loadOrders = useCallback(async () => {
     const { rows, error } = await listAllOrders();
@@ -1304,6 +1333,39 @@ export default function Admin() {
                                     </div>
                                   ))}
                                 </dl>
+
+                                {a.verified && (
+                                  <div className="mt-3">
+                                    {/* Sends them back through the check. The
+                                        function stamps a reset time so their
+                                        own phone's copy of "verified" stops
+                                        counting too - without that this would
+                                        change the badge here and nothing at
+                                        their end. */}
+                                    <button
+                                      type="button"
+                                      disabled={resetting !== null}
+                                      onClick={(ev) => {
+                                        ev.stopPropagation();
+                                        if (
+                                          window.confirm(
+                                            `Reset the ID check for ${a.name.trim() || a.email}? They will have to submit their ID again before they can buy a ticket.`,
+                                          )
+                                        ) {
+                                          void resetCheck(a.id);
+                                        }
+                                      }}
+                                      className="label min-h-11 w-full border border-line px-3 text-silverdim transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi disabled:opacity-50"
+                                    >
+                                      {resetting === a.id ? "RESETTING…" : "RESET ID CHECK"}
+                                    </button>
+                                    {resetError?.id === a.id && (
+                                      <p className="label mt-2 leading-loose text-bloodhi" role="alert">
+                                        {resetError.message}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
 
                               {/* ------------------------------ their checks -- */}

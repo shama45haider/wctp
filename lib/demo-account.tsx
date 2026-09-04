@@ -74,6 +74,13 @@ export type DemoUser = {
   verified: boolean;
   /** Year only - a full birth date is never retained. */
   birthYear?: number;
+  /**
+   * Epoch ms of the scan that set `verified` on this device. Compared against
+   * the profile's verification_reset_at: a reset newer than this wins, one
+   * older does not. Absent on records from before this existed, which are
+   * treated as older than any reset.
+   */
+  verifiedAt?: number;
 };
 
 type Snapshot = {
@@ -215,6 +222,34 @@ export function useAccount() {
    */
   const [dbProfile, setDbProfile] = useState<OwnProfile | null>(null);
 
+  /**
+   * Whether this device's own check still counts.
+   *
+   * The OR with the database exists so a scan clears the gate before the
+   * database has heard about it. An admin reset would never win against that
+   * on its own - the phone would keep saying yes forever - so the reset is
+   * stamped, and any local check older than the stamp is dropped. A record
+   * from before verifiedAt existed has no stamp and reads as older than any
+   * reset, which is the right way round: it cannot have been done after one.
+   */
+  const resetAt = dbProfile?.verificationResetAt
+    ? Date.parse(dbProfile.verificationResetAt)
+    : null;
+  const localStillVerified =
+    Boolean(localUser?.verified) &&
+    (resetAt === null || (localUser?.verifiedAt ?? 0) > resetAt);
+
+  // Once a reset is known to have overtaken the local check, clear the local
+  // record too, so /verify and /account stop showing a tick the site is not
+  // honouring. An effect, not a render-time write.
+  useEffect(() => {
+    if (!localUser?.verified || localStillVerified) return;
+    if (!snapshot.user) return;
+    patch({
+      user: { ...snapshot.user, verified: false, verifiedAt: undefined, birthYear: undefined },
+    });
+  }, [localUser?.verified, localStillVerified]);
+
   const user: DemoUser | null = isSupabaseConfigured
     ? auth.user
       ? {
@@ -225,7 +260,7 @@ export function useAccount() {
           instagram: localUser?.instagram ?? dbProfile?.instagram ?? undefined,
           phone: localUser?.phone ?? dbProfile?.phone ?? undefined,
           birthYear: localUser?.birthYear ?? dbProfile?.birthYear ?? undefined,
-          verified: Boolean(dbProfile?.verified || localUser?.verified),
+          verified: Boolean(dbProfile?.verified || localStillVerified),
         }
       : null
     : localUser;
@@ -417,6 +452,7 @@ export function useAccount() {
         user: {
           ...base,
           verified: true,
+          verifiedAt: Date.now(),
           birthYear,
           name: legalName?.trim() || base.name,
         },
