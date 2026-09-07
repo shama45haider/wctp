@@ -78,8 +78,9 @@ function poshImageId(flyerUrl: string | null): string | undefined {
  * `base` is the built-in event of the same slug, when there is one. The row
  * wins every column it carries, since it was edited more recently than the
  * bundle was built. The fields the events table has no column for - price,
- * headcount, city, closing time - are kept from the static entry rather than
+ * headcount, closing time - are kept from the static entry rather than
  * blanked: fixing a typo in a blurb should not strip an event of its price.
+ * The table's venue column is never read: the address is emailed, not shown.
  *
  * Null for a row that cannot be drawn. PostgREST hands back a renamed or
  * missing column as data, not as an error, and a card with no title and no date
@@ -101,7 +102,6 @@ function toEvent(row: EventRow, base?: Event): Event | null {
     date,
     dow: row.dow?.trim() || base?.dow || dowOf(date),
     time: row.time?.trim() || base?.time || "9:00 PM",
-    venue: row.venue?.trim() || base?.venue || "Location TBA",
     ...(imageId ? { imageId } : {}),
     ...(note ? { note } : {}),
   };

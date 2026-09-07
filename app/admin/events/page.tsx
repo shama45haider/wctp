@@ -44,7 +44,6 @@ type Draft = {
   title: string;
   date: string;
   time: string;
-  venue: string;
   flyerUrl: string;
   blurb: string;
   published: boolean;
@@ -55,7 +54,6 @@ const EMPTY: Draft = {
   title: "",
   date: "",
   time: "",
-  venue: "",
   flyerUrl: "",
   blurb: "",
   published: false,
@@ -140,7 +138,6 @@ export default function AdminEvents() {
       title: row.title,
       date: row.date,
       time: row.time,
-      venue: row.venue,
       flyerUrl: row.flyerUrl ?? "",
       blurb: row.blurb ?? "",
       published: row.published,
@@ -164,7 +161,6 @@ export default function AdminEvents() {
     const flyerUrl = draft.flyerUrl.trim();
     const blurb = draft.blurb.trim();
     const time = draft.time.trim();
-    const venue = draft.venue.trim();
 
     const payload: Parameters<typeof upsertEvent>[0] = {
       slug,
@@ -176,11 +172,10 @@ export default function AdminEvents() {
       blurb: blurb || null,
       published: draft.published,
     };
-    // These two cannot hold an empty string - they are NOT NULL with defaults
-    // in 0002 - so leaving them out lets the default stand on an insert and the
+    // The time cannot hold an empty string - it is NOT NULL with a default in
+    // 0002 - so leaving it out lets the default stand on an insert and the
     // stored value stand on an edit.
     if (time) payload.time = time;
-    if (venue) payload.venue = venue;
 
     const out = await upsertEvent(payload);
     if (!alive.current) return;
@@ -265,7 +260,8 @@ export default function AdminEvents() {
       </h1>
       <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
         Drafts stay invisible to guests until published. The dates built into
-        the site are separate and are not listed here.
+        the site are separate and are not listed here. The address is never
+        posted here - it goes out by email to the list.
       </p>
 
       <form ref={formRef} onSubmit={save} className="mt-8 flex flex-col gap-5">
@@ -353,19 +349,6 @@ export default function AdminEvents() {
             value={draft.time}
             onChange={(e) => set("time", e.target.value)}
             placeholder="9:00 PM"
-            className={`${field} mt-2 w-full`}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="venue" className="label text-silverfaint">
-            VENUE
-          </label>
-          <input
-            id="venue"
-            value={draft.venue}
-            onChange={(e) => set("venue", e.target.value)}
-            placeholder="Location TBA"
             className={`${field} mt-2 w-full`}
           />
         </div>
@@ -478,7 +461,7 @@ export default function AdminEvents() {
 
               <p className="label mt-2 text-silverdim">
                 {row.dow || dowOf(row.date)} {dayOf(row.date)}{" "}
-                {monthOf(row.date)} · {row.time} · {row.venue}
+                {monthOf(row.date)} · {row.time}
               </p>
               <p className="label mt-1 break-all text-silverfaint">
                 /{row.slug}

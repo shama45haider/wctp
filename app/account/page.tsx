@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useAccount } from "@/lib/demo-account";
 import { findEvent, monthOf, dayOf } from "@/lib/events";
+import { atHandle } from "@/lib/handle";
 import { isPastEvent, usd } from "@/lib/tickets";
 import TicketPass from "@/components/TicketPass";
 import { btn, btnGo } from "@/lib/ui";
@@ -26,37 +27,64 @@ export default function Account() {
           Not signed in
         </h1>
         <p className="mt-3 text-silverdim">
-          Sign in to see your tickets, or look around with the demo guest.
+          Sign in to see your tickets, or make an account if you don&rsquo;t
+          have one yet.
         </p>
-        <Link href="/login" className={`${btnGo} mt-6`}>
-          Go to sign in
-        </Link>
+        <div className="mt-6 flex flex-col gap-3">
+          <Link href="/login" className={btnGo}>
+            Go to sign in
+          </Link>
+          <Link href="/signup" className={btn}>
+            Make an account
+          </Link>
+        </div>
       </main>
     );
   }
+
+  // The account is its Instagram handle, shown with the @ put back. An account
+  // from before handles were required has no handle to put one on, so its name
+  // is shown as it is.
+  const shownName = user.instagram ? atHandle(user.name) : user.name;
+  // Verified wins outright: a check still on file from before an approval is
+  // not "pending" once the row says cleared.
+  const pending = !user.verified && user.check?.status === "pending";
 
   return (
     <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(2.5rem,6vw,4.5rem)]">
       <div className="flex flex-wrap items-end justify-between gap-6 border-b border-line pb-6">
         <div className="min-w-0">
           <h1 className="font-display chrome text-[clamp(2.25rem,9vw,4.5rem)] leading-[0.85] break-words">
-            {user.name}
+            {shownName}
           </h1>
           <p className="label mt-3 flex flex-wrap gap-x-5 gap-y-1 text-silverfaint">
             <span className="break-all">{user.email.toUpperCase()}</span>
-            {user.instagram && <span>{user.instagram.toUpperCase()}</span>}
             <span className={user.verified ? "text-bloodhi" : "text-silverdim"}>
-              {user.verified ? "ID VERIFIED" : "ID NOT VERIFIED"}
+              {user.verified
+                ? "AGE VERIFIED"
+                : pending
+                  ? "AGE CHECK PENDING"
+                  : "AGE NOT VERIFIED"}
             </span>
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          {!user.verified && (
+          {!user.verified && !pending && (
             <Link
               href="/verify"
               className="label flex min-h-11 items-center border border-[rgba(200,16,46,0.5)] px-4 text-chalk hover:border-bloodhi"
             >
-              VERIFY ID
+              VERIFY AGE
+            </Link>
+          )}
+          {pending && (
+            // Quiet on purpose: there is nothing to do but wait, and /verify
+            // says as much. The link is there so "pending" can be read up on.
+            <Link
+              href="/verify"
+              className="label flex min-h-11 items-center border border-line px-4 text-silverfaint transition-colors hover:border-linehi hover:text-chalk"
+            >
+              AGE CHECK PENDING
             </Link>
           )}
           <button

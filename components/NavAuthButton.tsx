@@ -3,18 +3,26 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { atHandle } from "@/lib/handle";
+import { useOwnProfile } from "@/lib/profile-data";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 /**
  * The account menu - everything to do with whoever is signed in, in one place.
  *
  * Profile things used to be scattered: MY TICKETS sat in the main nav next to
- * HOME and TICKETS while pointing at the same page this button did, the ID
+ * HOME and TICKETS while pointing at the same page this button did, the age
  * check was only reachable from inside that page, and the way into the
  * dashboard was a link at the bottom of the sign-in screen. Three different
  * routes to the same account, none of them obviously the account. This is now
  * the one door, and the nav row beside it is only the pages anyone can look at
  * without signing in.
+ *
+ * The trigger is labelled with the account's Instagram handle, because that is
+ * what the account is called everywhere else - on the ticket, at the door. An
+ * account from before handles were required shows whatever name it has, and
+ * until the profile row has been read the email's local part stands in, so the
+ * button is never blank.
  *
  * Split out of Nav because Nav is a server component and cannot know whether
  * anyone is signed in. The signed-out label is also the first client render,
@@ -30,6 +38,7 @@ const ITEM =
 
 export default function NavAuthButton() {
   const { ready, user, isAdmin, signOut } = useSupabaseAuth();
+  const { profile } = useOwnProfile(user?.id);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
@@ -38,8 +47,14 @@ export default function NavAuthButton() {
 
   // Following a link inside the menu does not unmount this component - the nav
   // is in the layout - so without this the panel would still be hanging open
-  // over whatever page it just went to.
-  useEffect(() => setOpen(false), [pathname]);
+  // over whatever page it just went to. Done during render, the way React
+  // adjusts state to a changed prop, rather than in an effect that would paint
+  // the open panel over the new page for a frame first.
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    setOpen(false);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -70,7 +85,9 @@ export default function NavAuthButton() {
     );
   }
 
-  const label = user?.email?.split("@")[0] ?? "Account";
+  const label = profile?.instagram
+    ? atHandle(profile.name)
+    : profile?.name || user?.email?.split("@")[0] || "Account";
 
   return (
     <div ref={box} className="relative">
@@ -96,7 +113,8 @@ export default function NavAuthButton() {
         >
           <div className="border-b border-line px-4 py-3">
             <p className="label text-silverfaint">SIGNED IN AS</p>
-            <p className="mt-1 truncate text-[0.9375rem] text-chalk">
+            <p className="mt-1 truncate text-[0.9375rem] text-chalk">{label}</p>
+            <p className="truncate text-[0.8125rem] text-silverdim">
               {user?.email}
             </p>
           </div>
@@ -110,7 +128,7 @@ export default function NavAuthButton() {
           </Link>
 
           <Link href="/verify" role="menuitem" className={ITEM}>
-            ID check
+            Age check
           </Link>
 
           {isAdmin && (

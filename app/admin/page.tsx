@@ -21,6 +21,7 @@ import {
 } from "@/lib/admin-data";
 import { useRuntimeEvents } from "@/lib/events-runtime";
 import { isPastEvent, usd } from "@/lib/tickets";
+import { atHandle } from "@/lib/handle";
 import Flyer from "@/components/Flyer";
 import { avatarUrl } from "@/lib/profile-data";
 
@@ -70,6 +71,15 @@ function when(iso: string) {
     month: "short",
     year: "numeric",
   });
+}
+
+/**
+ * How an account is named on every screen here: its Instagram handle with the
+ * @ put back. An account that predates handles has no handle to show, so it
+ * keeps whatever it signed up with rather than gaining an @ it never had.
+ */
+function displayName(name: string, instagram: string | null) {
+  return instagram ? atHandle(name) : name.trim();
 }
 
 /**
@@ -582,7 +592,8 @@ export default function Admin() {
           </h1>
           <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
             Sign in with the email on the admin list. Everything here - the
-            roster, the ID queue - is decided by the database, not by this page.
+            roster, the age review queue - is decided by the database, not by
+            this page.
           </p>
           <Link href="/login" className={`${btnGo} mt-7 w-full`}>
             Go to sign in
@@ -745,7 +756,7 @@ export default function Admin() {
       badge: <Badge state={orders} />,
     },
     { id: "accounts", label: "ACCOUNTS", badge: <Badge state={accounts} /> },
-    { id: "review", label: "ID REVIEW", badge: <Badge state={queue} /> },
+    { id: "review", label: "AGE REVIEW", badge: <Badge state={queue} /> },
     {
       id: "door",
       label: "DOOR",
@@ -1004,7 +1015,7 @@ export default function Admin() {
                       {e?.title ?? party}
                     </h2>
                     <p className="label mt-2 text-silverfaint">
-                      {e ? `${e.dow} ${e.date} · ${e.time} · ${e.venue}` : "NOT ON THE CURRENT EVENT LIST"}
+                      {e ? `${e.dow} ${e.date} · ${e.time}` : "NOT ON THE CURRENT EVENT LIST"}
                     </p>
                     {e && isPastEvent(e) && (
                       <span className="label mt-2 inline-block border border-line px-2 py-1 text-silverfaint">
@@ -1240,9 +1251,9 @@ export default function Admin() {
                     <tr className="label border-b border-line text-silverfaint">
                       <th className="py-3 pr-4 font-normal">NAME</th>
                       <th className="py-3 pr-4 font-normal">EMAIL</th>
-                      <th className="py-3 pr-4 font-normal">INSTAGRAM</th>
+                      <th className="py-3 pr-4 font-normal">AGE</th>
                       <th className="py-3 pr-4 font-normal">JOINED</th>
-                      <th className="py-3 font-normal">ID</th>
+                      <th className="py-3 font-normal">AGE CHECK</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1250,6 +1261,7 @@ export default function Admin() {
                       const open = openAccount === a.id;
                       const load = checks[a.id];
                       const pic = avatarUrl(a.avatarPath);
+                      const who = displayName(a.name, a.instagram);
                       return (
                         <React.Fragment key={a.id}>
                       <tr
@@ -1266,13 +1278,13 @@ export default function Admin() {
                               <img src={pic} alt="" className="h-7 w-7 shrink-0 rounded-full border border-line object-cover" />
                             ) : (
                               <span className="label flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line text-silverfaint">
-                                {(a.nickname || a.name || a.email)[0]?.toUpperCase()}
+                                {(a.name.trim() || a.email)[0]?.toUpperCase()}
                               </span>
                             )}
                             <span className="min-w-0">
-                              <span className="block truncate">{a.nickname || a.name.trim() || "—"}</span>
-                              {a.nickname && a.name.trim() && (
-                                <span className="label block truncate text-silverfaint">{a.name}</span>
+                              <span className="block truncate">{who || "—"}</span>
+                              {a.firstName && (
+                                <span className="label block truncate text-silverfaint">{a.firstName}</span>
                               )}
                             </span>
                           </span>
@@ -1280,8 +1292,8 @@ export default function Admin() {
                         <td className="label py-3 pr-4 break-all text-silverdim">
                           {a.email}
                         </td>
-                        <td className="label py-3 pr-4 break-all text-silverdim">
-                          {a.instagram ? `@${a.instagram.replace(/^@/, "")}` : "—"}
+                        <td className="label py-3 pr-4 whitespace-nowrap text-silverdim">
+                          {a.age ?? "—"}
                         </td>
                         <td className="label py-3 pr-4 whitespace-nowrap text-silverfaint">
                           {when(a.createdAt)}
@@ -1312,19 +1324,19 @@ export default function Admin() {
                                   ) : (
                                     <div className="flex h-full items-center justify-center">
                                       <span className="font-display text-[1.5rem] text-silverfaint">
-                                        {(a.nickname || a.name || a.email)[0]?.toUpperCase()}
+                                        {(a.name.trim() || a.email)[0]?.toUpperCase()}
                                       </span>
                                     </div>
                                   )}
                                 </div>
                                 <dl className="min-w-0 flex-1">
                                   {[
-                                    ["NICKNAME", a.nickname || "—"],
-                                    ["NAME ON ID", a.name.trim() || "—"],
+                                    ["INSTAGRAM", atHandle(a.instagram) || "—"],
+                                    ["FIRST NAME", a.firstName || "—"],
                                     ["EMAIL", a.email],
                                     ["PHONE", a.phone || "—"],
-                                    ["INSTAGRAM", a.instagram ? `@${a.instagram.replace(/^@/, "")}` : "—"],
-                                    ["BORN", a.birthYear ? String(a.birthYear) : "—"],
+                                    ["AGE (STATED)", a.age === null ? "—" : String(a.age)],
+                                    ["BORN (VERIFIED)", a.birthYear ? String(a.birthYear) : "—"],
                                     ["JOINED", when(a.createdAt)],
                                   ].map(([k, v]) => (
                                     <div key={k} className="label flex items-baseline justify-between gap-3 border-b border-line py-2">
@@ -1349,7 +1361,7 @@ export default function Admin() {
                                         ev.stopPropagation();
                                         if (
                                           window.confirm(
-                                            `Reset the ID check for ${a.name.trim() || a.email}? They will have to submit their ID again before they can buy a ticket.`,
+                                            `Reset the age check for ${who || a.email}? They will have to send their ID again before they can RSVP.`,
                                           )
                                         ) {
                                           void resetCheck(a.id);
@@ -1357,7 +1369,7 @@ export default function Admin() {
                                       }}
                                       className="label min-h-11 w-full border border-line px-3 text-silverdim transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi disabled:opacity-50"
                                     >
-                                      {resetting === a.id ? "RESETTING…" : "RESET ID CHECK"}
+                                      {resetting === a.id ? "RESETTING…" : "RESET AGE CHECK"}
                                     </button>
                                     {resetError?.id === a.id && (
                                       <p className="label mt-2 leading-loose text-bloodhi" role="alert">
@@ -1371,7 +1383,7 @@ export default function Admin() {
                               {/* ------------------------------ their checks -- */}
                               <div className="min-w-0 flex-1">
                                 <p className="label border-b border-line py-2 text-silverfaint">
-                                  ID CHECKS{" "}
+                                  AGE CHECKS{" "}
                                   <span className="text-chalk">
                                     {load?.kind === "ready" ? load.rows.length : "…"}
                                   </span>
@@ -1487,6 +1499,9 @@ export default function Admin() {
               {queue.kind === "ready" ? pending : queue.kind === "error" ? "?" : "…"}
             </span>
           </div>
+          <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
+            Every check is read here. Nothing is approved automatically.
+          </p>
 
           {queue.kind === "loading" && <Waiting what="READING THE QUEUE…" />}
           {queue.kind === "error" && (
@@ -1495,7 +1510,7 @@ export default function Admin() {
           {queue.kind === "ready" &&
             (queue.rows.length === 0 ? (
               <Empty>
-                The queue loaded and it is empty. Nobody is waiting on an ID
+                The queue loaded and it is empty. Nobody is waiting on an age
                 check.
               </Empty>
             ) : (
@@ -1509,13 +1524,18 @@ export default function Admin() {
                   return (
                     <li key={v.id} className="border border-line p-4">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="text-[1.0625rem] text-chalk">
-                          {v.profile
-                            ? v.profile.name.trim() || "No name on file"
-                            : "Name did not load"}
+                        <span className="min-w-0">
+                          <span className="block text-[1.0625rem] text-chalk">
+                            {v.profile
+                              ? displayName(v.profile.name, v.profile.instagram) || "No name on file"
+                              : "Name did not load"}
+                          </span>
+                          {v.profile?.firstName && (
+                            <span className="label block text-silverfaint">{v.profile.firstName}</span>
+                          )}
                         </span>
                         <span className="label border border-line px-2 py-1 text-silverfaint">
-                          {v.method.toUpperCase()}
+                          {v.method === "barcode" ? "LICENCE SCAN" : (v.documentKind ?? "DOCUMENT").toUpperCase()}
                         </span>
                       </div>
 
@@ -1531,12 +1551,21 @@ export default function Admin() {
                         </p>
                       )}
 
+                      {/* The two ages side by side, because that is the whole
+                          review: what they claimed at sign-up, what they typed
+                          on the form, and the card in the photo below has to
+                          agree with both. */}
                       <p className="label mt-2 text-silverfaint">
-                        SUBMITTED {when(v.createdAt)}
-                        {v.birthYear ? ` · BORN ${v.birthYear}` : ""}
+                        STATED AGE {v.profile?.age ?? "—"} · DOB YEAR ON THE FORM{" "}
+                        {v.birthYear ?? "—"} · SUBMITTED {when(v.createdAt)}
                       </p>
 
-                      {v.method === "document" && documentPath && (
+                      {/* Gated on documentPath alone, never on `method` - a
+                          guest chooses what method a row claims to be, and a
+                          row with no file behind it must never look the same
+                          as one waiting on a signed link. See the account
+                          roster's identical check a few hundred lines up. */}
+                      {documentPath ? (
                         <div className="mt-3">
                           <button
                             onClick={() => void showDocument(v.id, documentPath)}
@@ -1574,6 +1603,18 @@ export default function Admin() {
                             </div>
                           )}
                         </div>
+                      ) : (
+                        // Loud rather than absent: a row with no photo behind
+                        // it should never read the same as one that simply has
+                        // not been opened yet, since the only thing standing
+                        // between this and an approval is somebody reading it.
+                        <p
+                          className="label mt-3 border border-[rgba(200,16,46,0.5)] px-3 py-2 leading-loose text-bloodhi"
+                          role="alert"
+                        >
+                          NO PHOTO ON FILE FOR THIS CHECK - THERE IS NOTHING HERE
+                          TO APPROVE AGAINST.
+                        </p>
                       )}
 
                       <input

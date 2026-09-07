@@ -61,9 +61,6 @@ function Card({ e }: { e: Event }) {
           <span className="font-display block text-[1.45rem] leading-[1.05] break-words">
             {e.title}
           </span>
-          <span className="label mt-1 block text-silverdim">
-            {e.venue.toUpperCase()}
-          </span>
         </span>
       </div>
 

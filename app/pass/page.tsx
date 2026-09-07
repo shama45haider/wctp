@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { findEvent, monthOf, dayOf } from "@/lib/events";
 import { decodePass, type PassToken } from "@/lib/pass-token";
@@ -10,7 +10,7 @@ import { decodePass, type PassToken } from "@/lib/pass-token";
  *
  * The whole ticket rides in the URL fragment, so this page needs no network and
  * no account: door staff scan, the phone opens this, and the ticket is on the
- * screen. That also means it works on a venue's dead wifi, which is where a
+ * screen. That also means it works on the dead wifi at a door, which is where a
  * lookup-based door check tends to fail.
  *
  * What this page can prove: the payload is internally consistent, and it names
@@ -42,22 +42,44 @@ const REASONS: Record<string, string> = {
   version: "This ticket was issued by an older version of the site.",
 };
 
+/**
+ * The fragment, read as an external store.
+ *
+ * It is client-only by design - it never reaches the host, which is the point,
+ * since it carries a name. The server snapshot is null, so the prerendered
+ * page and the hydrating client both draw the loading state and agree with
+ * each other; the ticket appears on the first render after that, without an
+ * effect setting state to get there.
+ */
+function subscribeHash(onChange: () => void) {
+  window.addEventListener("hashchange", onChange);
+  return () => window.removeEventListener("hashchange", onChange);
+}
+const readHash = () => window.location.hash.replace(/^#/, "");
+const noHash = () => null;
+
 export default function Pass() {
-  const [state, setState] = useState<State>({ kind: "loading" });
-  const [usedAt, setUsedAt] = useState<string | null>(null);
+  const raw = useSyncExternalStore(subscribeHash, readHash, noHash);
 
-  // The fragment is client-only by design - it never reaches the host, which is
-  // the point, since it carries a name.
-  useEffect(() => {
-    const raw = window.location.hash.replace(/^#/, "");
-    if (!raw) return setState({ kind: "empty" });
-
+  const state = useMemo<State>(() => {
+    if (raw === null) return { kind: "loading" };
+    if (!raw) return { kind: "empty" };
     const result = decodePass(raw);
-    if (!result.ok) return setState({ kind: "bad", reason: result.reason });
+    return result.ok
+      ? { kind: "ok", pass: result.pass }
+      : { kind: "bad", reason: result.reason };
+  }, [raw]);
 
-    setState({ kind: "ok", pass: result.pass });
-    setUsedAt(readScans()[result.pass.c] ?? null);
-  }, []);
+  // The moment this screen marked the ticket used, if it did; otherwise what
+  // the device remembers from an earlier scan. Only ever read once there is a
+  // ticket, which is only ever after hydration, so storage is never touched
+  // in a render the server also produced.
+  const [marked, setMarked] = useState<{ code: string; at: string } | null>(null);
+  const usedAt = useMemo(() => {
+    if (state.kind !== "ok") return null;
+    if (marked?.code === state.pass.c) return marked.at;
+    return readScans()[state.pass.c] ?? null;
+  }, [state, marked]);
 
   const markUsed = (code: string) => {
     const now = new Date().toISOString();
@@ -68,7 +90,7 @@ export default function Pass() {
     } catch {
       // A locked-down browser can refuse storage; the check above still ran.
     }
-    setUsedAt(now);
+    setMarked({ code, at: now });
   };
 
   if (state.kind === "loading") {
@@ -131,7 +153,7 @@ export default function Pass() {
             "WHEN",
             ev ? `${ev.dow} ${dayOf(ev.date)} ${monthOf(ev.date)} · ${ev.time}` : "—",
           ],
-          ["WHERE", ev?.venue ?? "—"],
+          ["WHERE", "Emailed to the list"],
           ["TIER", p.t],
           ["ADMITS", String(p.a)],
           ["TICKET", p.c],

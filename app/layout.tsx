@@ -31,7 +31,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "WECAMETOOPARTY",
   description:
-    "Nights in New York City. 42 events, 4,342 people. RSVP before the location drops.",
+    "Nights in New York City. 42 events, 4,342 people. RSVP and the address lands in your inbox.",
   icons: {
     icon: "/favicon.svg",
   },

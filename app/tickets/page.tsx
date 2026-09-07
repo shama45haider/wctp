@@ -8,7 +8,7 @@ import { money, priceFrom, saleState, ticketsLeft } from "@/lib/tickets";
 export const metadata: Metadata = {
   title: "Tickets · WECAMETOOPARTY",
   description:
-    "Every WECAMETOOPARTY date on sale in New York City. Free RSVPs, paid tiers and tables - locations drop close to the night.",
+    "Every WECAMETOOPARTY date on sale in New York City. Free RSVPs, paid tiers and tables. Every RSVP needs an account with a verified age; the address is emailed to the list before the night.",
 };
 
 const onSale = upcoming.filter((e) => saleState(e) === "on-sale");
@@ -25,8 +25,10 @@ export default function TicketsPage() {
           Tickets
         </h1>
         <p className="mt-4 max-w-[46ch] leading-relaxed text-silverdim">
-          Every date on sale. Free RSVPs get you the address; paid tiers get you
-          past the line. Nothing is held at the door.
+          Every date on sale. Every RSVP, free or paid, needs an account with a
+          verified age; paid tiers get you past the line. The address is
+          emailed to the list from {org.email} before the night. Nothing is
+          held at the door.
         </p>
 
         {/* Facts strip: wraps to two rows on a phone instead of shrinking. */}
@@ -84,22 +86,27 @@ export default function TicketsPage() {
 
       <section className="mt-14 border-t border-line pt-8">
         <h2 className="font-display text-[1.75rem]">How the door works</h2>
-        <div className="mt-5 grid gap-5 sm:grid-cols-3">
+        <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
               n: "01",
+              t: "Verify your age once",
+              d: `Make an account and send a photo of your ID. A person reads it, so give it time, and you hear back from ${org.email}. After that you are clear for every date.`,
+            },
+            {
+              n: "02",
               t: "Book a spot",
               d: "Pick a tier and check out. Free RSVPs still need a ticket - that is how the count stays honest.",
             },
             {
-              n: "02",
-              t: "Get the location",
-              d: "Addresses drop close to the night, to the email on your order. Watch the feed too.",
+              n: "03",
+              t: "Get the address",
+              d: `Emailed from ${org.email} to the email on your account before the night. Watch the feed too.`,
             },
             {
-              n: "03",
+              n: "04",
               t: "Scan and walk in",
-              d: `Show the QR from your account. 18+ with ID, no exceptions. ${org.handle} for anything else.`,
+              d: `Show the QR from your account. 18+ with ID, no exceptions. ${org.instagramHandle} for anything else.`,
             },
           ].map((s) => (
             <div key={s.n} className="border border-line p-5">

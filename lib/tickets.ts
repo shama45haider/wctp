@@ -1,4 +1,4 @@
-import { findEvent, TODAY, type Event } from "./events";
+import { findEvent, org, TODAY, type Event } from "./events";
 
 /**
  * Ticket inventory, pricing and order maths.
@@ -264,7 +264,7 @@ export const findPromo = (code: string): Promo | null =>
  * A pending order: one event, a quantity per tier, and an optional code.
  *
  * Quantities live here rather than in the URL so a half-built order survives
- * the trip out to sign-in or the ID check and back.
+ * the trip out to sign-in or the age check and back.
  */
 export type Cart = {
   eventSlug: string;
@@ -393,7 +393,7 @@ const nextDay = (date: string) =>
  * Minimal VCALENDAR for one event.
  *
  * Times are written floating - no Z, no TZID - so a phone shows the door time
- * exactly as printed on the flyer wherever it is opened. The venue is New York;
+ * exactly as printed on the flyer wherever it is opened. The city is New York;
  * converting to the reader's own zone would be wrong, not helpful.
  */
 export function icsFor(slug: string, orderId: string): string | null {
@@ -412,7 +412,9 @@ export function icsFor(slug: string, orderId: string): string | null {
     end[0] < start[0] || (end[0] === start[0] && end[1] <= start[1]);
   const endsAt = stamp(rollsOver ? nextDay(e.date) : e.date, end);
 
-  const where = [e.venue, e.city].filter(Boolean).join(", ");
+  // No address. Where a night happens is emailed to the list before the date
+  // and is never written into anything that leaves the site.
+  const where = `New York City - address emailed from ${org.email} before the night`;
 
   return [
     "BEGIN:VCALENDAR",

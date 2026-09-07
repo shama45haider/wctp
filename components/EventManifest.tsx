@@ -12,7 +12,7 @@ function Row({ e }: { e: Event }) {
   const closed = state !== "on-sale";
 
   return (
-    <article className="group relative grid grid-cols-[7rem_minmax(0,1fr)] items-start gap-x-4 gap-y-3 border-b border-line px-4 py-5 transition-colors hover:bg-white/[0.022] md:grid-cols-[5rem_6rem_minmax(0,1fr)_12rem_7rem_auto] md:items-center md:gap-6 md:py-6">
+    <article className="group relative grid grid-cols-[7rem_minmax(0,1fr)] items-start gap-x-4 gap-y-3 border-b border-line px-4 py-5 transition-colors hover:bg-white/[0.022] md:grid-cols-[5rem_6rem_minmax(0,1fr)_7rem_auto] md:items-center md:gap-6 md:py-6">
       <span className="absolute inset-y-0 left-0 w-0.5 origin-top scale-y-0 bg-blood transition-transform group-hover:scale-y-100" />
 
       {/* Below md the date is stamped onto the flyer instead, so the photo can
@@ -30,7 +30,7 @@ function Row({ e }: { e: Event }) {
           link to the same place is just an extra stop for keyboard users. */}
       {/* Spans the stacked rows below md so the row height comes from the text
           beside it, instead of leaving a hole under a short first row. */}
-      <div className="relative row-span-4 aspect-square self-start overflow-hidden border border-line md:row-span-1">
+      <div className="relative row-span-3 aspect-square self-start overflow-hidden border border-line md:row-span-1">
         {e.imageId ? (
           <Flyer
             id={e.imageId}
@@ -78,16 +78,8 @@ function Row({ e }: { e: Event }) {
         </div>
       </div>
 
-      <div className="label col-start-2 break-words text-silverdim md:col-start-auto">
-        {e.venue.toUpperCase()}
-        {e.city && (
-          <>
-            <br />
-            {e.city}
-          </>
-        )}
-      </div>
-
+      {/* No where column. The address is emailed to the list before the
+          night and is never printed on a listing - see lib/events.ts. */}
       <div className="label col-start-2 text-chalk md:col-start-auto">
         <span className="text-bloodhi">
           {closed ? "—" : money(from ?? e.priceCents ?? 0)}

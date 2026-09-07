@@ -7,7 +7,7 @@ import TicketQr from "./TicketQr";
 /**
  * One admission, drawn as a stub.
  *
- * The perforation sits between the identity half - which night, which tier -
+ * The perforation sits between the readable half - which night, which tier -
  * and the scannable half, so a phone held up at the door shows door staff the
  * code and the name of the tier it belongs to in the same glance.
  */
@@ -40,7 +40,10 @@ export default function TicketPass({
       t: pass.tierName,
       a: admits,
       o: orderId,
-      i: Date.parse(issuedAt) || Date.now(),
+      // Zero for a timestamp that will not parse, rather than "now": the
+      // value only ever rides in the QR, and a clock read during render would
+      // change the digest on every re-render of the same ticket.
+      i: Date.parse(issuedAt) || 0,
     },
     SITE_ORIGIN,
   );
@@ -54,8 +57,10 @@ export default function TicketPass({
 
       <div className="px-4 pt-4 pb-3">
         <h3 className="font-display text-[1.35rem] break-words">{eventTitle}</h3>
+        {/* The time, never the place. A ticket gets screenshotted and passed
+            around; the address only ever goes out by email to the list. */}
         <p className="label mt-1 text-silverdim">
-          {ev ? `${ev.venue.toUpperCase()} · ${ev.time}` : "DETAILS TO FOLLOW"}
+          {ev ? `${ev.time} · ADDRESS BY EMAIL` : "DETAILS TO FOLLOW"}
         </p>
         <p className="label mt-3 flex flex-wrap gap-x-3 gap-y-1">
           <span className="text-chalk">{pass.tierName.toUpperCase()}</span>

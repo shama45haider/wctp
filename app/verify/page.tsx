@@ -4,323 +4,166 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAccount } from "@/lib/demo-account";
-import { scanName, type ScanResult } from "@/lib/aamva";
-import IdScanner from "@/components/IdScanner";
+import { org } from "@/lib/events";
+import { atHandle } from "@/lib/handle";
+import { btn, btnGo } from "@/lib/ui";
 import IdDocumentUpload from "@/components/IdDocumentUpload";
-import IdPhotoCapture from "@/components/IdPhotoCapture";
 
 /**
  * Age check.
  *
- * The licence path reads the PDF417 barcode on the back of the card in this
- * browser. Nothing is uploaded, and only the birth year and the name on the
- * card are kept - see markVerified.
+ * One path, and a slow one on purpose: a photo of an ID, with whatever the
+ * guest would rather not share blacked out, goes into a queue that a person
+ * reads in app/admin. Nothing on this page, or anywhere else in the browser,
+ * can mark anyone verified. There used to be a barcode reader here that
+ * cleared a licence holder on the spot; it could not tell a real card from a
+ * good copy, and it is gone.
  *
- * What that check establishes is that the barcode is well formed and says the
- * holder is over 18 - an expired card still says that, so expiry is shown but
- * never refuses someone on its own. It does not establish that the card is
- * genuine:
- * the payload is unsigned, and a browser cannot inspect the physical security
- * features that separate a real licence from a good copy. So the wording here
- * says "pre-checked", not "verified", and the card still gets looked at on the
- * night. Anything stronger needs a KYC provider that examines the document
- * itself and matches a face to it.
+ * So the page has four faces and only reads its way between them: no session,
+ * cleared, waiting on a review, or nothing on file (which a refusal counts
+ * as - the reviewer's note is shown and they are asked to send another).
+ * `ready` from useAccount already waits for the profile row, so `verified`
+ * and `check` can be trusted the moment it turns true. The one thing decided
+ * locally is that a check just filed shows as waiting straight away, rather
+ * than after the re-read lands.
  */
 
 const MIN_AGE = 18;
 
-type Stage =
-  | { k: "choose" }
-  | { k: "scan" }
-  | { k: "result"; scan: ScanResult }
-  // The barcode cleared; now the front of the card, for the door to match a
-  // face against. Carries the birth year so the record can be filed with it.
-  | { k: "photo"; birthYear: number }
-  | { k: "other" }
-  // Filed, not decided. The barcode path can clear somebody on the spot; a
-  // photo of a student card cannot, and this stage exists so the two never
-  // land on the same screen.
-  | { k: "sent" }
-  | { k: "done" };
-
 export default function Verify() {
   const router = useRouter();
-  const { ready, user, cart, markVerified } = useAccount();
-  const [stage, setStage] = useState<Stage>({ k: "choose" });
+  const { ready, user, cart, refreshProfile } = useAccount();
+  const [sent, setSent] = useState(false);
 
-  if (ready && !user) {
+  if (!ready) {
+    return (
+      <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(2.5rem,7vw,5rem)]">
+        <p className="label text-silverfaint">LOADING…</p>
+      </main>
+    );
+  }
+
+  if (!user) {
     return (
       <main className="mx-auto w-[92vw] max-w-[420px] py-[clamp(2.5rem,7vw,5rem)]">
         <h1 className="font-display chrome text-[clamp(2rem,6vw,3rem)]">
           Sign in first
         </h1>
         <p className="mt-3 text-silverdim">
-          You need an account before we can run the ID check.
+          You need an account before we can run the age check - it is how we
+          know whose ID it is, and where to write back.
         </p>
-        <Link
-          href="/login"
-          className="font-display mt-6 inline-block border border-[rgba(200,16,46,0.5)] px-6 py-3 tracking-[0.12em] text-chalk uppercase hover:border-bloodhi"
-        >
-          Go to sign in
-        </Link>
+        <div className="mt-6 flex flex-col gap-3">
+          <Link href="/login" className={btnGo}>
+            Sign in
+          </Link>
+          <Link href="/signup" className={btn}>
+            Make an account
+          </Link>
+        </div>
       </main>
     );
   }
 
-  const accept = (scan: ScanResult) => {
-    if (!scan.ok || !scan.id.dob) return;
-    const birthYear = Number(scan.id.dob.slice(0, 4));
-    // Cleared locally first, so the photo step can never un-clear it.
-    markVerified(birthYear, scanName(scan.id));
-    setStage({ k: "photo", birthYear });
-  };
+  // A legacy account that never gave a handle is still called by whatever it
+  // signed up with, and putting an @ in front of that would invent one.
+  const who = user.instagram ? atHandle(user.name) : user.name;
+  const pending = sent || user.check?.status === "pending";
+  const refused = !pending && user.check?.status === "rejected";
+
+  const onward = (
+    <div className="mt-6 flex flex-col gap-3">
+      <button
+        onClick={() => router.push(cart ? "/checkout" : "/tickets")}
+        className={btnGo}
+      >
+        {cart ? "Back to checkout" : "Browse tickets"}
+      </button>
+      <Link href="/account" className={btn}>
+        My account
+      </Link>
+    </div>
+  );
+
+  if (user.verified) {
+    return (
+      <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(2.5rem,7vw,5rem)]">
+        <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
+          You&rsquo;re cleared
+        </h1>
+        <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
+          {who}, you&rsquo;re verified for {MIN_AGE}+ nights. Bring the same
+          ID - the door still looks at the card itself.
+        </p>
+        <div className="label mt-6 flex items-center justify-between border border-line px-3 py-3">
+          <span className="text-silverfaint">AGE CHECK</span>
+          <span className="text-bloodhi">VERIFIED</span>
+        </div>
+        {onward}
+      </main>
+    );
+  }
+
+  if (pending) {
+    return (
+      <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(2.5rem,7vw,5rem)]">
+        <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
+          With us
+        </h1>
+        <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
+          Your ID is in the queue. A person reads every one of these, so it is
+          not instant - you&rsquo;ll hear from {org.email} before the next
+          date, and only the year of the date of birth you typed is kept.
+        </p>
+        <div className="label mt-6 flex items-center justify-between border border-line px-3 py-3">
+          <span className="text-silverfaint">AGE CHECK</span>
+          <span className="text-chalk">AWAITING REVIEW</span>
+        </div>
+        {/* Not "cleared". Nothing is approved until an admin says so, and the
+            buttons go on with the evening rather than promising it. */}
+        {onward}
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(2.5rem,7vw,5rem)]">
       <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
-        {stage.k === "done"
-          ? "You're cleared"
-          : stage.k === "photo"
-            ? "One more"
-          : stage.k === "sent"
-            ? "With us"
-            : "Age check"}
+        Age check
       </h1>
-
-      {stage.k === "choose" && (
-        <>
-          <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-            Our nights are {MIN_AGE}+. Scan the back of your licence and
-            you&rsquo;re done in a second - or send another ID and we&rsquo;ll
-            check it by hand.
-          </p>
-          <div className="mt-7 flex flex-col gap-3">
-            <button
-              onClick={() => setStage({ k: "scan" })}
-              className="font-display min-h-11 border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-bloodhi"
-            >
-              Scan my licence
-            </button>
-            <button
-              onClick={() => setStage({ k: "other" })}
-              className="font-display min-h-11 border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase transition-colors hover:border-silverdim"
-            >
-              Use another ID
-            </button>
-          </div>
-        </>
-      )}
-
-      {stage.k === "scan" && (
-        <>
-          <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-            Hold the <strong className="text-chalk">back</strong> of the card up
-            to the camera - the barcode side, not the photo.
-          </p>
-          <IdScanner
-            onResult={(scan) => setStage({ k: "result", scan })}
-            onCancel={() => setStage({ k: "other" })}
-          />
-        </>
-      )}
-
-      {stage.k === "result" && <ScanOutcome scan={stage.scan} onAccept={accept} onRetry={() => setStage({ k: "scan" })} onOther={() => setStage({ k: "other" })} />}
-
-      {/* The upload owns every word under this heading, including its own back
-          control and the date-of-birth copy - it is the only thing that knows
-          whether there is a session to file the photo against. A second lead
-          paragraph or a second Back here would double both. */}
-      {stage.k === "photo" && (
-        <IdPhotoCapture
-          birthYear={stage.birthYear}
-          onDone={() => setStage({ k: "done" })}
-          onSkip={() => setStage({ k: "done" })}
-        />
-      )}
-
-      {stage.k === "other" && (
-        <IdDocumentUpload
-          onSubmitted={() => setStage({ k: "sent" })}
-          onBack={() => setStage({ k: "choose" })}
-        />
-      )}
-
-      {stage.k === "sent" && (
-        <>
-          <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-            Your ID is in the queue. A person reads every one of these, so it is
-            not instant - you&rsquo;ll hear back before the next date, and only
-            the year of the date of birth you typed is kept.
-          </p>
-          <div className="label mt-6 flex items-center justify-between border border-line px-3 py-3">
-            <span className="text-silverfaint">ID STATUS</span>
-            <span className="text-chalk">AWAITING REVIEW</span>
-          </div>
-          {/* Not "cleared". Nothing is approved until an admin says so, and the
-              buttons below go on with the evening rather than promising it. */}
-          <div className="mt-6 flex flex-col gap-3">
-            <button
-              onClick={() => router.push(cart ? "/checkout" : "/tickets")}
-              className="font-display min-h-11 border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase transition-colors hover:border-silverdim"
-            >
-              {cart ? "Back to checkout" : "Browse tickets"}
-            </button>
-            <Link
-              href="/account"
-              className="font-display min-h-11 border border-line py-3 text-center tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk"
-            >
-              My account
-            </Link>
-          </div>
-        </>
-      )}
-
-      {stage.k === "done" && (
-        <>
-          <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-            {user?.name}, you&rsquo;re pre-checked for {MIN_AGE}+ nights. Bring
-            the same ID - door staff still look at the card itself.
-          </p>
-          <div className="label mt-6 flex items-center justify-between border border-line px-3 py-3">
-            <span className="text-silverfaint">ID STATUS</span>
-            <span className="text-bloodhi">PRE-CHECKED</span>
-          </div>
-          <div className="mt-6 flex flex-col gap-3">
-            <button
-              onClick={() => router.push(cart ? "/checkout" : "/tickets")}
-              className="font-display border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase hover:border-bloodhi"
-            >
-              {cart ? "Back to checkout" : "Browse tickets"}
-            </button>
-            <Link
-              href="/account"
-              className="font-display border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 text-center tracking-[0.12em] text-chalk uppercase hover:border-silverdim"
-            >
-              My account
-            </Link>
-          </div>
-        </>
-      )}
-    </main>
-  );
-}
-
-/** What the scan found, and whether it clears the door. */
-function ScanOutcome({
-  scan,
-  onAccept,
-  onRetry,
-  onOther,
-}: {
-  scan: ScanResult;
-  onAccept: (s: ScanResult) => void;
-  onRetry: () => void;
-  onOther: () => void;
-}) {
-  if (!scan.ok) {
-    return (
-      <Refused
-        title={scan.reason === "no-dob" ? "No date of birth" : "Not an ID"}
-        body={
-          scan.reason === "no-dob"
-            ? "That barcode scanned, but carried no readable date of birth."
-            : "That barcode is not a driver's licence or state ID."
-        }
-        onRetry={onRetry}
-        onOther={onOther}
-      />
-    );
-  }
-
-  const { id, age } = scan;
-
-  // Expired cards are accepted. All the door needs from this check is a birth
-  // date over MIN_AGE; a licence past its own renewal date still carries a
-  // genuine one. EXPIRES is still shown below so a person can see it.
-  if (age === null || age < MIN_AGE) {
-    return (
-      <Refused
-        title="Under 18"
-        body="Our nights are 18+. Come back when the card says so."
-        onRetry={onRetry}
-        onOther={onOther}
-      />
-    );
-  }
-
-  return (
-    <>
       <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-        Read off the card. Check it&rsquo;s you, then confirm.
+        Our nights are {MIN_AGE}+. Send a photo of your ID and a person will
+        check it. You can black out anything on it except your photo, your name
+        and your date of birth.
       </p>
-      <dl className="mt-6 border-t border-line">
-        {[
-          ["NAME", scanName(id)],
-          ["DATE OF BIRTH", id.dob!],
-          ["AGE", `${age}`],
-          ["EXPIRES", id.expiry ?? "—"],
-          ["ISSUED BY", id.jurisdiction || "—"],
-        ].map(([k, v]) => (
-          <div
-            key={k}
-            className="label flex items-baseline justify-between gap-4 border-b border-line py-3"
-          >
-            <dt className="text-silverfaint">{k}</dt>
-            <dd className="text-right text-chalk">{v}</dd>
-          </div>
-        ))}
-      </dl>
-      <div className="mt-6 flex flex-col gap-3">
-        <button
-          onClick={() => onAccept(scan)}
-          className="font-display min-h-11 border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-bloodhi"
-        >
-          That&rsquo;s me
-        </button>
-        <button
-          onClick={onRetry}
-          className="font-display min-h-11 border border-line py-3 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk"
-        >
-          Scan again
-        </button>
-      </div>
-    </>
-  );
-}
 
-function Refused({
-  title,
-  body,
-  onRetry,
-  onOther,
-}: {
-  title: string;
-  body: string;
-  onRetry: () => void;
-  onOther: () => void;
-}) {
-  return (
-    <>
-      <div className="label mt-6 border border-[rgba(200,16,46,0.5)] px-4 py-4 leading-loose text-bloodhi">
-        {title.toUpperCase()}
-      </div>
-      <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
-        {body}
-      </p>
-      <div className="mt-6 flex flex-col gap-3">
-        <button
-          onClick={onRetry}
-          className="font-display min-h-11 border border-linehi py-3 tracking-[0.12em] text-chalk uppercase transition-colors hover:border-silverdim"
-        >
-          Scan again
-        </button>
-        <button
-          onClick={onOther}
-          className="font-display min-h-11 border border-line py-3 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk"
-        >
-          Use another ID
-        </button>
-      </div>
-    </>
+      {refused && user.check && (
+        <div className="mt-6 border border-[rgba(200,16,46,0.5)] px-4 py-4">
+          <p className="label leading-loose text-bloodhi">
+            YOUR LAST CHECK WAS REFUSED
+          </p>
+          {user.check.note && (
+            <p className="mt-2 text-[0.9375rem] leading-relaxed text-chalk">
+              {user.check.note}
+            </p>
+          )}
+          <p className="mt-2 text-[0.9375rem] leading-relaxed text-silverdim">
+            Send another.
+          </p>
+        </div>
+      )}
+
+      {/* The upload owns every word under this, including its own Back: it is
+          the only thing that knows which of its steps the guest is on. Shown
+          as waiting the moment it reports success, and the profile is re-read
+          behind that so the rest of the site catches up. */}
+      <IdDocumentUpload
+        onSubmitted={() => {
+          setSent(true);
+          refreshProfile();
+        }}
+        onBack={() => router.push(cart ? "/checkout" : "/account")}
+      />
+    </main>
   );
 }

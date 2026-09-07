@@ -20,19 +20,23 @@ import {
 import { isSupabaseConfigured } from "./supabase";
 import { useSupabaseAuth } from "./supabase-auth";
 import { cancelOrderInDb, listOrders, syncOrder } from "./orders-data";
-import { readOwnProfile, type OwnProfile } from "./profile-data";
+import { useOwnProfile, type OwnCheck } from "./profile-data";
 
 /**
- * Client-only demo account layer.
+ * The account, as the ticket flow sees it.
  *
- * State lives in localStorage - there is no server, no network call and no real
- * credential anywhere. Modelled as an external store so React reads it through
+ * Who is signed in comes from the Supabase session; what is known about them -
+ * the handle, the age check - comes from their profile row. Neither is decided
+ * here. This module owns the cart and the placed orders, which live in
+ * localStorage so a half-built order survives the trip out to sign-in or the
+ * age check and back, and are mirrored to the database so the same tickets
+ * show up on another phone.
+ *
+ * The file keeps its old name so nothing importing it has to move.
+ *
+ * Modelled as an external store so React reads it through
  * useSyncExternalStore: no setState-in-effect, no hydration mismatch, and tabs
  * stay in sync for free.
- *
- * Swap this module for Supabase auth when the backend lands; the hook API is
- * meant to survive that change. `placeOrder` is the seam where a real payment
- * intent and a server-issued order would go.
  */
 
 /** One admission. A table ticket is a single pass that admits its whole party. */
@@ -66,40 +70,57 @@ export type Order = {
   createdAt: string;
 };
 
-export type DemoUser = {
-  name: string;
-  email: string;
-  instagram?: string;
-  phone?: string;
-  verified: boolean;
-  /** Year only - a full birth date is never retained. */
-  birthYear?: number;
+export type AccountUser = {
+  id: string;
   /**
-   * Epoch ms of the scan that set `verified` on this device. Compared against
-   * the profile's verification_reset_at: a reset newer than this wins, one
-   * older does not. Absent on records from before this existed, which are
-   * treated as older than any reset.
+   * The Instagram handle without the @, which is what every account is
+   * called. Falls back to the email's local part for an account from before
+   * handles were required, until they add one on /profile.
    */
-  verifiedAt?: number;
+  name: string;
+  firstName: string | null;
+  /** What they said at sign-up. Not the reviewed year - see `birthYear`. */
+  age: number | null;
+  email: string;
+  /** Handle without the @, or null on a legacy account. */
+  instagram: string | null;
+  phone: string | null;
+  /**
+   * Cleared by an admin reading their ID, and by nothing else. False until the
+   * profile has been read - check `profileLoaded` before acting on a false.
+   */
+  verified: boolean;
+  /** Year only, and only once a review approved it. */
+  birthYear: number | null;
+  /** The newest age check they have filed, or null if none. */
+  check: OwnCheck | null;
+  /**
+   * True once the profile row has been read, or the read has given up. Until
+   * then `verified`, `check` and `name` are placeholders.
+   */
+  profileLoaded: boolean;
 };
 
 type Snapshot = {
   ready: boolean;
-  user: DemoUser | null;
   cart: Cart | null;
   orders: Order[];
 };
 
-const USER_KEY = "wctp.demo.user";
 const CART_KEY = "wctp.demo.cart";
 const ORDERS_KEY = "wctp.demo.orders";
 /** Single-ticket RSVPs from before tiers existed. Cleared, never migrated. */
 const LEGACY_TICKETS_KEY = "wctp.demo.tickets";
+/**
+ * The local account record from before the session was the account. It could
+ * carry a "verified" flag that this browser had granted itself; nothing reads
+ * it any more, and it is cleared so it cannot be mistaken for anything.
+ */
+const LEGACY_USER_KEY = "wctp.demo.user";
 
 const NO_ORDERS: Order[] = [];
 const EMPTY: Snapshot = {
   ready: false,
-  user: null,
   cart: null,
   orders: NO_ORDERS,
 };
@@ -130,7 +151,6 @@ const write = (key: string, value: unknown) => {
 function load(): Snapshot {
   return {
     ready: true,
-    user: read<DemoUser | null>(USER_KEY, null),
     cart: read<Cart | null>(CART_KEY, null),
     orders: read<Order[]>(ORDERS_KEY, NO_ORDERS),
   };
@@ -145,6 +165,7 @@ function subscribe(listener: () => void) {
     hydrated = true;
     try {
       window.localStorage.removeItem(LEGACY_TICKETS_KEY);
+      window.localStorage.removeItem(LEGACY_USER_KEY);
     } catch {
       /* nothing to clean up */
     }
@@ -153,7 +174,7 @@ function subscribe(listener: () => void) {
   }
 
   const onStorage = (e: StorageEvent) => {
-    if (e.key === USER_KEY || e.key === CART_KEY || e.key === ORDERS_KEY) {
+    if (e.key === CART_KEY || e.key === ORDERS_KEY) {
       snapshot = load();
       emit();
     }
@@ -171,7 +192,6 @@ const getServerSnapshot = () => EMPTY;
 
 function patch(next: Partial<Snapshot>) {
   snapshot = { ...snapshot, ...next };
-  if ("user" in next) write(USER_KEY, snapshot.user);
   if ("cart" in next) write(CART_KEY, snapshot.cart);
   if ("orders" in next) write(ORDERS_KEY, snapshot.orders);
   emit();
@@ -189,130 +209,89 @@ const makeOrderId = () => `WCTP-${rand(6)}`;
 export function useAccount() {
   const {
     ready: storeReady,
-    user: localUser,
     cart,
     orders: localOrders,
   } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  /**
-   * The session is the account, once there is one to have.
-   *
-   * These two used to be separate people. Signing in wrote a Supabase session
-   * while the ticket flow went on reading a localStorage record that signing
-   * in never touched, so a signed-in guest was sent back to the sign-in page
-   * the moment they picked a ticket. The session wins wherever it exists; the
-   * localStorage record is what a build with no credentials falls back to.
-   *
-   * Name and age check still come from the local record, because the ID scan
-   * writes them and has nowhere else to put them until orders move into the
-   * database. An email makes a poor name, so it is only the fallback.
-   */
   const auth = useSupabaseAuth();
-
-  /**
-   * The profile row behind the session.
-   *
-   * `verified` is decided in the database - an admin approving an ID sets it
-   * through the trigger in 0002, and a check done on another phone sets it
-   * there too - so reading it only out of this browser meant someone whose ID
-   * had genuinely been approved still met the gate at checkout. Null while it
-   * is being read, and null forever if it cannot be, which is why the two are
-   * ORed below rather than one preferred: a profile that will not load must
-   * never un-verify somebody this device already saw verified.
-   */
-  const [dbProfile, setDbProfile] = useState<OwnProfile | null>(null);
-
-  /**
-   * Whether this device's own check still counts.
-   *
-   * The OR with the database exists so a scan clears the gate before the
-   * database has heard about it. An admin reset would never win against that
-   * on its own - the phone would keep saying yes forever - so the reset is
-   * stamped, and any local check older than the stamp is dropped. A record
-   * from before verifiedAt existed has no stamp and reads as older than any
-   * reset, which is the right way round: it cannot have been done after one.
-   */
-  const resetAt = dbProfile?.verificationResetAt
-    ? Date.parse(dbProfile.verificationResetAt)
-    : null;
-  const localStillVerified =
-    Boolean(localUser?.verified) &&
-    (resetAt === null || (localUser?.verifiedAt ?? 0) > resetAt);
-
-  // Once a reset is known to have overtaken the local check, clear the local
-  // record too, so /verify and /account stop showing a tick the site is not
-  // honouring. An effect, not a render-time write.
-  useEffect(() => {
-    if (!localUser?.verified || localStillVerified) return;
-    if (!snapshot.user) return;
-    patch({
-      user: { ...snapshot.user, verified: false, verifiedAt: undefined, birthYear: undefined },
-    });
-  }, [localUser?.verified, localStillVerified]);
-
-  const user: DemoUser | null = isSupabaseConfigured
-    ? auth.user
-      ? {
-          ...localUser,
-          email: auth.user.email,
-          name:
-            localUser?.name || dbProfile?.name || auth.user.email.split("@")[0],
-          instagram: localUser?.instagram ?? dbProfile?.instagram ?? undefined,
-          phone: localUser?.phone ?? dbProfile?.phone ?? undefined,
-          birthYear: localUser?.birthYear ?? dbProfile?.birthYear ?? undefined,
-          verified: Boolean(dbProfile?.verified || localStillVerified),
-        }
-      : null
-    : localUser;
-
-  // Both must have answered. Reporting ready while the session is still
-  // unknown shows the signed-out screen to somebody who is signed in.
-  const ready = storeReady && (!isSupabaseConfigured || auth.ready);
-
-  /**
-   * Orders placed on other devices.
-   *
-   * orders/order_lines/passes have existed since the schema was first written
-   * for exactly this, and nothing ever wrote to them - placeOrder only ever
-   * touched localStorage, so a ticket bought on a phone was invisible on a
-   * laptop signed into the same account. This fetches what the database has;
-   * placeOrder below writes to it.
-   *
-   * null means "not fetched yet", not "no orders" - the merge below falls back
-   * to the local list while it is null, so a signed-in guest is never shown an
-   * empty order history for the few hundred milliseconds before this answers.
-   */
-  const [dbOrders, setDbOrders] = useState<Order[] | null>(null);
-  const [ordersError, setOrdersError] = useState<string | null>(null);
   const userId = auth.user?.id;
 
+  /**
+   * The profile row behind the session. `verified` is decided there and only
+   * there; an admin approving an ID sets it through the trigger in 0002 and a
+   * reset clears it through 0010. Re-read on demand - after an age check is
+   * filed, after the profile is saved - so a gate never argues with the
+   * database.
+   */
+  const { profile, loaded: profileLoaded, reload: refreshProfile } = useOwnProfile(userId);
+
+  const authUser = auth.user;
+  const user: AccountUser | null = useMemo(() => {
+    if (!authUser) return null;
+    return {
+      id: authUser.id,
+      email: authUser.email,
+      name: profile?.name || profile?.instagram || authUser.email.split("@")[0],
+      firstName: profile?.firstName ?? null,
+      age: profile?.age ?? null,
+      instagram: profile?.instagram ?? null,
+      phone: profile?.phone ?? null,
+      verified: Boolean(profile?.verified),
+      birthYear: profile?.birthYear ?? null,
+      check: profile?.latestCheck ?? null,
+      profileLoaded,
+    };
+  }, [authUser, profile, profileLoaded]);
+
+  /**
+   * All three must have answered: the store, the session, and - when there is
+   * a session - the profile behind it. Reporting ready before the profile has
+   * landed would send a verified guest to the age check.
+   */
+  const ready =
+    storeReady && (!isSupabaseConfigured || (auth.ready && (!authUser || profileLoaded)));
+
+  /**
+   * Orders placed on other devices, keyed by the user they were read for.
+   *
+   * Keyed rather than cleared on sign-out: a different person signing in on
+   * the same phone must not see the previous account's tickets for the few
+   * hundred milliseconds before their own read lands, and keying the answer
+   * by id makes a stale one unreadable instead of relying on an effect to
+   * wipe it in time. `rows` null means "not fetched yet", not "no orders" -
+   * the merge below falls back to the local list while it is null, so a
+   * signed-in guest is never shown an empty order history before this answers.
+   */
+  const [db, setDb] = useState<{
+    id: string;
+    rows: Order[] | null;
+    error: string | null;
+  } | null>(null);
+  const mine = userId && db?.id === userId ? db : null;
+  const dbOrders = mine?.rows ?? null;
+  const ordersError = mine?.error ?? null;
+
+  /** An error against the current account, leaving whatever rows were read. */
+  const noteOrdersError = useCallback(
+    (message: string) => {
+      if (!userId) return;
+      setDb((d) =>
+        d && d.id === userId
+          ? { ...d, error: message }
+          : { id: userId, rows: null, error: message },
+      );
+    },
+    [userId],
+  );
+
   useEffect(() => {
-    if (!isSupabaseConfigured || !userId) {
-      setDbOrders(null);
-      setOrdersError(null);
-      return;
-    }
+    if (!isSupabaseConfigured || !userId) return;
     let live = true;
     (async () => {
       const { orders: rows, error } = await listOrders(userId);
       if (!live) return;
-      setDbOrders(rows);
-      setOrdersError(error ?? null);
+      setDb({ id: userId, rows, error: error ?? null });
     })();
-    return () => {
-      live = false;
-    };
-  }, [userId]);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !userId) {
-      setDbProfile(null);
-      return;
-    }
-    let live = true;
-    void readOwnProfile(userId).then((p) => {
-      if (live) setDbProfile(p);
-    });
     return () => {
       live = false;
     };
@@ -322,12 +301,10 @@ export function useAccount() {
    * Backfill.
    *
    * An order placed before syncing existed lives only in this browser. One
-   * whose lines failed to write - 0004 unrun at the time - sits in the
-   * database with no tickets on it. Either way the dashboard cannot see a
-   * ticket the guest can, and "I got my ticket but I am not on the list" is
-   * exactly what that looks like from the other side. Each is pushed once per
-   * id per session; syncOrder upserts the row and tolerates duplicate lines,
-   * so repeating it against one that half-landed is safe.
+   * whose lines failed to write sits in the database with no tickets on it.
+   * Either way the dashboard cannot see a ticket the guest can. Each is pushed
+   * once per id per session; syncOrder upserts the row and tolerates duplicate
+   * lines, so repeating it against one that half-landed is safe.
    */
   const pushed = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -349,18 +326,23 @@ export function useAccount() {
         const out = await syncOrder(o, userId);
         if (!live) return;
         if (out.ok) landed = true;
-        else setOrdersError(out.error ?? "An order did not sync.");
+        else noteOrdersError(out.error ?? "An order did not sync.");
       }
       if (!landed) return;
       const { orders: rows, error } = await listOrders(userId);
       if (!live) return;
-      setDbOrders(rows);
-      if (error) setOrdersError(error);
+      // A clean re-read keeps any earlier sync error on screen: the rows are
+      // right, but something still did not land.
+      setDb((d) => ({
+        id: userId,
+        rows,
+        error: error ?? (d?.id === userId ? d.error : null),
+      }));
     })();
     return () => {
       live = false;
     };
-  }, [userId, dbOrders, localOrders]);
+  }, [userId, dbOrders, localOrders, noteOrdersError]);
 
   // The database copy is the one other devices can see, so it wins on a
   // shared id - a door marking a pass used should show up here. Anything only
@@ -374,92 +356,17 @@ export function useAccount() {
     );
   }, [localOrders, dbOrders, userId]);
 
-  const signUp = useCallback(
-    (u: { name: string; email: string; instagram?: string }) =>
-      patch({ user: { ...u, verified: false } }),
-    [],
-  );
-
-  const signIn = useCallback((email: string) => {
-    const existing = snapshot.user;
-    patch({
-      user:
-        existing?.email === email
-          ? existing
-          : { name: email.split("@")[0], email, verified: false },
-    });
-  }, []);
-
-  const signInAsDemo = useCallback(
-    () =>
-      patch({
-        user: {
-          name: "Demo Guest",
-          email: "demo@wecametooparty.com",
-          instagram: "@demoguest",
-          phone: "(212) 555-0139",
-          verified: true,
-          birthYear: 2001,
-        },
-      }),
-    [],
-  );
-
   /**
-   * Ends the session as well as the local record.
+   * Ends the session as well as the local state.
    *
    * Clearing localStorage alone would leave the Supabase session standing, and
-   * the user derived above would come straight back from it - a sign-out button
-   * that empties the cart and changes nothing else.
+   * the user derived above would come straight back from it.
    */
   const authSignOut = auth.signOut;
   const signOut = useCallback(async () => {
-    patch({ user: null, cart: null, orders: NO_ORDERS });
+    patch({ cart: null, orders: NO_ORDERS });
     if (isSupabaseConfigured) await authSignOut();
   }, [authSignOut]);
-
-  /**
-   * Records the outcome of the age check.
-   *
-   * Only the birth year and, when a scan supplied one, the name on the card.
-   * A licence barcode also carries an address, a document number and a full
-   * date of birth; none of that is kept. A door needs to know someone is over
-   * 18 and what to call them, and anything stored beyond that is only ever a
-   * liability - the more so here, where it would sit in localStorage.
-   */
-  /**
-   * Records the outcome of the age check.
-   *
-   * snapshot.user can be null here even for someone genuinely signed in: since
-   * the session became the source of identity, nothing writes a local record
-   * on sign-in any more, so a guest who has never touched anything else on
-   * /account arrives with no local user to update. This used to bail out
-   * silently in exactly that case - the scan still ran and computed the right
-   * answer, it just had nowhere to save it, which read as "I submitted my ID
-   * and it does not save" with no error anywhere to explain why. It now
-   * starts a local record from the session's email rather than requiring one
-   * to already exist.
-   */
-  const markVerified = useCallback(
-    (birthYear: number, legalName?: string) => {
-      const base: DemoUser | null =
-        snapshot.user ??
-        (auth.user
-          ? { name: auth.user.email.split("@")[0], email: auth.user.email, verified: false }
-          : null);
-      if (!base) return;
-      patch({
-        user: {
-          ...base,
-          verified: true,
-          verifiedAt: Date.now(),
-          birthYear,
-          name: legalName?.trim() || base.name,
-        },
-      });
-    },
-    [auth.user],
-  );
 
   /**
    * Sets the quantity of one tier.
@@ -597,26 +504,30 @@ export function useAccount() {
       // /account fetches, not blocked on now.
       if (isSupabaseConfigured && userId) {
         void syncOrder(order, userId).then((out) => {
-          if (!out.ok) setOrdersError(out.error ?? "The order did not sync.");
+          if (!out.ok) noteOrdersError(out.error ?? "The order did not sync.");
         });
       }
 
       return order;
     },
-    [],
+    [userId, noteOrdersError],
   );
 
   const cancelOrder = useCallback(
     (id: string) => {
       patch({ orders: snapshot.orders.filter((o) => o.id !== id) });
-      setDbOrders((rows) => (rows ? rows.filter((o) => o.id !== id) : rows));
+      setDb((d) =>
+        d && d.id === userId && d.rows
+          ? { ...d, rows: d.rows.filter((o) => o.id !== id) }
+          : d,
+      );
       if (isSupabaseConfigured && userId) {
         void cancelOrderInDb(id).then((out) => {
-          if (!out.ok) setOrdersError(out.error ?? "The cancellation did not sync.");
+          if (!out.ok) noteOrdersError(out.error ?? "The cancellation did not sync.");
         });
       }
     },
-    [userId],
+    [userId, noteOrdersError],
   );
 
   const findOrder = useCallback(
@@ -642,11 +553,9 @@ export function useAccount() {
      * more" notice, not a load failure for the whole screen. */
     ordersError,
     passCount,
-    signUp,
-    signIn,
-    signInAsDemo,
+    /** Re-reads the profile row: call after filing an age check or saving the profile. */
+    refreshProfile,
     signOut,
-    markVerified,
     setQty,
     adjustQty,
     setDonation,

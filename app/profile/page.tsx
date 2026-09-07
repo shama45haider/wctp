@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { atHandle, handleProblem } from "@/lib/handle";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import {
@@ -14,14 +15,23 @@ import {
 import { btn, btnGo, field } from "@/lib/ui";
 
 /**
- * The profile: a nickname and a picture, and everything else read-only.
+ * The profile: a picture, a first name, an Instagram handle and a phone
+ * number, and everything else read-only.
  *
- * Only two fields are editable, and that is deliberate. `name` is written by
- * the ID check from what the licence actually says, so it is the legal one and
- * a door comparing a card against a screen needs it to stay that way - the
- * nickname sits above it as the name the site uses, without replacing it.
+ * The account's name is its Instagram handle. It is what goes on the ticket
+ * and what the door reads off a screen, so there is no separate display name
+ * to keep in step with it: changing the handle here renames the account, and
+ * updateOwnProfile writes both columns in one go so they can never disagree.
+ * That also means a handle is required - an account with no name is one the
+ * door cannot find.
+ *
+ * Whether the guest is age-verified is decided by a person in the admin
+ * dashboard reading the photo of the ID they sent, and by nothing else. The
+ * row's `verified` cannot be written from a guest's session (the trigger in
+ * 0011 refuses it), so this page only reports it, alongside where the newest
+ * check stands: with us, refused with the reviewer's note, or never filed.
  * Email is the sign-in credential and changing it is an auth flow, not a text
- * field. Phone was asked at sign-up and nothing yet reads it back.
+ * field. Age is what was said at sign-up and the review is what checks it.
  */
 
 type Load =
@@ -31,11 +41,16 @@ type Load =
 
 type Save = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "failed"; message: string };
 
+/** Digits only, so +1 (212) 555-0139 and 2125550139 are the same answer. */
+const digitsOf = (s: string) => s.replace(/\D/g, "");
+
 export default function Profile() {
   const { ready, user } = useSupabaseAuth();
 
   const [load, setLoad] = useState<Load>({ kind: "loading" });
-  const [nickname, setNickname] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [phone, setPhone] = useState("");
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [save, setSave] = useState<Save>({ kind: "idle" });
@@ -65,7 +80,9 @@ export default function Profile() {
       if (!live) return;
       setLoad(p ? { kind: "ready", profile: p } : { kind: "error" });
       if (p) {
-        setNickname(p.nickname ?? "");
+        setFirstName(p.firstName ?? "");
+        setInstagram(p.instagram ?? "");
+        setPhone(p.phone ?? "");
         setAvatarPath(p.avatarPath);
       }
     });
@@ -106,6 +123,17 @@ export default function Profile() {
   const shown = pending ?? avatarUrl(avatarPath);
   const busy = save.kind === "saving";
 
+  const check = profile?.latestCheck ?? null;
+  const verified = Boolean(profile?.verified);
+  // Verified wins outright: a check still on file from before an approval is
+  // not "pending" once the row says cleared.
+  const awaiting = !verified && check?.status === "pending";
+  const refused = !verified && !awaiting && check?.status === "rejected";
+
+  const accountName = profile?.instagram
+    ? atHandle(profile.name)
+    : profile?.name || "—";
+
   const choose = async (file: File | null) => {
     if (!file || !userId) return;
     setSave({ kind: "idle" });
@@ -142,14 +170,63 @@ export default function Profile() {
 
   const submit = async () => {
     if (!userId) return;
+
+    // Refused here, before the round trip, with the same words the sign-up
+    // wizard uses - and refused at all because a blank handle would leave the
+    // account with no name for the door to read.
+    const wrong = handleProblem(instagram);
+    if (wrong) return setSave({ kind: "failed", message: wrong });
+
+    if (phone.trim() && digitsOf(phone).length < 10) {
+      return setSave({
+        kind: "failed",
+        message: "That doesn't look like a full phone number. Leave it blank to remove it.",
+      });
+    }
+
     setSave({ kind: "saving" });
-    const out = await updateOwnProfile(userId, { nickname: nickname.trim() });
+
+    // Two writes, not one. The handle and phone have existed since the first
+    // migrations; first_name only exists once 0011 has run. A single UPDATE
+    // naming both fails outright the moment PostgREST hits a column that is
+    // not there, which used to mean a project that had not yet run 0011
+    // could not save a handle either - two unrelated fields sharing one
+    // failure. Sending first_name only when it actually changed, and as its
+    // own request, means the handle and phone go through regardless.
+    const core = await updateOwnProfile(userId, {
+      instagram: instagram.trim(),
+      phone: digitsOf(phone),
+    });
     if (!alive.current) return;
-    setSave(
-      out.ok
-        ? { kind: "saved" }
-        : { kind: "failed", message: out.error ?? "That did not save." },
-    );
+
+    if (!core.ok) {
+      return setSave({ kind: "failed", message: core.error ?? "That did not save." });
+    }
+
+    let nameError: string | undefined;
+    if (firstName.trim() !== (profile?.firstName ?? "")) {
+      const named = await updateOwnProfile(userId, { firstName: firstName.trim() });
+      if (!alive.current) return;
+      if (!named.ok) nameError = named.error ?? "The first name did not save.";
+    }
+
+    // Re-read rather than patched locally: the handle was normalised on the
+    // way in, the name moved with it, and the read-only rows below should say
+    // what the database now says, not what was typed. The fields follow the
+    // fresh row too, so the box shows the handle the way it was stored.
+    const fresh = await readOwnProfile(userId);
+    if (!alive.current) return;
+    if (fresh) {
+      setLoad({ kind: "ready", profile: fresh });
+      setFirstName(fresh.firstName ?? "");
+      setInstagram(fresh.instagram ?? "");
+      setPhone(fresh.phone ?? "");
+      setAvatarPath(fresh.avatarPath);
+    }
+    // The handle and phone are what the door and the ticket actually depend
+    // on, so their success is "saved" even when the first name - a courtesy
+    // field - could not be written on a project still missing 0011.
+    setSave(nameError ? { kind: "failed", message: nameError } : { kind: "saved" });
   };
 
   return (
@@ -185,7 +262,7 @@ export default function Profile() {
           ) : (
             <div className="flex h-full w-full items-center justify-center">
               <span className="font-display text-[1.75rem] text-silverfaint">
-                {(nickname || profile?.name || user.email)[0]?.toUpperCase()}
+                {(profile?.name || firstName || user.email)[0]?.toUpperCase()}
               </span>
             </div>
           )}
@@ -210,61 +287,101 @@ export default function Profile() {
         </div>
       </section>
 
-      {/* -------------------------------------------------------- nickname -- */}
+      {/* ---------------------------------------------------------- fields -- */}
 
-      <div className="mt-8">
-        <label htmlFor="nickname" className="label text-silverfaint">
-          NICKNAME
+      <form
+        className="mt-8"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+      >
+        <label htmlFor="firstName" className="label text-silverfaint">
+          FIRST NAME
         </label>
         <input
-          id="nickname"
-          value={nickname}
+          id="firstName"
+          value={firstName}
           onChange={(e) => {
-            setNickname(e.target.value);
+            setFirstName(e.target.value);
             setSave({ kind: "idle" });
           }}
+          autoComplete="given-name"
           maxLength={40}
-          placeholder="What people call you"
+          placeholder="Jordan"
+          disabled={busy}
+          className={`${field} mt-2 w-full`}
+        />
+
+        <label htmlFor="instagram" className="label mt-6 block text-silverfaint">
+          INSTAGRAM
+        </label>
+        <input
+          id="instagram"
+          value={instagram}
+          onChange={(e) => {
+            setInstagram(e.target.value);
+            setSave({ kind: "idle" });
+          }}
+          autoComplete="off"
+          autoCapitalize="none"
+          placeholder="yourhandle"
           disabled={busy}
           className={`${field} mt-2 w-full`}
         />
         <p className="label mt-2 leading-loose text-silverfaint">
-          SHOWN INSTEAD OF YOUR NAME. THE NAME OFF YOUR ID STAYS ON YOUR TICKET
-          SO THE DOOR CAN MATCH IT.
+          YOUR ACCOUNT IS NAMED AFTER IT - IT&rsquo;S WHAT&rsquo;S ON YOUR
+          TICKET AND WHAT THE DOOR READS.
         </p>
-      </div>
 
-      {save.kind === "failed" && (
-        <p
-          className="label mt-5 border border-[rgba(200,16,46,0.5)] px-3 py-3 leading-loose text-bloodhi"
-          role="alert"
-        >
-          {save.message}
+        <label htmlFor="phone" className="label mt-6 block text-silverfaint">
+          PHONE (OPTIONAL)
+        </label>
+        <input
+          id="phone"
+          type="tel"
+          inputMode="tel"
+          value={phone}
+          onChange={(e) => {
+            setPhone(e.target.value);
+            setSave({ kind: "idle" });
+          }}
+          autoComplete="tel"
+          placeholder="(212) 555-0139"
+          disabled={busy}
+          className={`${field} mt-2 w-full`}
+        />
+        <p className="label mt-2 leading-loose text-silverfaint">
+          ONLY USED IF SOMETHING CHANGES ON THE NIGHT.
         </p>
-      )}
 
-      {save.kind === "saved" && (
-        <p className="label mt-5 text-silverdim" role="status">
-          SAVED.
-        </p>
-      )}
+        {save.kind === "failed" && (
+          <p
+            className="label mt-5 border border-[rgba(200,16,46,0.5)] px-3 py-3 leading-loose text-bloodhi"
+            role="alert"
+          >
+            {save.message}
+          </p>
+        )}
 
-      <button
-        onClick={() => void submit()}
-        disabled={busy}
-        className={`${btnGo} mt-6 w-full`}
-      >
-        {busy ? "Saving…" : "Save"}
-      </button>
+        {save.kind === "saved" && (
+          <p className="label mt-5 text-silverdim" role="status">
+            SAVED.
+          </p>
+        )}
+
+        <button type="submit" disabled={busy} className={`${btnGo} mt-6 w-full`}>
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </form>
 
       {/* ------------------------------------------------------- read-only -- */}
 
       <dl className="mt-10 border-t border-line">
         {[
-          ["NAME ON YOUR ID", profile?.name || "—"],
+          ["ACCOUNT NAME", accountName],
           ["EMAIL", user.email],
-          ["PHONE", profile?.phone || "—"],
-          ["INSTAGRAM", profile?.instagram ? `@${profile.instagram.replace(/^@/, "")}` : "—"],
+          ["AGE", profile?.age != null ? String(profile.age) : "—"],
         ].map(([k, v]) => (
           <div
             key={k}
@@ -274,18 +391,37 @@ export default function Profile() {
             <dd className="text-right break-all text-chalk">{v}</dd>
           </div>
         ))}
-        <div className="label flex items-baseline justify-between gap-4 border-b border-line py-3">
-          <dt className="text-silverfaint">ID CHECK</dt>
-          <dd className={profile?.verified ? "text-chalk" : "text-bloodhi"}>
-            {profile?.verified ? "VERIFIED" : "NOT VERIFIED"}
-          </dd>
+        <div className="label border-b border-line py-3">
+          <div className="flex items-baseline justify-between gap-4">
+            <dt className="text-silverfaint">AGE CHECK</dt>
+            <dd
+              className={
+                verified ? "text-chalk" : awaiting ? "text-silverdim" : "text-bloodhi"
+              }
+            >
+              {verified
+                ? "VERIFIED"
+                : awaiting
+                  ? "PENDING"
+                  : refused
+                    ? "REFUSED"
+                    : "NOT VERIFIED"}
+            </dd>
+          </div>
+          {refused && check?.note && (
+            // The reviewer's own words, so a guest sent back knows what to
+            // send differently rather than guessing.
+            <dd className="mt-2 text-right leading-loose text-silverdim">
+              {check.note}
+            </dd>
+          )}
         </div>
       </dl>
 
       <div className="mt-7 flex flex-col gap-3">
-        {!profile?.verified && (
+        {!verified && !awaiting && (
           <Link href="/verify" className={btnGo}>
-            Verify your ID
+            Verify your age
           </Link>
         )}
         <Link href="/account" className={btn}>

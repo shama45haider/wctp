@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { org } from "@/lib/events";
+import { handleProblem, normalizeHandle } from "@/lib/handle";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { btn, btnGo, field } from "@/lib/ui";
@@ -12,26 +14,35 @@ import { btn, btnGo, field } from "@/lib/ui";
  *
  * Built for a phone held in one hand at a bar, which is where most of these
  * actually happen: one field per screen, the keyboard already open on it, and
- * a thumb-sized button underneath. A single form with five stacked inputs is
+ * a thumb-sized button underneath. A single form with six stacked inputs is
  * faster to build and worse to fill in - on a small screen the keyboard covers
  * half of it, and every validation error appears somewhere the guest has to go
  * looking for.
  *
- * Name, email and phone go up as sign-up metadata rather than being written
- * afterwards. handle_new_user reads them when it creates the profile row, and
- * that trigger fires on the auth user rather than on a session - so they
- * survive email confirmation, which otherwise leaves no signed-in moment to
- * write them in and would mean asking twice.
+ * First name, age, Instagram handle and phone go up as sign-up metadata rather
+ * than being written afterwards. handle_new_user reads them when it creates
+ * the profile row, and that trigger fires on the auth user rather than on a
+ * session - so they survive email confirmation, which otherwise leaves no
+ * signed-in moment to write them in and would mean asking twice.
+ *
+ * The handle is the account's name: it goes on the ticket and it is what the
+ * door reads off a screen, so it is asked for as itself and checked the way
+ * Instagram would check it. No surname is asked anywhere. The age is what the
+ * guest says it is - the age check, a person reading a photo of their ID
+ * afterwards, is what decides whether they are cleared.
  */
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD = 6;
+const MIN_AGE = 18;
 
 /** Digits only, so +1 (212) 555-0139 and 2125550139 are the same answer. */
 const digitsOf = (s: string) => s.replace(/\D/g, "");
 
 type Answers = {
-  name: string;
+  firstName: string;
+  age: string;
+  instagram: string;
   email: string;
   password: string;
   phone: string;
@@ -44,7 +55,9 @@ type Step = {
   hint?: string;
   type: string;
   autoComplete: string;
+  autoCapitalize?: "none";
   inputMode?: "text" | "email" | "tel" | "numeric";
+  pattern?: string;
   placeholder?: string;
   /** Null when the answer will do, otherwise what is wrong with it. */
   check: (value: string) => string | null;
@@ -52,15 +65,44 @@ type Step = {
 
 const STEPS: Step[] = [
   {
-    key: "name",
-    label: "FULL NAME",
-    question: "What's your name?",
-    hint: "The one on the ID you'll bring. Door staff read both.",
+    key: "firstName",
+    label: "FIRST NAME",
+    question: "What's your first name?",
+    hint: "Just the first. Nobody here asks for a surname.",
     type: "text",
-    autoComplete: "name",
-    placeholder: "Jordan Lee",
-    check: (v) =>
-      v.trim().length < 2 ? "Put in the name you go by on your ID." : null,
+    autoComplete: "given-name",
+    placeholder: "Jordan",
+    check: (v) => (v.trim().length < 1 ? "Put in your first name." : null),
+  },
+  {
+    key: "age",
+    label: "AGE",
+    question: "How old are you?",
+    hint: `Our nights are ${MIN_AGE}+. This is what you tell us - the age check later reads it off your ID.`,
+    type: "text",
+    autoComplete: "off",
+    inputMode: "numeric",
+    pattern: "[0-9]*",
+    placeholder: "21",
+    check: (v) => {
+      const s = v.trim();
+      if (!/^\d+$/.test(s)) return "Put in your age as a whole number.";
+      const n = Number(s);
+      if (n < 1 || n > 120) return "That's not an age.";
+      if (n < MIN_AGE) return `Our nights are ${MIN_AGE}+.`;
+      return null;
+    },
+  },
+  {
+    key: "instagram",
+    label: "INSTAGRAM",
+    question: "What's your Instagram?",
+    hint: "Your account is named after it - it's the name on your ticket and the name the door reads, so it has to be yours.",
+    type: "text",
+    autoComplete: "off",
+    autoCapitalize: "none",
+    placeholder: "@yourhandle",
+    check: handleProblem,
   },
   {
     key: "email",
@@ -85,17 +127,23 @@ const STEPS: Step[] = [
   },
   {
     key: "phone",
-    label: "PHONE NUMBER",
+    label: "PHONE NUMBER (OPTIONAL)",
     question: "And a phone number?",
-    hint: "Only used if something changes on the night.",
+    hint: "Only used if something changes on the night. Leave it blank if you'd rather not.",
     type: "tel",
     autoComplete: "tel",
     inputMode: "tel",
     placeholder: "(212) 555-0139",
-    check: (v) =>
-      digitsOf(v).length < 10 ? "That doesn't look like a full number." : null,
+    check: (v) => {
+      if (v.trim() === "") return null;
+      return digitsOf(v).length < 10
+        ? "That doesn't look like a full number. Leave it blank to skip it."
+        : null;
+    },
   },
 ];
+
+const EMAIL_STEP = STEPS.findIndex((s) => s.key === "email");
 
 export default function SignUp() {
   const router = useRouter();
@@ -103,7 +151,9 @@ export default function SignUp() {
 
   const [at, setAt] = useState(0);
   const [answers, setAnswers] = useState<Answers>({
-    name: "",
+    firstName: "",
+    age: "",
+    instagram: "",
     email: "",
     password: "",
     phone: "",
@@ -140,9 +190,13 @@ export default function SignUp() {
   };
 
   const submit = async () => {
+    // The Instagram step refused anything normalizeHandle would return null
+    // for, so by the time this runs the handle is known to be one.
     const out = await signUpWithPassword(answers.email, answers.password, {
-      name: answers.name,
-      phone: digitsOf(answers.phone),
+      firstName: answers.firstName.trim(),
+      age: Number(answers.age.trim()),
+      instagram: normalizeHandle(answers.instagram)!,
+      phone: digitsOf(answers.phone) || undefined,
     });
     return out;
   };
@@ -165,7 +219,7 @@ export default function SignUp() {
       // Sent back to the email screen when that is what was refused, since
       // "already registered" is the common one and the fix is up there.
       if (/registered|already/i.test(out.error ?? "")) {
-        setAt(1);
+        setAt(EMAIL_STEP);
         setProblem("There's already an account on that email. Sign in instead.");
         return;
       }
@@ -223,20 +277,27 @@ export default function SignUp() {
         </span>
 
         <h1 className="font-display chrome mt-7 text-[clamp(2rem,8vw,3.25rem)] leading-[0.85]">
-          Verify ID
+          Verify your age
         </h1>
 
         <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
-          {signedIn
-            ? "Our nights are 18+. Scan the back of your licence and it's done in a second - or send another ID and we'll check it by hand."
-            : "Your account is made. Confirm the address from the email we just sent, sign in, and the ID check is the last step."}
+          {signedIn ? (
+            <>
+              Our nights are {MIN_AGE}+. Send a photo of your ID and a person
+              checks it by hand, which takes a little while. You&rsquo;ll hear
+              back from <span className="break-all text-chalk">{org.email}</span>,
+              and you can&rsquo;t RSVP until it&rsquo;s approved.
+            </>
+          ) : (
+            "Your account is made. Confirm the address from the email we just sent, sign in, and the age check is the last step."
+          )}
         </p>
 
         <div className="mt-8 flex flex-col gap-3">
           {signedIn ? (
             <>
               <button onClick={() => router.push("/verify")} className={btnGo}>
-                Verify my ID
+                Verify my age
               </button>
               <Link href="/tickets" className={btn}>
                 Later - show me the dates
@@ -310,7 +371,9 @@ export default function SignUp() {
           name={step.key}
           type={step.type}
           inputMode={step.inputMode}
+          pattern={step.pattern}
           autoComplete={step.autoComplete}
+          autoCapitalize={step.autoCapitalize}
           placeholder={step.placeholder}
           value={value}
           onChange={(e) => set(e.target.value)}

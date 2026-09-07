@@ -275,16 +275,31 @@ export function useSupabaseAuth() {
       // session, so these survive email confirmation - there is no signed-in
       // moment afterwards in which to write them, and asking again would be
       // asking twice.
-      details?: { name?: string; phone?: string; nickname?: string },
+      //
+      // The Instagram handle goes up twice, as `instagram` and as `name`: the
+      // account is called by its handle, and sending it under both keys means
+      // a project still on the 0007 trigger (which only reads `name`) names
+      // the account correctly too.
+      details?: {
+        firstName?: string;
+        age?: number;
+        /** Bare handle, already normalised - see lib/handle.ts. */
+        instagram?: string;
+        phone?: string;
+      },
     ): Promise<Outcome> => {
       const supabase = safeClient();
       if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
-      const data = Object.fromEntries(
-        Object.entries(details ?? {})
-          .map(([k, v]) => [k, v?.trim() ?? ""])
-          .filter(([, v]) => v !== ""),
-      );
+      const d = details ?? {};
+      const entries: [string, string | number][] = [
+        ["first_name", d.firstName?.trim() ?? ""],
+        ["age", typeof d.age === "number" && Number.isFinite(d.age) ? d.age : ""],
+        ["instagram", d.instagram?.trim() ?? ""],
+        ["name", d.instagram?.trim() ?? ""],
+        ["phone", d.phone?.trim() ?? ""],
+      ];
+      const data = Object.fromEntries(entries.filter(([, v]) => v !== ""));
 
       const out = await attempt(
         supabase.auth.signUp({

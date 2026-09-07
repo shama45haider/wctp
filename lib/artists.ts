@@ -1,7 +1,23 @@
+/**
+ * The people on the roster page, in the order the page shows them: the two
+ * CEOs first, then the two DJs, then the artists.
+ *
+ * Fill a slot in by adding fields to it. A slot with only a number and a role
+ * renders as an "announcing soon" placeholder, which is what the CEO and DJ
+ * slots are until their names, photos and handles are put in below - nothing
+ * else on the site needs touching for that.
+ *
+ * Photos go in /public/roster and are referenced by path.
+ */
+
+export type Role = "ceo" | "dj" | "artist";
+
 export type Artist = {
   slot: number;
+  role: Role;
   name?: string;
-  role?: string;
+  /** A line under the name - "Founder", "Resident", a crew - if there is one. */
+  title?: string;
   bio?: string;
   /** Local path under /public, or a remote URL on an allowed host. */
   imageUrl?: string;
@@ -9,25 +25,55 @@ export type Artist = {
   soundcloud?: string;
 };
 
-/**
- * Four roster slots. Fill in a slot by adding the fields; any slot left with
- * only its number renders as an empty placeholder on /artists.
- */
-export const artists: Artist[] = [
+/** The sections of the page, top to bottom. */
+export const ROLES: { id: Role; heading: string; label: string; blurb: string }[] = [
   {
-    slot: 1,
+    id: "ceo",
+    heading: "The CEOs",
+    label: "CEO",
+    blurb: "The two who run it.",
+  },
+  {
+    id: "dj",
+    heading: "The DJs",
+    label: "DJ",
+    blurb: "Behind the decks on the night.",
+  },
+  {
+    id: "artist",
+    heading: "The Artists",
+    label: "ARTIST",
+    blurb: "The rest of the family.",
+  },
+];
+
+export const roster: Artist[] = [
+  // ------------------------------------------------------------- CEOs ----
+  // Two slots, waiting on names. Add name, imageUrl and instagram here.
+  { slot: 1, role: "ceo" },
+  { slot: 2, role: "ceo" },
+
+  // -------------------------------------------------------------- DJs ----
+  { slot: 3, role: "dj" },
+  { slot: 4, role: "dj" },
+
+  // ---------------------------------------------------------- artists ----
+  {
+    slot: 5,
+    role: "artist",
     name: "ragevvs",
     imageUrl: "/roster/ragevvs.jpg",
     instagram: "https://www.instagram.com/ragevvs",
   },
   {
-    slot: 2,
+    slot: 6,
+    role: "artist",
     name: "fuckitsoni",
     imageUrl: "/roster/fuckitsoni.jpg",
     instagram: "https://www.instagram.com/fuckitsoni/",
   },
-  { slot: 3 },
-  { slot: 4 },
 ];
 
 export const isFilled = (a: Artist) => Boolean(a.name);
+
+export const byRole = (role: Role) => roster.filter((a) => a.role === role);

@@ -5,7 +5,6 @@ export const navLinks = [
   { href: "/", label: "HOME" },
   { href: "/tickets", label: "TICKETS" },
   { href: "/artists", label: "ARTISTS" },
-  { href: "/partners", label: "PARTNERS" },
 ];
 
 export default function Nav() {
@@ -32,7 +31,7 @@ export default function Nav() {
         <NavAuthButton />
       </div>
 
-      {/* Second row below lg, where five inline links stop fitting beside the
+      {/* Second row below lg, where the inline links stop fitting beside the
           button. It scrolls sideways rather than wrapping, so the bar keeps a
           single predictable height at every width. */}
       <div className="relative border-t border-line lg:hidden">

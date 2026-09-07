@@ -1,11 +1,20 @@
 import Image from "next/image";
-import { artists, isFilled, type Artist } from "@/lib/artists";
+import {
+  ROLES,
+  roster,
+  byRole,
+  isFilled,
+  type Artist,
+  type Role,
+} from "@/lib/artists";
 import { org } from "@/lib/events";
 import { asset } from "@/lib/asset";
 
 export const metadata = { title: "Meet Our Artists — WECAMETOOPARTY" };
 
 const pad = (n: number) => String(n).padStart(2, "0");
+
+const labelOf = (role: Role) => ROLES.find((r) => r.id === role)!.label;
 
 function FilledCard({ a }: { a: Artist }) {
   return (
@@ -30,9 +39,10 @@ function FilledCard({ a }: { a: Artist }) {
       </div>
 
       <div className="px-5 pt-4 pb-6">
-        <h2 className="font-display text-[1.6rem]">{a.name}</h2>
-        {a.role && (
-          <div className="label mt-1 text-bloodhi">{a.role.toUpperCase()}</div>
+        <h3 className="font-display text-[1.6rem]">{a.name}</h3>
+        <div className="label mt-1 text-bloodhi">{labelOf(a.role)}</div>
+        {a.title && (
+          <div className="label mt-1 text-silverdim">{a.title.toUpperCase()}</div>
         )}
         {a.bio && (
           <p className="mt-3 text-sm leading-relaxed text-silverdim">{a.bio}</p>
@@ -66,19 +76,19 @@ function FilledCard({ a }: { a: Artist }) {
   );
 }
 
-function EmptySlot({ slot }: { slot: number }) {
+function EmptySlot({ a }: { a: Artist }) {
   return (
     <article className="relative border border-dashed border-linehi bg-ink/40">
       <div className="hairline-x relative flex aspect-[4/5] items-center justify-center opacity-25" />
       <span className="font-display absolute top-3 left-4 text-[2.5rem] leading-none text-linehi">
-        {pad(slot)}
+        {pad(a.slot)}
       </span>
       <div className="border-t border-dashed border-linehi px-5 pt-4 pb-6">
-        <h2 className="font-display text-[1.6rem] text-silverfaint">
-          Slot {pad(slot)}
-        </h2>
+        <h3 className="font-display text-[1.6rem] text-silverfaint">
+          Slot {pad(a.slot)}
+        </h3>
         <p className="label mt-2 leading-loose text-silverfaint">
-          ANNOUNCING SOON
+          {labelOf(a.role)} &middot; ANNOUNCING SOON
         </p>
       </div>
     </article>
@@ -86,7 +96,7 @@ function EmptySlot({ slot }: { slot: number }) {
 }
 
 export default function Artists() {
-  const open = artists.filter((a) => !isFilled(a)).length;
+  const announced = roster.filter(isFilled).length;
 
   return (
     <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(2.5rem,6vw,4.5rem)]">
@@ -96,7 +106,7 @@ export default function Artists() {
             Meet Our Artists
           </h1>
           <p className="mt-4 max-w-[46ch] leading-relaxed text-silverdim">
-            The people behind the decks. Want on the roster? Reach us at{" "}
+            The people behind the nights. Want on the roster? Reach us at{" "}
             <a
               href={org.instagram}
               target="_blank"
@@ -104,25 +114,49 @@ export default function Artists() {
               className="text-chalk underline decoration-blood underline-offset-4 hover:text-bloodhi"
             >
               {org.instagramHandle}
+            </a>{" "}
+            or{" "}
+            <a
+              href={`mailto:${org.email}`}
+              className="text-chalk underline decoration-blood underline-offset-4 hover:text-bloodhi"
+            >
+              {org.email}
             </a>
             .
           </p>
         </div>
         <div className="label text-silverfaint sm:shrink-0">
-          {artists.length} SLOTS
-          {open > 0 && ` / ${open} OPEN`}
+          {pad(announced)} OF {pad(roster.length)} ANNOUNCED
         </div>
       </div>
 
-      <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {artists.map((a) =>
-          isFilled(a) ? (
-            <FilledCard key={a.slot} a={a} />
-          ) : (
-            <EmptySlot key={a.slot} slot={a.slot} />
-          ),
-        )}
-      </div>
+      {/* One section per role, in ROLES order. Every section shares the same
+          four-column grid so a card is the same width all the way down the
+          page; the two-card CEO and DJ sections simply fill two of the four
+          columns on a wide screen rather than stretching to a different size. */}
+      {ROLES.map((r) => {
+        const slots = byRole(r.id);
+        return (
+          <section key={r.id} id={`${r.id}s`} className="mt-12 scroll-mt-28">
+            <div className="mb-6 border-b border-line pb-4">
+              <h2 className="font-display text-[clamp(1.9rem,5vw,3rem)]">
+                {r.heading}
+              </h2>
+              <p className="mt-2 max-w-[42ch] text-silverdim">{r.blurb}</p>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {slots.map((a) =>
+                isFilled(a) ? (
+                  <FilledCard key={a.slot} a={a} />
+                ) : (
+                  <EmptySlot key={a.slot} a={a} />
+                ),
+              )}
+            </div>
+          </section>
+        );
+      })}
     </main>
   );
 }

@@ -74,8 +74,7 @@ export default function Home() {
               </Link>
               <span className="label text-silverdim">
                 {next.dow} {dayOf(next.date)} {monthOf(next.date)}
-                &nbsp;/&nbsp;{next.time}&nbsp;/&nbsp;
-                {next.venue.toUpperCase()}
+                &nbsp;/&nbsp;{next.time}&nbsp;/&nbsp;ADDRESS BY EMAIL
               </span>
               <Link
                 href={`/events/${next.slug}#tickets`}
@@ -138,7 +137,7 @@ export default function Home() {
         <div className="mx-auto w-[92vw] max-w-[1180px]">
           <SectionHead
             title="Upcoming"
-            blurb="Locations drop close to the date. Watch the feed and don&rsquo;t be late."
+            blurb={`The address is emailed from ${org.email} to everyone on the list before each night. Get on it, watch the feed, and don’t be late.`}
             aside={`${String(upcoming.length).padStart(2, "0")} DATES`}
           />
           <EventManifest events={upcoming} />
@@ -255,8 +254,7 @@ export default function Home() {
                       {e.title}
                     </h3>
                     <span className="label mt-2 block text-silverfaint">
-                      {e.dow} {dayOf(e.date)} {monthOf(e.date)} &middot;{" "}
-                      {e.venue.toUpperCase()}
+                      {e.dow} {dayOf(e.date)} {monthOf(e.date)} &middot; {e.time}
                     </span>
                   </div>
                 </Link>

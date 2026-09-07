@@ -2,19 +2,29 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import IdCamera from "./IdCamera";
+import IdRedactor from "./IdRedactor";
+import { org } from "@/lib/events";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 import { btn, btnGo, field } from "@/lib/ui";
 
 /**
- * The manual side of the age check: a photo of an ID and a date of birth, left
- * for a human to look at.
+ * The age check: a photo of an ID and a date of birth, left for a person to
+ * look at.
  *
- * This is the path for everyone the barcode reader cannot serve - a student ID
- * with no PDF417 on it, a passport, a phone with no working camera. It is
- * slower on purpose. Nothing here approves anybody; it files a row in the
- * queue that an admin later reads in app/admin, and the guest is told as much
- * rather than being shown a tick that means nothing.
+ * This is the only way a check gets filed. There used to be a barcode reader
+ * beside it that could clear a licence holder on the spot; it is gone, and
+ * nothing in the browser can clear anybody now. What this files is a row in
+ * the queue, status "pending", that an admin later reads in app/admin - and
+ * the guest is told as much rather than shown a tick that means nothing.
+ *
+ * Four steps: where the photo comes from (the camera, or a file), the
+ * blackouts, the details, the send. The blackouts are why this is longer than
+ * "pick a file". A licence carries an address and a card number, the reviewer
+ * needs neither, and a guest should not have to hand them over to prove a
+ * year of birth - so they paint over whatever the door does not need before
+ * anything is sent, and only the painted copy ever leaves the phone.
  *
  * The date of birth is typed rather than read off the document because the
  * point of it is disagreement: an admin comparing what somebody claimed
@@ -42,12 +52,19 @@ const RECORD_TIMEOUT_MS = 10_000;
 
 /** What the reviewer will be looking at, in their words rather than a slug. */
 const KINDS = [
+  "Driver's licence",
   "Student ID",
   "College ID",
   "Passport",
   "State ID",
   "Other",
 ] as const;
+
+type Step =
+  | { k: "source" }
+  | { k: "camera" }
+  | { k: "redact"; source: Blob }
+  | { k: "details"; source: Blob; redacted: Blob };
 
 type Phase = "idle" | "uploading" | "submitted" | "error";
 
@@ -69,25 +86,6 @@ function ageFrom(dob: string): number | null {
   let age = now.getFullYear() - year;
   if (thisMonth < month || (thisMonth === month && now.getDate() < day)) age -= 1;
   return age;
-}
-
-/**
- * A filename the storage API will accept.
- *
- * Slashes are the reason this exists: a name carrying one would push the file
- * into a deeper folder, and the RLS policy in 0003 only looks at the first
- * segment, so the write would land somewhere nobody goes looking for it.
- * Spaces and the rest go for the sake of the signed URLs built from this path.
- */
-function safeFilename(name: string) {
-  const base = name.split(/[\\/]/).pop() ?? "";
-  const cleaned = base
-    .replace(/[^A-Za-z0-9.]+/g, "-")
-    .replace(/^[-.]+|-+$/g, "")
-    // Long enough to stay recognisable, short enough to stay under the key
-    // limits, and taken from the end so the extension survives.
-    .slice(-60);
-  return cleaned || "id-document";
 }
 
 function megabytes(bytes: number) {
@@ -119,11 +117,12 @@ export default function IdDocumentUpload({
   onBack,
 }: {
   onSubmitted: () => void;
+  /** Leaving without filing anything. Only offered from the first step. */
   onBack: () => void;
 }) {
   const { ready, user } = useSupabaseAuth();
 
-  const [file, setFile] = useState<File | null>(null);
+  const [step, setStep] = useState<Step>({ k: "source" });
   const [preview, setPreview] = useState<string | null>(null);
   const [dob, setDob] = useState("");
   const [kind, setKind] = useState<string>(KINDS[0]);
@@ -138,10 +137,10 @@ export default function IdDocumentUpload({
     };
   }, []);
 
-  // A blob URL is held by the document until it is revoked, and the file
-  // behind it with it. Choosing a photo, looking at it and choosing another is
-  // the normal way this screen gets used, so each one is released as it is
-  // replaced, and the last one on the way out.
+  // A blob URL is held by the document until it is revoked, and the bytes
+  // behind it with it. Going back to the blackouts and coming out again is
+  // the normal way this screen gets used, so each preview is released as it
+  // is replaced, and the last one on the way out.
   const previewRef = useRef<string | null>(null);
   useEffect(
     () => () => {
@@ -150,10 +149,9 @@ export default function IdDocumentUpload({
     [],
   );
 
-  const swapFile = (next: File | null) => {
+  const showPreview = (blob: Blob | null) => {
     if (previewRef.current) URL.revokeObjectURL(previewRef.current);
-    previewRef.current = next ? URL.createObjectURL(next) : null;
-    setFile(next);
+    previewRef.current = blob ? URL.createObjectURL(blob) : null;
     setPreview(previewRef.current);
   };
 
@@ -166,7 +164,7 @@ export default function IdDocumentUpload({
       <>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
           {isSupabaseConfigured
-            ? "Sending an ID needs an account, so we know whose it is and where to write back."
+            ? "Sending an ID needs an account, so we know whose age check it is and where to write back."
             : "This build has no account service connected, so there is nowhere to send an ID."}
         </p>
         <div className="mt-7 flex flex-col gap-3">
@@ -187,12 +185,20 @@ export default function IdDocumentUpload({
   const underage = age !== null && age >= 0 && age < MIN_AGE;
   const futureDob = age !== null && age < 0;
   const busy = phase === "uploading";
-  const done = phase === "submitted";
+  const sent = phase === "submitted";
 
-  const choose = (picked: File | null) => {
+  const goTo = (next: Step) => {
     setMessage(null);
     setPhase("idle");
-    if (!picked) return swapFile(null);
+    if (next.k !== "details") showPreview(null);
+    setStep(next);
+  };
+
+  /** A file from the picker, checked before it is worth opening. */
+  const choose = (picked: File | null) => {
+    if (!picked) return;
+    setMessage(null);
+    setPhase("idle");
 
     // Some phones hand over a HEIC with an empty type rather than image/heic,
     // so an empty type falls back to the extension instead of being refused.
@@ -201,7 +207,6 @@ export default function IdDocumentUpload({
       : /\.(jpe?g|png|heic|heif|webp|gif)$/i.test(picked.name);
 
     if (!looksLikeImage) {
-      swapFile(null);
       setPhase("error");
       setMessage(
         "That is not an image. Send a photo of the document - a PDF or a document file will not do.",
@@ -210,7 +215,6 @@ export default function IdDocumentUpload({
     }
 
     if (picked.size > MAX_BYTES) {
-      swapFile(null);
       setPhase("error");
       setMessage(
         `That photo is ${megabytes(picked.size)}, and the limit is ${megabytes(
@@ -220,14 +224,18 @@ export default function IdDocumentUpload({
       return;
     }
 
-    swapFile(picked);
+    goTo({ k: "redact", source: picked });
+  };
+
+  const redacted = (source: Blob, blob: Blob) => {
+    showPreview(blob);
+    setMessage(null);
+    setPhase("idle");
+    setStep({ k: "details", source, redacted: blob });
   };
 
   const submit = async () => {
-    if (!file) {
-      setPhase("error");
-      return setMessage("Choose a photo of the document first.");
-    }
+    if (step.k !== "details") return;
     if (age === null) {
       setPhase("error");
       return setMessage("Enter your date of birth.");
@@ -257,13 +265,14 @@ export default function IdDocumentUpload({
     // The first folder segment has to be this user's id or the policy in
     // 0003_storage_fix.sql refuses the write outright. The timestamp keeps a
     // second attempt from colliding with the first, which upsert:false would
-    // otherwise reject as a duplicate.
-    const path = `${user.id}/${Date.now()}-${safeFilename(file.name)}`;
+    // otherwise reject as a duplicate. Always a JPEG: it is the redactor's
+    // output, whatever the guest started from.
+    const path = `${user.id}/${Date.now()}-id.jpg`;
 
     try {
       const up = await capped(
-        supabase.storage.from(BUCKET).upload(path, file, {
-          contentType: file.type || undefined,
+        supabase.storage.from(BUCKET).upload(path, step.redacted, {
+          contentType: "image/jpeg",
           upsert: false,
         }),
         UPLOAD_TIMEOUT_MS,
@@ -281,6 +290,8 @@ export default function IdDocumentUpload({
         return setMessage(`The photo could not be uploaded: ${up.error.message}`);
       }
 
+      // Pending, and only ever pending. The policy in 0011 refuses anything
+      // else from a guest's session, and this is the one place that files it.
       const row = await capped(
         supabase.from("verifications").insert({
           user_id: user.id,
@@ -304,7 +315,7 @@ export default function IdDocumentUpload({
         return setMessage(
           `Your photo uploaded, but we could not add it to the review queue${
             row?.error ? `: ${row.error.message}` : ""
-          }. Try again, or write to us and quote ${path}.`,
+          }. Try again, or email ${org.email} and quote ${path}.`,
         );
       }
 
@@ -316,22 +327,75 @@ export default function IdDocumentUpload({
       setMessage(
         e instanceof Error && e.message
           ? e.message
-          : "Something went wrong sending that.",
+          : `Something went wrong sending that. Try again, or email ${org.email}.`,
       );
     }
   };
 
-  if (done) {
+  const alert = message && (
+    <p
+      role="alert"
+      className="label mt-5 border border-[rgba(200,16,46,0.5)] px-3 py-3 leading-loose text-bloodhi"
+    >
+      {message}
+    </p>
+  );
+
+  if (step.k === "camera") {
+    return (
+      <IdCamera
+        onCapture={(blob) => goTo({ k: "redact", source: blob })}
+        onCancel={() => goTo({ k: "source" })}
+      />
+    );
+  }
+
+  if (step.k === "redact") {
+    const source = step.source;
+    return (
+      <IdRedactor
+        source={source}
+        onDone={(blob) => redacted(source, blob)}
+        onBack={() => goTo({ k: "source" })}
+      />
+    );
+  }
+
+  if (step.k === "source") {
     return (
       <>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-          That&rsquo;s with us. Somebody will look at it by hand and you&rsquo;ll
-          hear back before the next date - it is not instant, and nothing is
-          approved automatically.
+          Take the photo here, or send one you already have. Either way you
+          get to black parts of it out before it goes anywhere.
         </p>
-        <div className="label mt-6 flex items-center justify-between border border-line px-3 py-3">
-          <span className="text-silverfaint">ID STATUS</span>
-          <span className="text-chalk">AWAITING REVIEW</span>
+
+        {alert}
+
+        <div className="mt-7 flex flex-col gap-3">
+          <button onClick={() => goTo({ k: "camera" })} className={btnGo}>
+            Take a photo
+          </button>
+          {/* A label around the input rather than a button that clicks it, so
+              the picker opens with no script on the path and the input stays
+              in the tab order. No capture attribute: a phone offers its own
+              chooser, with the camera roll in it, and a desktop gets a file
+              picker. */}
+          <label className={`${btnGo} cursor-pointer`}>
+            Upload a photo
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(e) => {
+                choose(e.target.files?.[0] ?? null);
+                // Cleared so choosing the same file after a Back fires again.
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <button onClick={onBack} className={btn}>
+            Back
+          </button>
         </div>
       </>
     );
@@ -340,12 +404,41 @@ export default function IdDocumentUpload({
   return (
     <>
       <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-        Send a photo of your ID and the date of birth on it. A person reads
-        every one of these, so it takes a while - you&rsquo;ll hear back before
-        the next date.
+        Check your photo, your name and your date of birth are still readable,
+        then type the date of birth as it is on the card. A person reads every
+        one of these, so it takes a while - you&rsquo;ll hear from {org.email}{" "}
+        before the next date.
       </p>
 
       <div className="mt-7 flex flex-col gap-5">
+        {preview && (
+          <figure className="border border-line bg-ink p-2">
+            {/* A blob URL, so next/image is no use here even before the static
+                export rules it out. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={preview}
+              alt="Your ID with your blackouts on it, before sending it"
+              className="max-h-[46vh] w-full object-contain"
+            />
+            <figcaption className="label mt-2 flex items-center justify-between gap-3 text-silverfaint">
+              <span>{megabytes(step.redacted.size)} · WHAT THE REVIEWER WILL SEE</span>
+              <button
+                type="button"
+                // The already-redacted image, not the raw one: re-entering
+                // the blackout screen must build on the blackouts already
+                // drawn, never hand the guest's own screen the raw photo
+                // back after they have already painted over part of it.
+                onClick={() => goTo({ k: "redact", source: step.redacted })}
+                disabled={busy || sent}
+                className="label min-h-11 shrink-0 text-chalk underline decoration-line underline-offset-4 transition-colors hover:text-bloodhi hover:decoration-bloodhi disabled:opacity-50"
+              >
+                EDIT THE BLACKOUTS
+              </button>
+            </figcaption>
+          </figure>
+        )}
+
         <div className="flex flex-col gap-2">
           <label htmlFor="id-kind" className="label text-silverfaint">
             WHAT IS IT
@@ -354,7 +447,7 @@ export default function IdDocumentUpload({
             id="id-kind"
             value={kind}
             onChange={(e) => setKind(e.target.value)}
-            disabled={busy}
+            disabled={busy || sent}
             className={`${field} w-full [color-scheme:dark]`}
           >
             {KINDS.map((k) => (
@@ -380,7 +473,7 @@ export default function IdDocumentUpload({
                 setMessage(null);
               }
             }}
-            disabled={busy}
+            disabled={busy || sent}
             className={`${field} w-full [color-scheme:dark]`}
           />
           {underage && (
@@ -394,63 +487,26 @@ export default function IdDocumentUpload({
             </p>
           )}
         </div>
-
-        <div className="flex flex-col gap-2">
-          <label htmlFor="id-photo" className="label text-silverfaint">
-            PHOTO OF THE DOCUMENT
-          </label>
-          <input
-            id="id-photo"
-            type="file"
-            accept="image/*"
-            // Tells a phone to offer its back camera first. Desktop browsers
-            // ignore it and show the file picker, which is what they should.
-            capture="environment"
-            onChange={(e) => choose(e.target.files?.[0] ?? null)}
-            disabled={busy}
-            className={`${field} label w-full text-silverdim file:mr-3 file:border file:border-linehi file:bg-ink2 file:px-3 file:py-1.5 file:text-chalk`}
-          />
-        </div>
-
-        {file && preview && (
-          <figure className="border border-line bg-ink p-2">
-            {/* A blob URL, so next/image is no use here even before the static
-                export rules it out. */}
-            <img
-              src={preview}
-              alt="The document you chose, before sending it"
-              className="max-h-[46vh] w-full object-contain"
-            />
-            <figcaption className="label mt-2 text-silverfaint">
-              {megabytes(file.size)} · CHECK EVERY LINE IS READABLE BEFORE YOU
-              SEND IT
-            </figcaption>
-          </figure>
-        )}
       </div>
 
-      {message && (
-        <p
-          role="alert"
-          className="label mt-5 border border-[rgba(200,16,46,0.5)] px-3 py-3 leading-loose text-bloodhi"
-        >
-          {message}
-        </p>
-      )}
+      {alert}
 
       <div className="mt-7 flex flex-col gap-3">
         <button
           onClick={submit}
-          disabled={busy || !file || !dob || underage || futureDob}
+          disabled={busy || sent || !dob || underage || futureDob}
           className={btnGo}
         >
-          {busy ? "Sending…" : "Send for review"}
+          {busy ? "Sending…" : sent ? "Sent" : "Send for review"}
         </button>
-        <button onClick={onBack} disabled={busy} className={btn}>
+        <button
+          onClick={() => goTo({ k: "source" })}
+          disabled={busy || sent}
+          className={btn}
+        >
           Back
         </button>
       </div>
-
     </>
   );
 }

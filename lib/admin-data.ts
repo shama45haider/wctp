@@ -25,14 +25,24 @@ import { getSupabase } from "./supabase";
 
 export type AccountRow = {
   id: string;
+  /**
+   * The account's name, which is its Instagram handle without the @ for any
+   * account made since 0011. Older accounts carry whatever they signed up
+   * with until they add a handle.
+   */
   name: string;
-  /** What they asked to be called. Null until they set one, or before 0006. */
+  /** From before handles were the name. Null on every new account. */
   nickname: string | null;
+  /** Null before 0011, or on an account that predates it. */
+  firstName: string | null;
+  /** What they said at sign-up, unreviewed. The reviewed year is birthYear. */
+  age: number | null;
   email: string;
+  /** Handle without the @, or null. */
   instagram: string | null;
   phone: string | null;
   verified: boolean;
-  /** Year only. A full date of birth is never stored - see 0002. */
+  /** Year only, and only once a review approved it - see 0002. */
   birthYear: number | null;
   /** Path in the public avatars bucket, or null. */
   avatarPath: string | null;
@@ -54,7 +64,14 @@ export type VerificationRow = {
   note: string | null;
   createdAt: string;
   /** Absent when the roster lookup failed; the row itself is still usable. */
-  profile?: { name: string; email: string };
+  profile?: {
+    name: string;
+    email: string;
+    instagram: string | null;
+    firstName: string | null;
+    /** Stated at sign-up, for the reviewer to hold against the card. */
+    age: number | null;
+  };
 };
 
 export type EventRow = {
@@ -63,7 +80,6 @@ export type EventRow = {
   date: string;
   time: string;
   dow: string;
-  venue: string;
   flyerUrl: string | null;
   blurb: string | null;
   published: boolean;
@@ -92,19 +108,26 @@ const SIGNED_URL_SECONDS = 60;
 
 const ACCOUNT_COLUMNS =
   "id,name,email,instagram,phone,verified,birth_year,created_at";
-/** With the two columns 0006 adds. Fallen back from when they are not there. */
-const ACCOUNT_COLUMNS_FULL = `${ACCOUNT_COLUMNS},nickname,avatar_path`;
+/** With the two columns 0006 adds. */
+const ACCOUNT_COLUMNS_0006 = `${ACCOUNT_COLUMNS},nickname,avatar_path`;
+/** With the two 0011 adds as well. Fallen back from, in order, when missing. */
+const ACCOUNT_COLUMNS_FULL = `${ACCOUNT_COLUMNS_0006},first_name,age`;
 
-function isMissingProfileColumn(message: string) {
-  return (
-    /nickname|avatar_path/i.test(message) &&
-    /does not exist|could not find/i.test(message)
-  );
+/** PostgREST's wording for a column the schema does not have. */
+const MISSING = /does not exist|could not find/i;
+
+function isMissing0006Column(message: string) {
+  return /nickname|avatar_path/i.test(message) && MISSING.test(message);
+}
+function isMissing0011Column(message: string) {
+  return /first_name|\bage\b/i.test(message) && MISSING.test(message);
 }
 const VERIFICATION_COLUMNS =
   "id,user_id,method,status,birth_year,document_path,document_kind,note,created_at";
+// No venue: the column is still there (see 0011) but the site never shows an
+// address, so it is neither read nor written from here.
 const EVENT_COLUMNS =
-  "slug,title,date,time,dow,venue,flyer_url,blurb,published,created_at";
+  "slug,title,date,time,dow,flyer_url,blurb,published,created_at";
 
 type Attempt<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -148,9 +171,14 @@ type ProfileRecord = {
   created_at: string;
   nickname?: string | null;
   avatar_path?: string | null;
+  first_name?: string | null;
+  age?: number | null;
 };
 
-type NamedProfile = Pick<ProfileRecord, "id" | "name" | "email">;
+type NamedProfile = Pick<
+  ProfileRecord,
+  "id" | "name" | "email" | "instagram" | "first_name" | "age"
+>;
 
 type VerificationRecord = {
   id: string;
@@ -170,7 +198,6 @@ type EventRecord = {
   date: string;
   time: string;
   dow: string;
-  venue: string;
   flyer_url: string | null;
   blurb: string | null;
   published: boolean;
@@ -181,6 +208,8 @@ const toAccount = (r: ProfileRecord): AccountRow => ({
   id: r.id,
   name: r.name,
   nickname: r.nickname ?? null,
+  firstName: r.first_name ?? null,
+  age: r.age ?? null,
   email: r.email,
   instagram: r.instagram,
   phone: r.phone,
@@ -208,7 +237,6 @@ const toEvent = (r: EventRecord): EventRow => ({
   date: r.date,
   time: r.time,
   dow: r.dow,
-  venue: r.venue,
   flyerUrl: r.flyer_url,
   blurb: r.blurb,
   published: r.published,
@@ -243,7 +271,12 @@ export async function listAccounts(): Promise<{
   if (!res.ok) return { rows: [], error: res.error };
   let { data, error } = res.value;
 
-  if (error && isMissingProfileColumn(error.message)) {
+  if (error && isMissing0011Column(error.message)) {
+    res = await read(ACCOUNT_COLUMNS_0006);
+    if (!res.ok) return { rows: [], error: res.error };
+    ({ data, error } = res.value);
+  }
+  if (error && isMissing0006Column(error.message)) {
     res = await read(ACCOUNT_COLUMNS);
     if (!res.ok) return { rows: [], error: res.error };
     ({ data, error } = res.value);
@@ -315,18 +348,31 @@ async function withProfiles(supabase: SupabaseClient, rows: VerificationRow[]) {
   const ids = [...new Set(rows.map((r) => r.userId))];
   if (ids.length === 0) return rows;
 
-  const res = await attempt(
-    supabase.from("profiles").select("id,name,email").in("id", ids),
-  );
-  if (!res.ok) return rows;
+  const read = (columns: string) =>
+    attempt(supabase.from("profiles").select(columns).in("id", ids));
 
-  const { data, error } = res.value;
+  // first_name and age arrive in 0011; a project without it still gets the
+  // handle and the email rather than losing the names off the whole queue.
+  let res = await read("id,name,email,instagram,first_name,age");
+  if (!res.ok) return rows;
+  let { data, error } = res.value;
+  if (error && isMissing0011Column(error.message)) {
+    res = await read("id,name,email,instagram");
+    if (!res.ok) return rows;
+    ({ data, error } = res.value);
+  }
   if (error) return rows;
 
   const byId = new Map(
-    ((data ?? []) as NamedProfile[]).map((p) => [
+    ((data ?? []) as unknown as NamedProfile[]).map((p) => [
       p.id,
-      { name: p.name, email: p.email },
+      {
+        name: p.name,
+        email: p.email,
+        instagram: p.instagram ?? null,
+        firstName: p.first_name ?? null,
+        age: p.age ?? null,
+      },
     ]),
   );
   return rows.map((r) => {
@@ -408,7 +454,6 @@ export async function upsertEvent(
   // survives instead of being blanked.
   if (e.time !== undefined) row.time = e.time;
   if (e.dow !== undefined) row.dow = e.dow;
-  if (e.venue !== undefined) row.venue = e.venue;
   if (e.flyerUrl !== undefined) row.flyer_url = e.flyerUrl;
   if (e.blurb !== undefined) row.blurb = e.blurb;
   if (e.published !== undefined) row.published = e.published;
@@ -773,7 +818,7 @@ export async function restorePass(
 // ------------------------------------------------------------------- reset --
 
 /**
- * Sends a verified guest back through the ID check.
+ * Sends a verified guest back through the age check.
  *
  * reset_verification in 0010 does the work as security definer - flips
  * profiles.verified, clears birth_year, stamps verification_reset_at so the

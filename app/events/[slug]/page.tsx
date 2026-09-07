@@ -22,9 +22,11 @@ export async function generateMetadata({
   const from = priceFrom(event);
   return {
     title: `${event.title} · WECAMETOOPARTY`,
-    description: `${event.dow} ${dayOf(event.date)} ${monthOf(event.date)} at ${
-      event.venue
-    }${from !== null ? ` · tickets from ${money(from)}` : ""}.`,
+    description: `${event.dow} ${dayOf(event.date)} ${monthOf(event.date)}, ${
+      event.time
+    } · address emailed to the list before the night${
+      from !== null ? ` · tickets from ${money(from)}` : ""
+    }.`,
   };
 }
 
@@ -94,14 +96,14 @@ export default async function EventPage({
                 {event.endTime && ` – ${event.endTime}`} EDT
               </div>
             </div>
+            {/* Never an address. Where a night happens goes out by email to
+                the list, and only there - see lib/events.ts. */}
             <div>
               <div className="label mb-1 text-silverfaint">WHERE</div>
-              <div className="font-display text-2xl break-words">
-                {event.venue}
+              <div className="font-display text-2xl">By email</div>
+              <div className="label mt-1 text-silverdim">
+                Sent to everyone on the list before the night
               </div>
-              {event.city && (
-                <div className="label mt-1 text-silverdim">{event.city}</div>
-              )}
             </div>
             {typeof event.going === "number" && (
               <div>

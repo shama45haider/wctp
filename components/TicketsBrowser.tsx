@@ -89,9 +89,6 @@ function Card({ e }: { e: Event }) {
           <span className="font-display block text-[1.45rem] leading-[1.05] break-words">
             {e.title}
           </span>
-          <span className="label mt-1 block text-silverdim">
-            {e.venue.toUpperCase()}
-          </span>
         </span>
       </Link>
 
@@ -148,10 +145,12 @@ export default function TicketsBrowser({
       if (filter === "free" && (priceFrom(e) ?? 1) !== 0) return false;
       if (filter === "paid" && (priceFrom(e) ?? 0) === 0) return false;
       if (!q) return true;
+      // Title or calendar date: "halloween", "oct", "sat 17" all land. There
+      // is no venue to search - the address is emailed, never listed.
       return (
         e.title.toLowerCase().includes(q) ||
-        e.venue.toLowerCase().includes(q) ||
-        (e.city?.toLowerCase().includes(q) ?? false)
+        `${e.dow} ${dayOf(e.date)} ${monthOf(e.date)}`.toLowerCase().includes(q) ||
+        e.date.includes(q)
       );
     });
   }, [filter, query, upcoming, past]);
@@ -187,7 +186,7 @@ export default function TicketsBrowser({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search dates or venues"
+            placeholder="Search dates"
             aria-label="Search events"
             className="label w-full bg-transparent py-2.5 text-chalk placeholder:text-silverfaint focus:outline-none"
           />

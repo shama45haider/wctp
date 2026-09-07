@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Flyer from "./Flyer";
 import TicketPass from "./TicketPass";
-import { findEvent, monthOf, dayOf } from "@/lib/events";
+import { findEvent, monthOf, dayOf, org } from "@/lib/events";
+import { atHandle } from "@/lib/handle";
 import {
   findPromo,
   icsFor,
@@ -135,8 +136,7 @@ function Summary({
         <h2 className="font-display text-[1.5rem] break-words">{title}</h2>
         {ev && (
           <p className="label mt-1.5 text-silverdim">
-            {ev.dow} {dayOf(ev.date)} {monthOf(ev.date)} · {ev.time} ·{" "}
-            {ev.venue.toUpperCase()}
+            {ev.dow} {dayOf(ev.date)} {monthOf(ev.date)} · {ev.time}
           </p>
         )}
       </div>
@@ -247,12 +247,14 @@ export default function CheckoutFlow() {
   const prefilled = useRef(false);
 
   // Prefill once from the account, then leave the fields alone - re-syncing on
-  // every render would fight anyone editing the name they bought under.
+  // every render would fight anyone editing the email they want the address
+  // sent to. "Once" has to mean once the profile is in: before that the name
+  // is the email's local part standing in for a handle that has not arrived.
   useEffect(() => {
-    if (prefilled.current || !user) return;
+    if (prefilled.current || !user?.profileLoaded) return;
     prefilled.current = true;
     setBuyer({
-      name: user.name,
+      name: user.instagram ? atHandle(user.name) : user.name,
       email: user.email,
       phone: user.phone ?? "",
     });
@@ -270,10 +272,15 @@ export default function CheckoutFlow() {
   const promo = cart?.promoCode ? findPromo(cart.promoCode) : null;
   const totals = totalsFor(lines, promo);
 
+  // A ticket is issued to the account's handle when it has one; the field
+  // showing it is read-only, so this is the same value, taken from the source
+  // rather than from a copy that was made when the page opened.
+  const ticketName = user?.instagram ? atHandle(user.name) : buyer.name.trim();
+
   const settle = () => {
     const placed = placeOrder(
       {
-        name: buyer.name.trim(),
+        name: ticketName,
         email: buyer.email.trim(),
         phone: buyer.phone.trim() || undefined,
       },
@@ -320,7 +327,8 @@ export default function CheckoutFlow() {
       : !user.verified
         ? "verify"
         : null;
-  const nameOk = buyer.name.trim().length > 1;
+  const pending = user?.check?.status === "pending";
+  const nameOk = ticketName.length > 1;
   const emailOk = EMAIL.test(buyer.email.trim());
   const detailsOk = nameOk && emailOk;
   const free = totals.totalCents === 0;
@@ -463,19 +471,25 @@ export default function CheckoutFlow() {
                 <div className="mt-6 border border-line p-5">
                   <p className="label mb-3 text-bloodhi">
                     {gate === "signin"
-                      ? "TICKET SALES OPEN SOON"
-                      : "ID CHECK REQUIRED"}
+                      ? "SIGN IN TO RSVP"
+                      : "AGE CHECK REQUIRED"}
                   </p>
                   <p className="text-sm leading-relaxed text-silverdim">
                     {gate === "signin"
-                      ? "Tickets attach to an account so they can be re-sent and checked at the door, and accounts are still being built. Your selection stays here. Donations go through now."
-                      : "Our nights are 18+. Verify your age once and you are cleared for every date after this one."}
+                      ? "Tickets attach to an account, and every account has its age checked once. Your selection stays here while you sign in."
+                      : pending
+                        ? `Your ID is with us. A person reads every one, so give it a little time - you'll hear from ${org.email}, and you can RSVP the moment it's approved.`
+                        : "Our nights are 18+. Send a photo of your ID once and you're cleared for every date after this one."}
                   </p>
                   <Link
                     href={gate === "signin" ? "/login" : "/verify"}
                     className={`${btnGo} mt-5 w-full`}
                   >
-                    {gate === "signin" ? "What's coming" : "Verify ID"}
+                    {gate === "signin"
+                      ? "Sign in"
+                      : pending
+                        ? "See where it's at"
+                        : "Verify your age"}
                   </Link>
                 </div>
               ) : (
@@ -495,8 +509,9 @@ export default function CheckoutFlow() {
                 Who is coming
               </h1>
               <p className="mt-3 max-w-[48ch] text-sm leading-relaxed text-silverdim">
-                Tickets are issued to this name. Door staff check it against
-                your ID, so use the one on the ID you are bringing.
+                Tickets carry the name below - it&rsquo;s what the door reads.
+                The address for the night is emailed from {org.email} to the
+                email you give here, so make it one you read.
               </p>
 
               <form
@@ -509,17 +524,40 @@ export default function CheckoutFlow() {
               >
                 <div className="mb-4 flex flex-col gap-2">
                   <label htmlFor="c-name" className="label text-silverfaint">
-                    FULL NAME
+                    NAME ON THE TICKET
                   </label>
-                  <input
-                    id="c-name"
-                    value={buyer.name}
-                    onChange={(e) =>
-                      setBuyer((b) => ({ ...b, name: e.target.value }))
-                    }
-                    autoComplete="name"
-                    className={field}
-                  />
+                  {user?.instagram ? (
+                    <>
+                      <input
+                        id="c-name"
+                        readOnly
+                        value={ticketName}
+                        aria-describedby="c-name-note"
+                        className={`${field} cursor-not-allowed text-silverdim`}
+                      />
+                      <p id="c-name-note" className="text-sm text-silverfaint">
+                        Tickets are issued to your Instagram handle - it&rsquo;s
+                        what the door reads. Change it on{" "}
+                        <Link
+                          href="/profile"
+                          className="underline hover:text-chalk"
+                        >
+                          your profile
+                        </Link>
+                        .
+                      </p>
+                    </>
+                  ) : (
+                    <input
+                      id="c-name"
+                      value={buyer.name}
+                      onChange={(e) =>
+                        setBuyer((b) => ({ ...b, name: e.target.value }))
+                      }
+                      autoComplete="name"
+                      className={field}
+                    />
+                  )}
                   {touched && !nameOk && (
                     <p className="label text-bloodhi" role="alert">
                       ENTER THE NAME ON YOUR ID
@@ -560,7 +598,7 @@ export default function CheckoutFlow() {
                       setBuyer((b) => ({ ...b, phone: e.target.value }))
                     }
                     autoComplete="tel"
-                    placeholder="For the location drop"
+                    placeholder="Only if something changes on the night"
                     className={field}
                   />
                 </div>
@@ -699,7 +737,7 @@ export default function CheckoutFlow() {
               <p className="label mt-5 leading-loose text-silverfaint">
                 {donationOnly
                   ? "DONATIONS SUPPORT SOUND, LIGHTS AND THE NEXT DATE. THEY ARE NOT A TICKET AND DO NOT HOLD A SPOT."
-                  : "BY COMPLETING THIS ORDER YOU AGREE TO THE 18+ DOOR POLICY. TICKETS ARE NON-REFUNDABLE ONCE THE LOCATION DROPS."}
+                  : "BY COMPLETING THIS ORDER YOU AGREE TO THE 18+ DOOR POLICY. TICKETS ARE NON-REFUNDABLE ONCE THE ADDRESS HAS BEEN EMAILED."}
               </p>
             </section>
           )}
@@ -763,7 +801,8 @@ function Confirmation({ order }: { order: Order }) {
               for {order.eventTitle}
               {ev && `, ${ev.dow} ${dayOf(ev.date)} ${monthOf(ev.date)}`}. A
               copy would land in {order.buyer.email} on a live build - here they
-              live in your account, on this device.
+              live in your account, on this device. The address is emailed
+              from {org.email} to {order.buyer.email} before the night.
             </>
           )}
         </p>

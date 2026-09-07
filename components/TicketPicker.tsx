@@ -220,12 +220,18 @@ function TierRow({
  * Tier selection for one event.
  *
  * Quantities are written straight to the shared cart rather than held in local
- * state, so a selection survives the detour through sign-in or the ID check
+ * state, so a selection survives the detour through sign-in or the age check
  * and is still waiting when the buyer lands back on checkout.
+ *
+ * The primary button is where an RSVP is attempted, so it is also where the
+ * rule is enforced: nobody RSVPs without an account whose age a person has
+ * checked. It sends the signed-out to sign-in and the unchecked to the age
+ * check, and says so on its face rather than letting someone tap "Checkout"
+ * and land on a form wondering why. A gift is not an RSVP and skips all that.
  */
 export default function TicketPicker({ event }: { event: Event }) {
   const router = useRouter();
-  const { ready, cart, adjustQty, setDonation } = useAccount();
+  const { ready, user, cart, adjustQty, setDonation } = useAccount();
 
   const tiers = tiersFor(event.slug);
   const state = saleState(event);
@@ -271,6 +277,34 @@ export default function TicketPicker({ event }: { event: Event }) {
   const totals = totalsFor(lines);
   const empty = lines.length === 0;
 
+  // Only admission goes through the gate. Until the account has answered the
+  // button is disabled anyway, so it keeps the plain checkout label rather
+  // than flashing "Sign in" at someone who is about to turn out to be signed in.
+  const rsvp = totals.ticketCount > 0;
+  const gate =
+    !ready || !rsvp
+      ? null
+      : !user
+        ? "signin"
+        : !user.verified
+          ? "verify"
+          : null;
+  const destination =
+    gate === "signin" ? "/login" : gate === "verify" ? "/verify" : "/checkout";
+  const label = empty
+    ? "Select a ticket"
+    : !rsvp
+      ? `Donate ${usd(totals.donationCents)}`
+      : gate === "signin"
+        ? "Sign in to RSVP"
+        : gate === "verify"
+          ? user?.check?.status === "pending"
+            ? "Age check pending"
+            : "Verify your age to RSVP"
+          : `Checkout · ${totals.ticketCount} ${
+              totals.ticketCount === 1 ? "ticket" : "tickets"
+            }`;
+
   return (
     <div id="tickets" className="border border-line bg-ink">
       <div className="label flex items-center justify-between border-b border-line px-4 py-3 text-silverfaint">
@@ -315,20 +349,14 @@ export default function TicketPicker({ event }: { event: Event }) {
         <button
           type="button"
           disabled={!ready || empty}
-          onClick={() => router.push("/checkout")}
+          onClick={() => router.push(destination)}
           className={`${btnGo} mt-4 w-full`}
         >
-          {empty
-            ? "Select a ticket"
-            : totals.ticketCount === 0
-              ? `Donate ${usd(totals.donationCents)}`
-              : `Checkout · ${totals.ticketCount} ${
-                  totals.ticketCount === 1 ? "ticket" : "tickets"
-                }`}
+          {label}
         </button>
 
         <p className="label mt-3 text-center text-silverfaint">
-          18+ WITH ID ·{" "}
+          18+ · AGE CHECKED BY A PERSON ·{" "}
           <Link
             href="/tickets"
             className="-my-3 inline-block py-3 underline hover:text-chalk"

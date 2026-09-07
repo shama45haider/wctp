@@ -38,13 +38,10 @@ export default function Footer() {
             >
               {org.instagramHandle.toUpperCase()}
             </a>
-            <a
-              href={org.twitter}
-              target="_blank"
-              rel="noopener"
-              className="py-3 hover:text-chalk"
-            >
-              {org.handle.toUpperCase()}
+            {/* The one address for anything that matters - the location drop,
+                an age check, a lost ticket - so it sits where every page ends. */}
+            <a href={`mailto:${org.email}`} className="py-3 hover:text-chalk">
+              {org.email.toUpperCase()}
             </a>
           </span>
         </div>
