@@ -2,7 +2,7 @@
 
 import Flyer from "./Flyer";
 import { allEvents, monthOf, dayOf, type Event } from "@/lib/events";
-import { useRuntimeEvents } from "@/lib/events-runtime";
+import type { RuntimeEventList } from "@/lib/events-runtime";
 import { isPastEvent } from "@/lib/tickets";
 
 /**
@@ -18,12 +18,16 @@ import { isPastEvent } from "@/lib/tickets";
  * dates the page should look exactly as it did before this component existed.
  * A database that is down produces no rows either, which is the same silence:
  * see lib/events-runtime.ts for why that failure never reaches the screen.
+ *
+ * Takes `runtime` as a prop - TicketsPageBody calls useRuntimeEvents once for
+ * the whole page and shares it with this, TicketsHeader and TicketsBrowser,
+ * rather than each fetching the dashboard's events table on its own.
  */
 
 const BUILT_IN = new Set(allEvents.map((e) => e.slug));
 
-function Card({ e }: { e: Event }) {
-  const past = isPastEvent(e);
+function Card({ e, now }: { e: Event; now: Date }) {
+  const past = isPastEvent(e, now);
 
   return (
     <article className="flex flex-col border border-line bg-ink">
@@ -82,8 +86,8 @@ function Card({ e }: { e: Event }) {
   );
 }
 
-export default function RuntimeEvents() {
-  const { events } = useRuntimeEvents();
+export default function RuntimeEvents({ runtime }: { runtime: RuntimeEventList }) {
+  const { events, now } = runtime;
   const added = events.filter((e) => !BUILT_IN.has(e.slug));
   if (added.length === 0) return null;
 
@@ -98,7 +102,7 @@ export default function RuntimeEvents() {
 
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {added.map((e) => (
-          <Card key={e.slug} e={e} />
+          <Card key={e.slug} e={e} now={now} />
         ))}
       </div>
     </section>

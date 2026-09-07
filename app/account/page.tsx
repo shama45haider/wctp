@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useAccount } from "@/lib/demo-account";
 import { findEvent, monthOf, dayOf } from "@/lib/events";
 import { atHandle } from "@/lib/handle";
+import { useNow } from "@/lib/now";
 import { isPastEvent, usd } from "@/lib/tickets";
 import TicketPass from "@/components/TicketPass";
 import { btn, btnGo } from "@/lib/ui";
@@ -11,6 +12,7 @@ import { btn, btnGo } from "@/lib/ui";
 export default function Account() {
   const { ready, user, orders, ordersError, passCount, signOut, cancelOrder } =
     useAccount();
+  const now = useNow();
 
   if (!ready) {
     return (
@@ -134,7 +136,7 @@ export default function Account() {
         <div className="flex flex-col gap-8">
           {orders.map((o) => {
             const ev = findEvent(o.eventSlug);
-            const spent = ev ? isPastEvent(ev) : false;
+            const spent = ev ? isPastEvent(ev, now) : false;
             return (
               <section key={o.id} className="border border-line bg-ink">
                 <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-line px-4 py-4 sm:px-5">

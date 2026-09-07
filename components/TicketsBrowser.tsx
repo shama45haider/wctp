@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import Flyer from "./Flyer";
 import { monthOf, dayOf, type Event } from "@/lib/events";
+import type { RuntimeEventList } from "@/lib/events-runtime";
 import {
   money,
   priceFrom,
@@ -27,17 +28,22 @@ const LOW_STOCK = 25;
  * Availability, in the fewest words that still mean something at a glance.
  * Returns null when there is nothing urgent to say - an empty badge is noise.
  */
-function stockNote(e: Event) {
-  if (saleState(e) !== "on-sale") return null;
+function stockNote(e: Event, now: Date) {
+  if (saleState(e, now) !== "on-sale") return null;
   const left = ticketsLeft(e.slug);
   return left <= LOW_STOCK ? `${left} LEFT` : null;
 }
 
-function Card({ e }: { e: Event }) {
-  const state = saleState(e);
+function Card({ e, now }: { e: Event; now: Date }) {
+  // `now` matters here even though the tabs above have already sorted this
+  // card into "upcoming" or "past": that sort is against the real clock, and
+  // saleState defaults to the frozen build date if nothing is passed to it -
+  // a date that has passed since the last deploy but not since 2026-09-01
+  // would otherwise still read "on sale" on a card already filed under PAST.
+  const state = saleState(e, now);
   const from = priceFrom(e);
   const tiers = tiersFor(e.slug);
-  const note = stockNote(e);
+  const note = stockNote(e, now);
   const closed = state !== "on-sale";
 
   return (
@@ -127,13 +133,19 @@ function Card({ e }: { e: Event }) {
   );
 }
 
-export default function TicketsBrowser({
-  upcoming,
-  past,
-}: {
-  upcoming: Event[];
-  past: Event[];
-}) {
+/**
+ * Every date, split into ON SALE / FREE / PAID / PAST and searchable.
+ *
+ * Takes `runtime` from useRuntimeEvents as a prop, called once by
+ * TicketsPageBody and shared with TicketsHeader and RuntimeEvents, rather
+ * than calling the hook itself - it already re-splits every known event,
+ * the static list and anything posted from the dashboard alike, against the
+ * real clock, which is what moves a ticket into the PAST tab the moment its
+ * date is behind "now", with nobody having to edit lib/events.ts to make it
+ * happen.
+ */
+export default function TicketsBrowser({ runtime }: { runtime: RuntimeEventList }) {
+  const { upcoming, past, now } = runtime;
   const [filter, setFilter] = useState<FilterId>("all");
   const [query, setQuery] = useState("");
 
@@ -203,7 +215,7 @@ export default function TicketsBrowser({
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {events.map((e) => (
-            <Card key={e.slug} e={e} />
+            <Card key={e.slug} e={e} now={now} />
           ))}
         </div>
       )}

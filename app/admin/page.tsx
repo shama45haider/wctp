@@ -448,12 +448,12 @@ export default function Admin() {
   }, [orders]);
 
   const knownSlugs = new Set(runtimeEvents.events.map((e) => e.slug));
-  const upcomingEvents = runtimeEvents.events
-    .filter((e) => !isPastEvent(e))
-    .sort((a, b) => a.date.localeCompare(b.date));
-  const pastEvents = runtimeEvents.events
-    .filter((e) => isPastEvent(e))
-    .sort((a, b) => b.date.localeCompare(a.date));
+  // Already split and ordered against the real clock by the hook itself -
+  // re-deriving it here with the frozen isPastEvent() default used to mean
+  // the dashboard could disagree with the public site about which of its own
+  // dates had passed.
+  const upcomingEvents = runtimeEvents.upcoming;
+  const pastEvents = runtimeEvents.past;
 
   // Orders for a slug the current event list does not recognise - a deleted
   // or renamed event, most likely. Folded out separately so the total below
@@ -1017,7 +1017,7 @@ export default function Admin() {
                     <p className="label mt-2 text-silverfaint">
                       {e ? `${e.dow} ${e.date} · ${e.time}` : "NOT ON THE CURRENT EVENT LIST"}
                     </p>
-                    {e && isPastEvent(e) && (
+                    {e && isPastEvent(e, runtimeEvents.now) && (
                       <span className="label mt-2 inline-block border border-line px-2 py-1 text-silverfaint">
                         PAST
                       </span>

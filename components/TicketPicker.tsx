@@ -18,6 +18,7 @@ import {
   type Tier,
 } from "@/lib/tickets";
 import { useAccount } from "@/lib/demo-account";
+import { useNow } from "@/lib/now";
 import { btnGo, field } from "@/lib/ui";
 
 /** Stock is only worth naming once it is scarce enough to hurry someone. */
@@ -232,14 +233,21 @@ function TierRow({
 export default function TicketPicker({ event }: { event: Event }) {
   const router = useRouter();
   const { ready, user, cart, adjustQty, setDonation } = useAccount();
+  // The page around this widget is a static export, built once - saleState
+  // and isPastEvent default to that build's frozen date if nothing is passed
+  // to them, which is exactly wrong for the one place that actually sells a
+  // ticket. Passing the visitor's real clock here is what stops someone
+  // buying into a night that has already happened just because the page
+  // itself has not been rebuilt since.
+  const now = useNow();
 
   const tiers = tiersFor(event.slug);
-  const state = saleState(event);
+  const state = saleState(event, now);
 
   if (state === "closed") {
     return (
       <div className="label border border-line px-4 py-4 text-silverfaint">
-        {isPastEvent(event)
+        {isPastEvent(event, now)
           ? "THIS EVENT HAS PASSED"
           : "TICKETS ARE NOT ON SALE YET"}
       </div>

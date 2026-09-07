@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import TicketPicker from "@/components/TicketPicker";
-import Flyer from "@/components/Flyer";
+import { EventFlyer, EventFromStat } from "@/components/EventLiveBits";
 import { allEvents, findEvent, monthOf, dayOf, org } from "@/lib/events";
-import { isPastEvent, money, priceFrom, saleState } from "@/lib/tickets";
+import { money, priceFrom } from "@/lib/tickets";
 
 export const dynamicParams = false;
 
@@ -39,9 +39,6 @@ export default async function EventPage({
   const event = findEvent(slug);
   if (!event) notFound();
 
-  const past = isPastEvent(event);
-  const state = saleState(event);
-
   return (
     <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(1.5rem,5vw,5rem)]">
       <Link
@@ -55,25 +52,7 @@ export default async function EventPage({
         {/* The flyer leads on a phone - it is the thing people recognise - then
             moves to the right rail once there is room for two columns. */}
         <div className="relative -order-1 aspect-square overflow-hidden border border-line bg-ink md:order-2">
-          {event.imageId ? (
-            <Flyer
-              id={event.imageId}
-              alt={event.title}
-              sizes="(max-width:767px) 92vw, 380px"
-              maxWidth={900}
-              priority
-              className={past ? "grayscale-[0.4]" : ""}
-            />
-          ) : (
-            <div className="hairline-x label flex h-full items-center justify-center text-silverfaint">
-              NO FLYER
-            </div>
-          )}
-          {state === "on-sale" && (
-            <span className="label absolute bottom-0 left-0 bg-void/85 px-2.5 py-1.5 text-bloodhi">
-              ON SALE NOW
-            </span>
-          )}
+          <EventFlyer event={event} />
         </div>
 
         <div className="min-w-0">
@@ -111,14 +90,7 @@ export default async function EventPage({
                 <div className="font-display text-2xl">{event.going}</div>
               </div>
             )}
-            {state === "on-sale" && (
-              <div>
-                <div className="label mb-1 text-silverfaint">FROM</div>
-                <div className="font-display text-2xl">
-                  {money(priceFrom(event) ?? 0)}
-                </div>
-              </div>
-            )}
+            <EventFromStat event={event} />
           </div>
 
           {event.note && (

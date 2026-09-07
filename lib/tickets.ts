@@ -199,12 +199,20 @@ export const admitsOf = (t: Pick<Tier, "admits">) => t.admits ?? 1;
 /** How many of a tier one order may hold: per-order cap and stock, whichever bites. */
 export const maxSelectable = (t: Tier) => Math.min(t.maxPerOrder, remaining(t));
 
-export const isPastEvent = (e: Event) => new Date(e.date) < TODAY;
+/**
+ * `now` defaults to the frozen build-time TODAY rather than the real clock,
+ * so every existing call site keeps behaving exactly as it always has. A
+ * caller that actually wants the true date - the home page, the ticket
+ * browser, the picker - passes one from useNow() instead; that is the one
+ * change that lets an event's date crossing the real "now" move it into the
+ * archive without a rebuild. See lib/now.ts.
+ */
+export const isPastEvent = (e: Event, now: Date = TODAY) => new Date(e.date) < now;
 
 export type SaleState = "on-sale" | "sold-out" | "closed";
 
-export function saleState(e: Event): SaleState {
-  if (isPastEvent(e)) return "closed";
+export function saleState(e: Event, now: Date = TODAY): SaleState {
+  if (isPastEvent(e, now)) return "closed";
   const tiers = admissionTiers(e.slug);
   if (tiers.length === 0) return "closed";
   return tiers.every(isSoldOut) ? "sold-out" : "on-sale";

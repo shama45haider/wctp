@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { listEvents, type EventRow } from "./admin-data";
 import { allEvents, findEvent, type Event } from "./events";
 import { isPastEvent } from "./tickets";
+import { useNow } from "./now";
 
 /**
- * The public date list, with anything published from the dashboard folded in.
+ * The public date list, with anything published from the dashboard folded in
+ * and everything sorted against the real clock rather than the frozen
+ * build-time date.
  *
  * lib/events.ts is compiled into the bundle and ships with the page; the events
  * table is read in the browser afterwards. So this starts from the built-in
@@ -20,13 +23,23 @@ import { isPastEvent } from "./tickets";
  *
  * Everything is client-side by necessity: this is a static export, so there is
  * no server render of these rows and nothing to hydrate against. The first pass
- * always draws the static list, which is what the HTML already contains.
+ * always draws the static list ordered against the build-time TODAY, which is
+ * what the HTML already contains - see useNow() for why that is safe. `now`
+ * ticking over to the visitor's real date afterwards is what moves a date that
+ * has passed into `past` and promotes whichever is genuinely soonest into
+ * `upcoming[0]`, with no redeploy in between.
  */
 
 export type RuntimeEventList = {
   /** True once the database has answered, including the answer that it cannot. */
   ready: boolean;
+  /** Every known event, upcoming first (soonest first), then past (most recent first). */
   events: Event[];
+  /** The same events, already split against `now`. */
+  upcoming: Event[];
+  past: Event[];
+  /** What this was computed against - share it rather than call useNow() again. */
+  now: Date;
   error: string | null;
 };
 
@@ -110,16 +123,27 @@ function toEvent(row: EventRow, base?: Event): Event | null {
 /**
  * The order lib/events.ts lays its two lists out in by hand: what is coming
  * next first and soonest first, then the archive with the most recent night at
- * the top. Sorting rather than concatenating means a runtime date drops into
- * the right place in the run instead of onto the end of it.
+ * the top. Sorting against `now` rather than concatenating means a runtime
+ * date drops into the right place in the run instead of onto the end of it -
+ * and means a date that has since passed falls out of `upcoming` on its own,
+ * the same as anything else.
  */
-function bySiteOrder(a: Event, b: Event) {
-  const aPast = isPastEvent(a);
-  if (aPast !== isPastEvent(b)) return aPast ? 1 : -1;
-  return aPast ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date);
+function bySiteOrder(now: Date) {
+  return (a: Event, b: Event) => {
+    const aPast = isPastEvent(a, now);
+    if (aPast !== isPastEvent(b, now)) return aPast ? 1 : -1;
+    return aPast ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date);
+  };
 }
 
-function merge(rows: EventRow[]): Event[] {
+/**
+ * Every known event - the static list with any published row folded in - in
+ * site order against `now`. Always resorted here rather than only when rows
+ * exist: the old shortcut of handing back the static list untouched when the
+ * table was empty also meant it never got a second look once "now" moved on,
+ * which is the exact bug this hook exists to close.
+ */
+function merge(rows: EventRow[], now: Date): Event[] {
   const fromDb = new Map<string, Event>();
   for (const row of rows) {
     const event = toEvent(row, findEvent(row.slug));
@@ -132,18 +156,16 @@ function merge(rows: EventRow[]): Event[] {
   for (const event of fromDb.values()) {
     if (!STATIC_SLUGS.has(event.slug)) merged.push(event);
   }
-  return merged.sort(bySiteOrder);
+  return merged.sort(bySiteOrder(now));
 }
 
 export function useRuntimeEvents(): RuntimeEventList {
-  // Seeded with the full static list rather than an empty one, so the first
-  // render is the finished listing and nothing further down can flash a "no
-  // dates" state while the query is in flight.
-  const [state, setState] = useState<RuntimeEventList>({
-    ready: false,
-    events: allEvents,
-    error: null,
-  });
+  const now = useNow();
+
+  // Null until the fetch answers, including with an error - not the same as
+  // "zero rows", which is the ordinary night and still needs sorting against
+  // `now` every time it comes up, not just the first.
+  const [db, setDb] = useState<{ rows: EventRow[]; error: string | null } | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -165,12 +187,7 @@ export function useRuntimeEvents(): RuntimeEventList {
         };
       }
       if (!live) return;
-
-      setState({
-        ready: true,
-        events: result.rows.length > 0 ? merge(result.rows) : allEvents,
-        error: result.error ?? null,
-      });
+      setDb({ rows: result.rows, error: result.error ?? null });
     })();
 
     return () => {
@@ -178,5 +195,16 @@ export function useRuntimeEvents(): RuntimeEventList {
     };
   }, []);
 
-  return state;
+  // Recomputed whenever the fetch answers or `now` ticks over to a new day,
+  // so a date crossing "now" while the tab is open reorders the list without
+  // waiting on a fresh fetch to trigger it.
+  return useMemo<RuntimeEventList>(() => {
+    const events = merge(db?.rows ?? [], now);
+    // `events` is already upcoming-then-past by construction, so the first
+    // past entry is exactly where the archive begins.
+    const splitAt = events.findIndex((e) => isPastEvent(e, now));
+    const upcoming = splitAt === -1 ? events : events.slice(0, splitAt);
+    const past = splitAt === -1 ? [] : events.slice(splitAt);
+    return { ready: db !== null, events, upcoming, past, now, error: db?.error ?? null };
+  }, [db, now]);
 }

@@ -133,11 +133,17 @@ export const org = {
 };
 
 /**
- * "Now", pinned rather than read from the clock.
+ * "Now", pinned to whatever it was on the last deploy rather than read from
+ * the clock - this is the one instant every page can render against during
+ * the static export, so the first paint the export ships and the first
+ * client render agree and hydration has nothing to disagree about.
  *
- * Server and client render the same HTML from it, so nothing that depends on
- * whether a date has passed can hydrate differently from how it prerendered.
- * Move this forward when the archive is rolled.
+ * Nothing needs to move this forward by hand any more. lib/now.ts reads the
+ * visitor's real clock instead the moment a page has mounted, which is what
+ * actually decides whether a date has passed - see useNow() and
+ * useRuntimeEvents(). This stays only as that shared starting point, and as
+ * the fallback for isPastEvent()/saleState() callers that never ask for the
+ * live date at all.
  */
 export const TODAY = new Date("2026-09-01");
 
