@@ -5,6 +5,8 @@ export const navLinks = [
   { href: "/", label: "HOME" },
   { href: "/tickets", label: "TICKETS" },
   { href: "/artists", label: "ARTISTS" },
+  { href: "/gallery", label: "GALLERY" },
+  { href: "/donate", label: "DONATE" },
 ];
 
 export default function Nav() {
