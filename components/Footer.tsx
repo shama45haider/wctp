@@ -29,7 +29,11 @@ export default function Footer() {
         </div>
         <div className="label flex flex-wrap justify-between gap-4 border-t border-line pt-6 text-silverfaint">
           <span>© 2026 WECAMETOOPARTY · NEW YORK CITY</span>
-          <span className="-my-3 flex gap-5">
+          {/* Wraps rather than holding one line: the handle and the address
+              together run wider than a 375px phone, and unwrapped they pushed
+              the whole document three pixels sideways - every page on the site
+              could be dragged horizontally because of this one row. */}
+          <span className="-my-3 flex flex-wrap gap-x-5">
             <a
               href={org.instagram}
               target="_blank"
@@ -40,7 +44,7 @@ export default function Footer() {
             </a>
             {/* The one address for anything that matters - the location drop,
                 an age check, a lost ticket - so it sits where every page ends. */}
-            <a href={`mailto:${org.email}`} className="py-3 hover:text-chalk">
+            <a href={`mailto:${org.email}`} className="py-3 break-all hover:text-chalk">
               {org.email.toUpperCase()}
             </a>
           </span>

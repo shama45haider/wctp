@@ -54,7 +54,14 @@ function Row({ e }: { e: Event }) {
 
       <div className="col-start-2 md:col-start-auto">
         <h3 className="font-display text-[1.2rem] break-words sm:text-[1.75rem]">
-          <Link href={`/events/${e.slug}`} className="hover:text-bloodhi">
+          {/* Padded out to a thumb and pulled back in with the same negative
+              margin globals.css uses on a bare .label link: the title is one
+              of only two ways into an event from this row, and at its natural
+              23px it was half the height a tap wants. */}
+          <Link
+            href={`/events/${e.slug}`}
+            className="-my-3 inline-block py-3 hover:text-bloodhi"
+          >
             {e.title}
           </Link>
         </h3>

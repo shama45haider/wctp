@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import {
@@ -20,6 +20,13 @@ import { dayOf, monthOf } from "@/lib/events";
  * gate is the same one the dashboard uses and it decides nothing on its own -
  * row-level security refuses the write regardless, and upsertEvent reports the
  * refusal as an error rather than a silent success.
+ *
+ * Laid out as the dashboard is, in panels with a head and a body, so moving
+ * between the two does not feel like moving between two sites. On a desk the
+ * form and the list sit side by side, which is what makes the edit button
+ * worth pressing - the row and the fields it fills are in view at once. On a
+ * phone they stack, form first, because posting a date is what this screen is
+ * opened for, and the edit button scrolls the form back into view.
  */
 
 const DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -68,6 +75,22 @@ const rowBtn =
   "label min-h-11 border border-line px-3 text-silverdim transition-colors hover:border-silverdim hover:text-chalk disabled:cursor-not-allowed disabled:opacity-50";
 const rowBtnDanger =
   "label min-h-11 border border-[rgba(200,16,46,0.5)] px-3 text-bloodhi transition-colors hover:border-bloodhi disabled:cursor-not-allowed disabled:opacity-50";
+
+/** The head of a panel: what it holds on the left, one piece of state on the right. */
+function PanelHead({
+  title,
+  right,
+}: {
+  title: string;
+  right?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+      <p className="label text-silverfaint">{title}</p>
+      {right}
+    </div>
+  );
+}
 
 export default function AdminEvents() {
   const { ready, user, isAdmin, error: authError } = useSupabaseAuth();
@@ -250,268 +273,309 @@ export default function AdminEvents() {
   }
 
   return (
-    <main className="mx-auto w-[92vw] max-w-[560px] py-[clamp(2.5rem,8vw,5rem)]">
-      <span className="label border border-line px-3 py-2 text-silverfaint">
-        {editing ? `EDITING ${editing}` : "NEW EVENT"}
-      </span>
-
-      <h1 className="font-display chrome mt-7 text-[clamp(2rem,8vw,3.25rem)] leading-[0.85]">
-        Events
-      </h1>
-      <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
-        Drafts stay invisible to guests until published. The dates built into
-        the site are separate and are not listed here. The address is never
-        posted here - it goes out by email to the list.
-      </p>
-
-      <form ref={formRef} onSubmit={save} className="mt-8 flex flex-col gap-5">
-        <div>
-          <label htmlFor="slug" className="label text-silverfaint">
-            SLUG
-          </label>
-          <input
-            id="slug"
-            value={draft.slug}
-            onChange={(e) => set("slug", e.target.value)}
-            // A slug is the primary key, so an edit that changes it inserts a
-            // second event rather than renaming the first.
-            readOnly={editing !== null}
-            aria-invalid={Boolean(shown("slug"))}
-            placeholder="wecametoohalloween"
-            className={`${field} mt-2 w-full ${
-              editing ? "text-silverdim" : ""
-            }`}
-          />
-          {shown("slug") ? (
-            <p className="label mt-2 text-bloodhi" role="alert">
-              {shown("slug")}
-            </p>
-          ) : (
-            <p className="label mt-2 text-silverfaint">
-              {editing
-                ? "PERMANENT. DELETE AND REPOST TO CHANGE IT."
-                : "THE ADDRESS: /EVENTS/YOUR-SLUG"}
-            </p>
-          )}
+    <main className="mx-auto w-[92vw] max-w-[1100px] py-[clamp(1.5rem,5vw,3rem)]">
+      {/* ------------------------------------------------------- header -- */}
+      <header className="flex flex-wrap items-end justify-between gap-4 border border-line bg-ink px-4 py-4 sm:px-5">
+        <div className="min-w-0">
+          <p className="label text-silverfaint">CONTROL PANEL</p>
+          <h1 className="font-display chrome mt-1.5 text-[clamp(1.75rem,7vw,2.75rem)] leading-[0.85]">
+            Events
+          </h1>
+          <p className="mt-3 max-w-[46ch] text-[0.9375rem] leading-relaxed text-silverdim">
+            Drafts stay invisible to guests until published. The dates built
+            into the site are separate and are not listed here. The address is
+            never posted here - it goes out by email to the list.
+          </p>
         </div>
+        <Link
+          href="/admin"
+          className="label flex min-h-11 items-center border border-line px-4 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk"
+        >
+          &larr; Back to admin
+        </Link>
+      </header>
 
-        <div>
-          <label htmlFor="title" className="label text-silverfaint">
-            TITLE
-          </label>
-          <input
-            id="title"
-            value={draft.title}
-            onChange={(e) => set("title", e.target.value)}
-            aria-invalid={Boolean(shown("title"))}
-            className={`${field} mt-2 w-full`}
-          />
-          {shown("title") && (
-            <p className="label mt-2 text-bloodhi" role="alert">
-              {shown("title")}
-            </p>
-          )}
-        </div>
+      <div className="mt-4 flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-4">
+        {/* --------------------------------------------------------- form -- */}
+        <section className="border border-line bg-ink">
+          <PanelHead title={editing ? `EDITING ${editing}` : "NEW EVENT"} />
 
-        <div className="flex gap-4">
-          <div className="flex-1">
-            <label htmlFor="date" className="label text-silverfaint">
-              DATE
+          <form ref={formRef} onSubmit={save} className="flex flex-col gap-5 p-4">
+            <div>
+              <label htmlFor="slug" className="label text-silverfaint">
+                SLUG
+              </label>
+              <input
+                id="slug"
+                value={draft.slug}
+                onChange={(e) => set("slug", e.target.value)}
+                // A slug is the primary key, so an edit that changes it inserts a
+                // second event rather than renaming the first.
+                readOnly={editing !== null}
+                aria-invalid={Boolean(shown("slug"))}
+                placeholder="wecametoohalloween"
+                className={`${field} mt-2 w-full ${
+                  editing ? "text-silverdim" : ""
+                }`}
+              />
+              {shown("slug") ? (
+                <p className="label mt-2 text-bloodhi" role="alert">
+                  {shown("slug")}
+                </p>
+              ) : (
+                <p className="label mt-2 text-silverfaint">
+                  {editing
+                    ? "PERMANENT. DELETE AND REPOST TO CHANGE IT."
+                    : "THE ADDRESS: /EVENTS/YOUR-SLUG"}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="title" className="label text-silverfaint">
+                TITLE
+              </label>
+              <input
+                id="title"
+                value={draft.title}
+                onChange={(e) => set("title", e.target.value)}
+                aria-invalid={Boolean(shown("title"))}
+                className={`${field} mt-2 w-full`}
+              />
+              {shown("title") && (
+                <p className="label mt-2 text-bloodhi" role="alert">
+                  {shown("title")}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label htmlFor="date" className="label text-silverfaint">
+                  DATE
+                </label>
+                <input
+                  id="date"
+                  type="date"
+                  value={draft.date}
+                  onChange={(e) => set("date", e.target.value)}
+                  aria-invalid={Boolean(shown("date"))}
+                  className={`${field} mt-2 w-full`}
+                />
+                {shown("date") && (
+                  <p className="label mt-2 text-bloodhi" role="alert">
+                    {shown("date")}
+                  </p>
+                )}
+              </div>
+              <div className="w-[6.5rem]">
+                <span className="label text-silverfaint">DAY</span>
+                <p className="label mt-2 flex min-h-11 items-center border border-line px-3.5 text-chalk">
+                  {dowOf(draft.date) || "—"}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="time" className="label text-silverfaint">
+                TIME
+              </label>
+              <input
+                id="time"
+                value={draft.time}
+                onChange={(e) => set("time", e.target.value)}
+                placeholder="9:00 PM"
+                className={`${field} mt-2 w-full`}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="flyer" className="label text-silverfaint">
+                FLYER URL
+              </label>
+              <input
+                id="flyer"
+                value={draft.flyerUrl}
+                onChange={(e) => set("flyerUrl", e.target.value)}
+                inputMode="url"
+                placeholder="https://…"
+                className={`${field} mt-2 w-full`}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="blurb" className="label text-silverfaint">
+                BLURB
+              </label>
+              <textarea
+                id="blurb"
+                value={draft.blurb}
+                onChange={(e) => set("blurb", e.target.value)}
+                rows={3}
+                className={`${field} mt-2 w-full resize-y`}
+              />
+            </div>
+
+            <label
+              htmlFor="published"
+              className="label flex min-h-11 cursor-pointer items-center gap-3 border border-line px-3.5 text-chalk"
+            >
+              <input
+                id="published"
+                type="checkbox"
+                checked={draft.published}
+                onChange={(e) => set("published", e.target.checked)}
+                className="h-4 w-4 accent-blood"
+              />
+              PUBLISHED
             </label>
-            <input
-              id="date"
-              type="date"
-              value={draft.date}
-              onChange={(e) => set("date", e.target.value)}
-              aria-invalid={Boolean(shown("date"))}
-              className={`${field} mt-2 w-full`}
-            />
-            {shown("date") && (
-              <p className="label mt-2 text-bloodhi" role="alert">
-                {shown("date")}
+
+            {notice && (
+              <p
+                className={`label border px-3 py-2 leading-loose ${
+                  notice.bad
+                    ? "border-[rgba(200,16,46,0.5)] bg-[rgba(200,16,46,0.06)] text-bloodhi"
+                    : "border-line text-silverdim"
+                }`}
+                role={notice.bad ? "alert" : "status"}
+              >
+                {notice.text}
               </p>
             )}
-          </div>
-          <div className="w-[6.5rem]">
-            <span className="label text-silverfaint">DAY</span>
-            <p className="label mt-2 flex min-h-11 items-center border border-line px-3.5 text-chalk">
-              {dowOf(draft.date) || "—"}
-            </p>
-          </div>
-        </div>
 
-        <div>
-          <label htmlFor="time" className="label text-silverfaint">
-            TIME
-          </label>
-          <input
-            id="time"
-            value={draft.time}
-            onChange={(e) => set("time", e.target.value)}
-            placeholder="9:00 PM"
-            className={`${field} mt-2 w-full`}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="flyer" className="label text-silverfaint">
-            FLYER URL
-          </label>
-          <input
-            id="flyer"
-            value={draft.flyerUrl}
-            onChange={(e) => set("flyerUrl", e.target.value)}
-            inputMode="url"
-            placeholder="https://…"
-            className={`${field} mt-2 w-full`}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="blurb" className="label text-silverfaint">
-            BLURB
-          </label>
-          <textarea
-            id="blurb"
-            value={draft.blurb}
-            onChange={(e) => set("blurb", e.target.value)}
-            rows={3}
-            className={`${field} mt-2 w-full resize-y`}
-          />
-        </div>
-
-        <label
-          htmlFor="published"
-          className="label flex min-h-11 cursor-pointer items-center gap-3 border border-line px-3.5 text-chalk"
-        >
-          <input
-            id="published"
-            type="checkbox"
-            checked={draft.published}
-            onChange={(e) => set("published", e.target.checked)}
-            className="h-4 w-4 accent-blood"
-          />
-          PUBLISHED
-        </label>
-
-        {notice && (
-          <p
-            className={`label ${notice.bad ? "text-bloodhi" : "text-silverdim"}`}
-            role={notice.bad ? "alert" : "status"}
-          >
-            {notice.text}
-          </p>
-        )}
-
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={saving || (attempted && blocked)}
-            className={`${btnGo} flex-1`}
-          >
-            {saving ? "Saving…" : editing ? "Save changes" : "Post event"}
-          </button>
-          {editing && (
-            <button type="button" onClick={reset} className={btn}>
-              Cancel
-            </button>
-          )}
-        </div>
-      </form>
-
-      <h2 className="label mt-12 border-y border-line py-3 text-silverfaint">
-        POSTED EVENTS
-      </h2>
-
-      {listing.kind === "loading" && (
-        <p className="label mt-5 text-silverfaint">LOADING EVENTS…</p>
-      )}
-
-      {listing.kind === "error" && (
-        <div className="mt-5">
-          <p className="label text-bloodhi" role="alert">
-            {listing.text}
-          </p>
-          <button onClick={() => void load()} className={`${btn} mt-4`}>
-            Try again
-          </button>
-        </div>
-      )}
-
-      {listing.kind === "ready" && listing.rows.length === 0 && (
-        <p className="label mt-5 text-silverfaint">
-          NOTHING POSTED YET. THE FORM ABOVE WRITES THE FIRST ONE.
-        </p>
-      )}
-
-      {listing.kind === "ready" && listing.rows.length > 0 && (
-        <ul className="mt-2">
-          {listing.rows.map((row) => (
-            <li key={row.slug} className="border-b border-line py-4">
-              <div className="flex items-baseline justify-between gap-4">
-                <span className="font-display text-[1.05rem] break-words text-chalk">
-                  {row.title}
-                </span>
-                {!row.published && (
-                  <span className="label shrink-0 border border-line px-2 py-1 text-silverfaint">
-                    DRAFT
-                  </span>
-                )}
-              </div>
-
-              <p className="label mt-2 text-silverdim">
-                {row.dow || dowOf(row.date)} {dayOf(row.date)}{" "}
-                {monthOf(row.date)} · {row.time}
-              </p>
-              <p className="label mt-1 break-all text-silverfaint">
-                /{row.slug}
-              </p>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  onClick={() => edit(row)}
-                  disabled={busySlug === row.slug}
-                  className={rowBtn}
-                >
-                  EDIT
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={saving || (attempted && blocked)}
+                className={`${btnGo} flex-1`}
+              >
+                {saving ? "Saving…" : editing ? "Save changes" : "Post event"}
+              </button>
+              {editing && (
+                <button type="button" onClick={reset} className={btn}>
+                  Cancel
                 </button>
-                {confirming === row.slug ? (
-                  <>
+              )}
+            </div>
+          </form>
+        </section>
+
+        {/* --------------------------------------------------------- list -- */}
+        <section className="border border-line bg-ink">
+          <PanelHead
+            title="POSTED EVENTS"
+            right={
+              <span className="label text-chalk">
+                {listing.kind === "ready" ? listing.rows.length : "—"}
+              </span>
+            }
+          />
+
+          {/* Still reading, nothing there and could not read are three
+              different sentences in three different frames. A promoter who
+              takes a failed read for an empty list posts the same date twice. */}
+          {listing.kind === "loading" && (
+            <div className="p-4">
+              <p className="label flex animate-pulse items-center gap-2 text-silverfaint">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-silverfaint" />
+                LOADING EVENTS…
+              </p>
+            </div>
+          )}
+
+          {listing.kind === "error" && (
+            <div
+              className="m-4 border border-[rgba(200,16,46,0.5)] bg-[rgba(200,16,46,0.06)] p-4"
+              role="alert"
+            >
+              <p className="label text-bloodhi">
+                NOTHING LOADED - THIS IS AN ERROR
+              </p>
+              <p className="mt-2 text-[0.9375rem] leading-relaxed text-bloodhi">
+                {listing.text}
+              </p>
+              <button onClick={() => void load()} className={`${btn} mt-4`}>
+                Try again
+              </button>
+            </div>
+          )}
+
+          {listing.kind === "ready" && listing.rows.length === 0 && (
+            <div className="p-4">
+              <div className="border border-dashed border-line px-4 py-5">
+                <p className="label leading-loose text-silverfaint">
+                  NOTHING POSTED YET. THE FORM ABOVE WRITES THE FIRST ONE.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {listing.kind === "ready" && listing.rows.length > 0 && (
+            <ul>
+              {listing.rows.map((row) => (
+                <li
+                  key={row.slug}
+                  className="border-b border-line px-4 py-3.5 last:border-b-0"
+                >
+                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <span className="font-display min-w-0 text-[1.05rem] break-words text-chalk">
+                      {row.title}
+                    </span>
+                    {!row.published && (
+                      <span className="label shrink-0 border border-line px-2 py-1 text-silverfaint">
+                        DRAFT
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="label mt-2 text-silverdim">
+                    {row.dow || dowOf(row.date)} {dayOf(row.date)}{" "}
+                    {monthOf(row.date)} · {row.time}
+                  </p>
+                  <p className="label mt-1 break-all text-silverfaint">
+                    /{row.slug}
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <button
-                      onClick={() => void remove(row.slug)}
+                      onClick={() => edit(row)}
                       disabled={busySlug === row.slug}
-                      className={rowBtnDanger}
-                    >
-                      DELETE FOR GOOD
-                    </button>
-                    <button
-                      onClick={() => setConfirming(null)}
                       className={rowBtn}
                     >
-                      KEEP
+                      EDIT
                     </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setConfirming(row.slug)}
-                    disabled={busySlug === row.slug}
-                    className={rowBtn}
-                  >
-                    {busySlug === row.slug ? "DELETING…" : "DELETE"}
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <Link
-        href="/admin"
-        className="label mt-10 block text-silverfaint transition-colors hover:text-chalk"
-      >
-        &larr; BACK TO ADMIN
-      </Link>
+                    {confirming === row.slug ? (
+                      <>
+                        <button
+                          onClick={() => void remove(row.slug)}
+                          disabled={busySlug === row.slug}
+                          className={rowBtnDanger}
+                        >
+                          DELETE FOR GOOD
+                        </button>
+                        <button
+                          onClick={() => setConfirming(null)}
+                          className={rowBtn}
+                        >
+                          KEEP
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setConfirming(row.slug)}
+                        disabled={busySlug === row.slug}
+                        className={rowBtn}
+                      >
+                        {busySlug === row.slug ? "DELETING…" : "DELETE"}
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </main>
   );
 }

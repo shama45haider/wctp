@@ -38,7 +38,7 @@ function SectionHead({
   aside,
 }: {
   title: string;
-  blurb: string;
+  blurb?: string;
   aside?: string;
 }) {
   return (
@@ -47,7 +47,7 @@ function SectionHead({
         <h2 className="font-display chrome text-[clamp(2.5rem,6vw,4.5rem)]">
           {title}
         </h2>
-        <p className="mt-2 max-w-[42ch] text-silverdim">{blurb}</p>
+        {blurb && <p className="mt-2 max-w-[42ch] text-silverdim">{blurb}</p>}
       </div>
       {aside && (
         <div className="label text-silverfaint sm:shrink-0">{aside}</div>
@@ -98,9 +98,12 @@ export default function HomeContent({ posts }: { posts: IgPost[] }) {
                   <span className="dot shrink-0" />
                   <span className="label text-bloodhi">NEXT</span>
                 </span>
+                {/* Padded to a thumb and pulled back with a matching negative
+                    margin, so the strip keeps its spacing while the headline
+                    stops being a 26px tap target on the busiest link here. */}
                 <Link
                   href={`/events/${next.slug}`}
-                  className="font-display text-[1.75rem] leading-none transition-colors hover:text-bloodhi"
+                  className="font-display -my-2.5 inline-block py-2.5 text-[1.75rem] leading-none transition-colors hover:text-bloodhi"
                 >
                   {next.title}
                 </Link>
@@ -189,7 +192,6 @@ export default function HomeContent({ posts }: { posts: IgPost[] }) {
         <div className="mx-auto w-[92vw] max-w-[1180px]">
           <SectionHead
             title="Upcoming"
-            blurb={`The address is emailed from ${org.email} to everyone on the list before each night. Get on it, watch the feed, and don’t be late.`}
             aside={`${String(upcoming.length).padStart(2, "0")} DATES`}
           />
           {upcoming.length > 0 ? (
@@ -267,7 +269,7 @@ export default function HomeContent({ posts }: { posts: IgPost[] }) {
                   href={org.instagram}
                   target="_blank"
                   rel="noopener"
-                  className="border border-linehi px-3 py-2 text-silver transition-colors hover:border-bloodhi hover:text-bloodhi"
+                  className="flex min-h-11 items-center border border-linehi px-3 text-silver transition-colors hover:border-bloodhi hover:text-bloodhi"
                 >
                   FOLLOW {org.instagramHandle.toUpperCase()} &rarr;
                 </a>

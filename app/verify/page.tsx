@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAccount } from "@/lib/demo-account";
-import { org } from "@/lib/events";
 import { atHandle } from "@/lib/handle";
 import { btn, btnGo } from "@/lib/ui";
 import IdDocumentUpload from "@/components/IdDocumentUpload";
@@ -112,8 +111,7 @@ export default function Verify() {
         </h1>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
           Your ID is in the queue. A person reads every one of these, so it is
-          not instant - you&rsquo;ll hear from {org.email} before the next
-          date, and only the year of the date of birth you typed is kept.
+          not instant.
         </p>
         <div className="label mt-6 flex items-center justify-between border border-line px-3 py-3">
           <span className="text-silverfaint">AGE CHECK</span>

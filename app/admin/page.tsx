@@ -28,18 +28,26 @@ import { avatarUrl } from "@/lib/profile-data";
 /**
  * The dashboard.
  *
- * There are two ways in and they are not equal. The real one is a session
- * whose user id sits in the `admins` table; everything the database holds is
- * behind that. The passphrase below it is a door-night fallback that unlocks
- * nothing but this device's own scan list, and it is only offered when the
- * account service cannot be reached at all - a gate compiled into the
- * JavaScript bundle is not access control and must never stand in front of a
- * roster of guests.
+ * There is one way in, and it is a session whose user id sits in the `admins`
+ * table. Everything the database holds sits behind that, and this file decides
+ * none of it - row-level security refuses the read regardless of what gets
+ * drawn here. The passphrase that used to sit under the sign-in is gone: a
+ * secret compiled into the JavaScript bundle is not access control and must
+ * never stand in front of a roster of guests.
+ *
+ * The frame is a control panel rather than a page. A header band says what
+ * this is and who is holding it, a section list runs down the left on a desk
+ * and folds into a grid of four buttons on a phone, and everything inside is
+ * a panel with a head and a body so the eye lands in the same place on every
+ * tab. The phone is the device that matters, because this is opened at a door
+ * with a queue behind it: nothing tappable is smaller than a thumb, and the
+ * only things allowed to hide behind a sideways scroll are the wide tables.
  *
  * Loading, empty and failed are drawn three different ways throughout, on
- * purpose. Left alone they collapse into the same quiet screen, and an admin
- * who reads "the database timed out" as "nobody has signed up" makes the wrong
- * call at a door with a queue behind it.
+ * purpose - a pulse, a dashed frame around a plain sentence, and a red-bordered
+ * alert that keeps the database's own words. Left alone they collapse into the
+ * same quiet screen, and an admin who reads "the database timed out" as
+ * "nobody has signed up" makes the wrong call at that door.
  */
 
 const SCAN_KEY = "wctp.scanned";
@@ -58,8 +66,14 @@ type DocState =
   | { kind: "error" };
 
 // No max-width of its own: each screen sets one, and two arbitrary max-w
-// utilities in the same class list do not reliably override each other.
+// utilities in the same class list do not reliably override each other. The
+// gate screens use this; the dashboard runs wider and tighter than a page of
+// prose wants to, and sets its own.
 const shell = "mx-auto w-[92vw] py-[clamp(2.5rem,8vw,5rem)]";
+
+/** The quiet controls in the header band, which are chrome rather than actions. */
+const headBtn =
+  "label flex min-h-11 items-center border border-line px-4 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk";
 
 function when(iso: string) {
   const d = new Date(iso);
@@ -96,18 +110,77 @@ function quietly(work: () => void) {
   }
 }
 
-/** Says nothing is here yet, in words, so it cannot be read as a failure. */
-function Empty({ children }: { children: React.ReactNode }) {
+/**
+ * A framed block. Every section of every tab is one of these, so the eye lands
+ * in the same place whichever tab it arrives on.
+ */
+function Panel({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <p className="mt-6 text-[0.9375rem] leading-relaxed text-silverdim">
+    <section className={`border border-line bg-ink ${className}`}>
       {children}
-    </p>
+    </section>
   );
 }
 
+/** The bar across the top of a panel: what it holds, how much of it, and one control. */
+function PanelHead({
+  title,
+  count,
+  right,
+}: {
+  title: string;
+  count?: React.ReactNode;
+  right?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+      <p className="label text-silverfaint">
+        {title}
+        {count !== undefined && <span className="ml-2 text-chalk">{count}</span>}
+      </p>
+      {right}
+    </div>
+  );
+}
+
+function PanelBody({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return <div className={`p-4 ${className}`}>{children}</div>;
+}
+
+/**
+ * Says nothing is here yet, in words, inside a dashed frame that no other
+ * state uses - so it can be told apart from a failure at a glance and read as
+ * one on a second look.
+ */
+function Empty({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="border border-dashed border-line px-4 py-5">
+      <p className="text-[0.9375rem] leading-relaxed text-silverdim">
+        {children}
+      </p>
+    </div>
+  );
+}
+
+/** Still going: a pulse, which neither of the other two states has. */
 function Waiting({ what }: { what: string }) {
   return (
-    <p className="label mt-6 animate-pulse text-silverfaint">{what}</p>
+    <p className="label flex animate-pulse items-center gap-2 text-silverfaint">
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-silverfaint" />
+      {what}
+    </p>
   );
 }
 
@@ -121,7 +194,7 @@ function Failed({
 }) {
   return (
     <div
-      className="mt-6 border border-[rgba(200,16,46,0.5)] p-4"
+      className="border border-[rgba(200,16,46,0.5)] bg-[rgba(200,16,46,0.06)] p-4"
       role="alert"
     >
       <p className="label text-bloodhi">NOTHING LOADED - THIS IS AN ERROR</p>
@@ -139,11 +212,17 @@ function Failed({
 }
 
 function Badge<T>({ state }: { state: Load<T> }) {
-  if (state.kind === "loading") return <span className="text-silverfaint">…</span>;
+  if (state.kind === "loading")
+    return <span className="animate-pulse text-silverfaint">…</span>;
   if (state.kind === "error") return <span className="text-bloodhi">!</span>;
   return <span className="text-silver">{state.rows.length}</span>;
 }
 
+/**
+ * One number off the top of a tab. Label above, figure below, footnote pinned
+ * to the bottom edge, so a row of them lines up whether or not each has
+ * something to footnote.
+ */
 function Kpi({
   label,
   value,
@@ -154,12 +233,16 @@ function Kpi({
   sub?: string;
 }) {
   return (
-    <div className="border border-line p-4">
+    <div className="flex flex-col bg-ink p-4">
       <p className="label text-silverfaint">{label}</p>
-      <p className="font-display mt-1 text-[1.75rem] leading-none text-chalk">
+      <p className="font-display mt-2 text-[clamp(1.5rem,5vw,1.875rem)] leading-none text-chalk">
         {value}
       </p>
-      {sub && <p className="label mt-1 text-silverfaint">{sub}</p>}
+      {sub && (
+        <p className="label mt-auto pt-2 leading-relaxed text-silverfaint">
+          {sub}
+        </p>
+      )}
     </div>
   );
 }
@@ -299,7 +382,6 @@ export default function Admin() {
   const [orders, setOrders] = useState<Load<AdminOrderRow>>({
     kind: "loading",
   });
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const runtimeEvents = useRuntimeEvents();
 
   // Which party is open in the PARTIES tab, by slug. Null is the grid.
@@ -526,59 +608,12 @@ export default function Admin() {
     );
   }
 
-  // ------------------------------------------------------------------ door --
-
-  const door = (
-    <>
-      <div className="label mt-7 flex items-center justify-between border-y border-line py-3">
-        <span className="text-silverfaint">SCANNED ON THIS DEVICE</span>
-        <span className="text-chalk">{scans.length}</span>
-      </div>
-
-      {scans.length === 0 ? (
-        <Empty>
-          Nothing scanned on this device yet. Point any phone camera at a ticket
-          QR - it opens the ticket, shows whose name is on it, and offers to
-          mark it used.
-        </Empty>
-      ) : (
-        <ul className="mt-5">
-          {scans.map(([code, at]) => (
-            <li
-              key={code}
-              className="label flex items-baseline justify-between gap-4 border-b border-line py-3"
-            >
-              <span className="break-all text-chalk">{code}</span>
-              <span className="whitespace-nowrap text-silverfaint">
-                {new Date(at).toLocaleString(undefined, {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  day: "numeric",
-                  month: "short",
-                })}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {scans.length > 0 && (
-        <button
-          onClick={clearScans}
-          className="font-display mt-7 min-h-11 w-full border border-line py-3 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi"
-        >
-          Clear scan list
-        </button>
-      )}
-    </>
-  );
-
   // ---------------------------------------------------------- signed out ----
 
   if (!auth.user) {
-    // An error with no session means the account service never answered, which
-    // is the only situation the passphrase is offered in. A healthy project
-    // with nobody signed in reports no error, and gets sent to /login instead.
+    // An error with no session means the account service never answered, and
+    // that is worth saying differently from a healthy project with nobody
+    // signed in, which gets sent to /login instead.
     const offline = auth.error !== null;
 
     if (!offline) {
@@ -741,20 +776,10 @@ export default function Admin() {
     void title;
   };
 
-  const toggleExpanded = (slug: string) =>
-    setExpanded((cur) => {
-      const next = new Set(cur);
-      if (next.has(slug)) next.delete(slug);
-      else next.add(slug);
-      return next;
-    });
-
-  const tabs: { id: Tab; label: string; badge: React.ReactNode }[] = [
-    {
-      id: "parties",
-      label: "PARTIES",
-      badge: <Badge state={orders} />,
-    },
+  // The four sections in one list, so the rail on a desk and the grid on a
+  // phone can never drift apart or disagree about a count.
+  const sections: { id: Tab; label: string; badge: React.ReactNode }[] = [
+    { id: "parties", label: "PARTIES", badge: <Badge state={orders} /> },
     { id: "accounts", label: "ACCOUNTS", badge: <Badge state={accounts} /> },
     { id: "review", label: "AGE REVIEW", badge: <Badge state={queue} /> },
     {
@@ -765,921 +790,1044 @@ export default function Admin() {
   ];
 
   return (
-    <main className={`${shell} max-w-[1180px]`}>
-      <h1 className="font-display chrome text-[clamp(2rem,8vw,3.25rem)] leading-[0.85]">
-        Admin
-      </h1>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="label text-silverfaint">
-          SIGNED IN AS <span className="break-all text-silver">{auth.user.email}</span>
-        </p>
-        <div className="flex gap-3">
-          <Link
-            href="/admin/events"
-            className="label flex min-h-11 items-center border border-line px-4 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk"
-          >
+    <main className="mx-auto w-[92vw] max-w-[1280px] py-[clamp(1.5rem,5vw,3rem)]">
+      {/* ------------------------------------------------------- header -- */}
+      <header className="flex flex-wrap items-end justify-between gap-4 border border-line bg-ink px-4 py-4 sm:px-5">
+        <div className="min-w-0">
+          <p className="label text-silverfaint">CONTROL PANEL</p>
+          <h1 className="font-display chrome mt-1.5 text-[clamp(1.75rem,7vw,2.75rem)] leading-[0.85]">
+            Admin
+          </h1>
+          <p className="label mt-3 text-silverfaint">
+            SIGNED IN AS <span className="break-all text-silver">{auth.user.email}</span>
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/admin/events" className={headBtn}>
             Events
           </Link>
-          <button
-            onClick={() => void auth.signOut()}
-            className="label min-h-11 border border-line px-4 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk"
-          >
+          <button onClick={() => void auth.signOut()} className={headBtn}>
             Sign out
           </button>
         </div>
-      </div>
+      </header>
 
       {auth.error && (
-        <p className="label mt-4 border border-[rgba(200,16,46,0.5)] p-3 leading-loose text-bloodhi" role="alert">
+        <p
+          className="label mt-4 border border-[rgba(200,16,46,0.5)] bg-[rgba(200,16,46,0.06)] p-3 leading-loose text-bloodhi"
+          role="alert"
+        >
           {auth.error}
         </p>
       )}
 
-      <div className="mt-7 flex border-y border-line">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            aria-pressed={tab === t.id}
-            className={`label flex min-h-11 flex-1 items-center justify-center gap-2 border-r border-line px-2 uppercase transition-colors last:border-r-0 ${
-              tab === t.id
-                ? "bg-ink2 text-chalk"
-                : "text-silverfaint hover:text-silverdim"
-            }`}
+      <div className="mt-4 flex flex-col gap-4 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start lg:gap-4">
+        {/* A rail on a desk. It stays put while a long roster scrolls past. */}
+        <nav
+          aria-label="Dashboard sections"
+          className="sticky top-4 hidden border border-line bg-ink lg:block"
+        >
+          <p className="label border-b border-line px-3 py-3 text-silverfaint">
+            SECTIONS
+          </p>
+          {sections.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setTab(s.id)}
+              aria-current={tab === s.id ? "page" : undefined}
+              className={`label flex min-h-11 w-full items-center justify-between gap-3 border-b border-l-2 border-b-line px-3 text-left uppercase transition-colors last:border-b-0 ${
+                tab === s.id
+                  ? "border-l-bloodhi bg-ink2 text-chalk"
+                  : "border-l-transparent text-silverdim hover:bg-ink2 hover:text-chalk"
+              }`}
+            >
+              {s.label}
+              <span className="shrink-0">{s.badge}</span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="flex min-w-0 flex-col gap-4">
+          {/* Two across rather than four: at 375px a four-across strip leaves
+              each section about sixty pixels, which is narrower than the word
+              printed in it. */}
+          <nav
+            aria-label="Dashboard sections"
+            className="grid grid-cols-2 gap-px border border-line bg-line lg:hidden"
           >
-            {t.label}
-            {t.badge}
-          </button>
-        ))}
-      </div>
+            {sections.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setTab(s.id)}
+                aria-current={tab === s.id ? "page" : undefined}
+                className={`label flex min-h-11 items-center justify-between gap-2 px-3 py-3 uppercase transition-colors ${
+                  tab === s.id
+                    ? "bg-ink2 text-chalk"
+                    : "bg-ink text-silverfaint hover:text-silverdim"
+                }`}
+              >
+                {s.label}
+                {s.badge}
+              </button>
+            ))}
+          </nav>
 
-      {tab === "parties" && (
-        <section>
-          {runtimeEvents.error && (
-            <p className="label mt-5 text-silverfaint">
-              THE EVENT LIST FELL BACK TO THE BUILT-IN DATES - {runtimeEvents.error.toUpperCase()}. ANYTHING POSTED FROM /ADMIN/EVENTS SINCE MAY NOT SHOW UP YET.
-            </p>
-          )}
-
-          {orders.kind === "loading" && <Waiting what="READING EVERY ORDER…" />}
-          {orders.kind === "error" && (
-            <Failed message={orders.message} onRetry={retryOrders} />
-          )}
-
-          {orders.kind === "ready" && party === null && (
+          {tab === "parties" && (
             <>
-              {/* ------------------------------------------------ totals -- */}
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <Kpi label="UPCOMING RSVPS" value={String(upcomingTotal.admitCount)} />
-                <Kpi
-                  label="TICKET REVENUE"
-                  value={usd(upcomingTotal.ticketNetCents)}
-                  sub="AFTER PROMOS, BEFORE FEES"
-                />
-                <Kpi
-                  label="COLLECTED"
-                  value={usd(upcomingTotal.grossCents)}
-                  sub="WHAT GUESTS PAID, FEES INCLUDED"
-                />
-                <Kpi
-                  label="CHECKED IN"
-                  value={`${upcomingTotal.checkedIn} / ${upcomingTotal.passCount}`}
-                  sub="ACROSS ALL DOORS"
-                />
-              </div>
-              {upcomingTotal.donationCents > 0 && (
-                <p className="label mt-3 text-silverfaint">
-                  PLUS {usd(upcomingTotal.donationCents)} IN GIFTS ACROSS UPCOMING DATES
-                </p>
+              {runtimeEvents.error && (
+                <Panel>
+                  <PanelBody>
+                    <p className="label leading-loose text-silverfaint">
+                      THE EVENT LIST FELL BACK TO THE BUILT-IN DATES - {runtimeEvents.error.toUpperCase()}. ANYTHING POSTED FROM /ADMIN/EVENTS SINCE MAY NOT SHOW UP YET.
+                    </p>
+                  </PanelBody>
+                </Panel>
               )}
 
-              {/* ----------------------------------------------- upcoming -- */}
-              <div className="label mt-9 flex items-center justify-between border-b border-line py-3">
-                <span className="text-silverfaint">UPCOMING</span>
-                <span className="text-chalk">{upcomingEvents.length}</span>
-              </div>
-
-              {upcomingEvents.length === 0 ? (
-                <Empty>No upcoming dates on the list right now.</Empty>
-              ) : (
-                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {upcomingEvents.map((e) => {
-                    const st = statsBySlug.get(e.slug) ?? emptyStats();
-                    return (
-                      <button
-                        key={e.slug}
-                        type="button"
-                        onClick={() => {
-                          setParty(e.slug);
-                          setPartyQuery("");
-                          setRevokeError(null);
-                        }}
-                        className="group flex flex-col border border-line bg-ink text-left transition-colors hover:border-bloodhi"
-                      >
-                        <span className="relative block aspect-[3/4] overflow-hidden">
-                          {e.imageId ? (
-                            <Flyer
-                              id={e.imageId}
-                              alt={e.title}
-                              sizes="(max-width:639px) 46vw, (max-width:1023px) 30vw, 280px"
-                              maxWidth={400}
-                              className="transition-transform duration-500 group-hover:scale-[1.03]"
-                            />
-                          ) : (
-                            <span className="hairline-x label flex h-full items-center justify-center bg-ink2 text-silverfaint">
-                              NO FLYER
-                            </span>
-                          )}
-                          <span className="absolute inset-0 bg-gradient-to-t from-[rgba(5,5,5,0.94)] via-[rgba(5,5,5,0.2)] to-transparent" />
-                          <span className="absolute right-2 bottom-2 left-2">
-                            <span className="font-display block text-[1.5rem] leading-none text-chalk">
-                              {st.admitCount}
-                            </span>
-                            <span className="label text-silverfaint">
-                              {st.admitCount === 1 ? "RSVP" : "RSVPS"} · {usd(st.ticketNetCents)}
-                            </span>
-                          </span>
-                        </span>
-                        <span className="block p-3">
-                          <span className="block truncate text-[0.9375rem] text-chalk">
-                            {e.title}
-                          </span>
-                          <span className="label mt-1 block text-silverfaint">
-                            {e.dow} {e.date}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+              {orders.kind === "loading" && (
+                <Panel>
+                  <PanelBody>
+                    <Waiting what="READING EVERY ORDER…" />
+                  </PanelBody>
+                </Panel>
+              )}
+              {orders.kind === "error" && (
+                <Failed message={orders.message} onRetry={retryOrders} />
               )}
 
-              {/* --------------------------------------------------- past -- */}
-              {pastEvents.length > 0 && (
+              {orders.kind === "ready" && party === null && (
                 <>
-                  <div className="label mt-10 flex items-center justify-between border-b border-line py-3">
-                    <span className="text-silverfaint">PAST</span>
-                    <span className="text-chalk">{pastEvents.length}</span>
-                  </div>
-                  <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-                    {pastEvents.map((e) => {
-                      const st = statsBySlug.get(e.slug) ?? emptyStats();
-                      return (
-                        <button
-                          key={e.slug}
-                          type="button"
-                          onClick={() => {
-                            setParty(e.slug);
-                            setPartyQuery("");
-                            setRevokeError(null);
-                          }}
-                          className="group flex flex-col border border-line bg-ink text-left opacity-70 transition-opacity hover:opacity-100"
-                        >
-                          <span className="relative block aspect-[3/4] overflow-hidden">
-                            {e.imageId ? (
-                              <Flyer
-                                id={e.imageId}
-                                alt={e.title}
-                                sizes="(max-width:639px) 30vw, 160px"
-                                maxWidth={256}
-                                className="grayscale"
-                              />
-                            ) : (
-                              <span className="hairline-x flex h-full bg-ink2" />
-                            )}
-                          </span>
-                          <span className="block p-2">
-                            <span className="label block truncate text-chalk">{e.title}</span>
-                            <span className="label mt-0.5 block text-silverfaint">
-                              {st.admitCount} · {usd(st.ticketNetCents)}
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {/* -------------------------------------------- totals -- */}
+                  <Panel>
+                    <PanelHead title="UPCOMING TOTALS" />
+                    <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
+                      <Kpi label="UPCOMING RSVPS" value={String(upcomingTotal.admitCount)} />
+                      <Kpi
+                        label="TICKET REVENUE"
+                        value={usd(upcomingTotal.ticketNetCents)}
+                        sub="AFTER PROMOS, BEFORE FEES"
+                      />
+                      <Kpi
+                        label="COLLECTED"
+                        value={usd(upcomingTotal.grossCents)}
+                        sub="WHAT GUESTS PAID, FEES INCLUDED"
+                      />
+                      <Kpi
+                        label="CHECKED IN"
+                        value={`${upcomingTotal.checkedIn} / ${upcomingTotal.passCount}`}
+                        sub="ACROSS ALL DOORS"
+                      />
+                    </div>
+                    {upcomingTotal.donationCents > 0 && (
+                      <p className="label border-t border-line px-4 py-3 text-silverfaint">
+                        PLUS {usd(upcomingTotal.donationCents)} IN GIFTS ACROSS UPCOMING DATES
+                      </p>
+                    )}
+                  </Panel>
+
+                  {/* ------------------------------------------ upcoming -- */}
+                  <Panel>
+                    <PanelHead title="UPCOMING" count={upcomingEvents.length} />
+                    <PanelBody>
+                      {upcomingEvents.length === 0 ? (
+                        <Empty>No upcoming dates on the list right now.</Empty>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                          {upcomingEvents.map((e) => {
+                            const st = statsBySlug.get(e.slug) ?? emptyStats();
+                            return (
+                              <button
+                                key={e.slug}
+                                type="button"
+                                onClick={() => {
+                                  setParty(e.slug);
+                                  setPartyQuery("");
+                                  setRevokeError(null);
+                                }}
+                                className="group flex flex-col border border-line bg-void text-left transition-colors hover:border-bloodhi"
+                              >
+                                <span className="relative block aspect-[3/4] overflow-hidden">
+                                  {e.imageId ? (
+                                    <Flyer
+                                      id={e.imageId}
+                                      alt={e.title}
+                                      sizes="(max-width:639px) 46vw, (max-width:1023px) 30vw, 280px"
+                                      maxWidth={400}
+                                      className="transition-transform duration-500 group-hover:scale-[1.03]"
+                                    />
+                                  ) : (
+                                    <span className="hairline-x label flex h-full items-center justify-center bg-ink2 text-silverfaint">
+                                      NO FLYER
+                                    </span>
+                                  )}
+                                  <span className="absolute inset-0 bg-gradient-to-t from-[rgba(5,5,5,0.94)] via-[rgba(5,5,5,0.2)] to-transparent" />
+                                  <span className="absolute right-2 bottom-2 left-2">
+                                    <span className="font-display block text-[1.5rem] leading-none text-chalk">
+                                      {st.admitCount}
+                                    </span>
+                                    <span className="label text-silverfaint">
+                                      {st.admitCount === 1 ? "RSVP" : "RSVPS"} · {usd(st.ticketNetCents)}
+                                    </span>
+                                  </span>
+                                </span>
+                                <span className="block border-t border-line p-3">
+                                  <span className="block truncate text-[0.9375rem] text-chalk">
+                                    {e.title}
+                                  </span>
+                                  <span className="label mt-1 block text-silverfaint">
+                                    {e.dow} {e.date}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </PanelBody>
+                  </Panel>
+
+                  {/* ---------------------------------------------- past -- */}
+                  {pastEvents.length > 0 && (
+                    <Panel>
+                      <PanelHead title="PAST" count={pastEvents.length} />
+                      <PanelBody>
+                        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 xl:grid-cols-6">
+                          {pastEvents.map((e) => {
+                            const st = statsBySlug.get(e.slug) ?? emptyStats();
+                            return (
+                              <button
+                                key={e.slug}
+                                type="button"
+                                onClick={() => {
+                                  setParty(e.slug);
+                                  setPartyQuery("");
+                                  setRevokeError(null);
+                                }}
+                                className="group flex flex-col border border-line bg-void text-left opacity-70 transition-opacity hover:opacity-100"
+                              >
+                                <span className="relative block aspect-[3/4] overflow-hidden">
+                                  {e.imageId ? (
+                                    <Flyer
+                                      id={e.imageId}
+                                      alt={e.title}
+                                      sizes="(max-width:639px) 30vw, 160px"
+                                      maxWidth={256}
+                                      className="grayscale"
+                                    />
+                                  ) : (
+                                    <span className="hairline-x flex h-full bg-ink2" />
+                                  )}
+                                </span>
+                                <span className="block border-t border-line p-2">
+                                  <span className="label block truncate text-chalk">{e.title}</span>
+                                  <span className="label mt-0.5 block text-silverfaint">
+                                    {st.admitCount} · {usd(st.ticketNetCents)}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </PanelBody>
+                    </Panel>
+                  )}
+
+                  {orphanSlugs.length > 0 && (
+                    <Panel>
+                      <PanelBody>
+                        <p className="label leading-loose text-silverfaint">
+                          {orphanStats.orderCount} ORDER{orphanStats.orderCount === 1 ? "" : "S"} (
+                          {usd(orphanStats.ticketNetCents)}) AGAINST {orphanSlugs.length} EVENT SLUG
+                          {orphanSlugs.length === 1 ? "" : "S"} NOT ON THE CURRENT LIST -{" "}
+                          {orphanSlugs.join(", ")}. INCLUDED IN NOTHING ABOVE.
+                        </p>
+                      </PanelBody>
+                    </Panel>
+                  )}
                 </>
               )}
 
-              {orphanSlugs.length > 0 && (
-                <p className="label mt-8 border border-line p-3 leading-loose text-silverfaint">
-                  {orphanStats.orderCount} ORDER{orphanStats.orderCount === 1 ? "" : "S"} (
-                  {usd(orphanStats.ticketNetCents)}) AGAINST {orphanSlugs.length} EVENT SLUG
-                  {orphanSlugs.length === 1 ? "" : "S"} NOT ON THE CURRENT LIST -{" "}
-                  {orphanSlugs.join(", ")}. INCLUDED IN NOTHING ABOVE.
-                </p>
-              )}
-            </>
-          )}
+              {/* ============================================= one party == */}
+              {orders.kind === "ready" && party !== null && (() => {
+                const e = runtimeEvents.events.find((x) => x.slug === party);
+                const st = statsBySlug.get(party) ?? emptyStats();
+                const q = partyQuery.trim().toLowerCase();
+                const hit = (o: AdminOrderRow) =>
+                  !q ||
+                  o.buyerName.toLowerCase().includes(q) ||
+                  o.buyerEmail.toLowerCase().includes(q) ||
+                  o.passes.some((ps) => ps.code.toLowerCase().includes(q));
+                const live = st.rows.filter(hit);
+                const gone = st.cancelledRows.filter(hit);
+                const revokedCount = st.rows.reduce(
+                  (n, o) => n + o.passes.filter((ps) => ps.revokedAt).length,
+                  0,
+                );
 
-          {/* ================================================= one party == */}
-          {orders.kind === "ready" && party !== null && (() => {
-            const e = runtimeEvents.events.find((x) => x.slug === party);
-            const st = statsBySlug.get(party) ?? emptyStats();
-            const q = partyQuery.trim().toLowerCase();
-            const hit = (o: AdminOrderRow) =>
-              !q ||
-              o.buyerName.toLowerCase().includes(q) ||
-              o.buyerEmail.toLowerCase().includes(q) ||
-              o.passes.some((ps) => ps.code.toLowerCase().includes(q));
-            const live = st.rows.filter(hit);
-            const gone = st.cancelledRows.filter(hit);
-            const revokedCount = st.rows.reduce(
-              (n, o) => n + o.passes.filter((ps) => ps.revokedAt).length,
-              0,
-            );
-
-            return (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setParty(null)}
-                  className="label mt-6 text-silverfaint transition-colors hover:text-chalk"
-                >
-                  &larr; ALL PARTIES
-                </button>
-
-                {/* ---------------------------------------------- header -- */}
-                <div className="mt-4 flex gap-4">
-                  <div className="relative w-24 shrink-0 overflow-hidden border border-line sm:w-32">
-                    <div className="aspect-[3/4]">
-                      {e?.imageId ? (
-                        <Flyer id={e.imageId} alt={e.title} sizes="128px" maxWidth={256} />
-                      ) : (
-                        <div className="hairline-x h-full bg-ink2" />
-                      )}
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="font-display text-[clamp(1.5rem,5vw,2.25rem)] leading-[0.9] break-words">
-                      {e?.title ?? party}
-                    </h2>
-                    <p className="label mt-2 text-silverfaint">
-                      {e ? `${e.dow} ${e.date} · ${e.time}` : "NOT ON THE CURRENT EVENT LIST"}
-                    </p>
-                    {e && isPastEvent(e, runtimeEvents.now) && (
-                      <span className="label mt-2 inline-block border border-line px-2 py-1 text-silverfaint">
-                        PAST
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* --------------------------------------------- numbers -- */}
-                <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <Kpi label="RSVPS" value={String(st.admitCount)} sub={`${st.orderCount} ORDERS`} />
-                  <Kpi label="TICKET REVENUE" value={usd(st.ticketNetCents)} sub="AFTER PROMOS, BEFORE FEES" />
-                  <Kpi label="COLLECTED" value={usd(st.grossCents)} sub="FEES INCLUDED" />
-                  <Kpi
-                    label="CHECKED IN"
-                    value={`${st.checkedIn} / ${st.passCount}`}
-                    sub={revokedCount > 0 ? `${revokedCount} CANCELLED` : "AT THE DOOR"}
-                  />
-                </div>
-                {st.donationCents > 0 && (
-                  <p className="label mt-3 text-silverfaint">
-                    PLUS {usd(st.donationCents)} IN GIFTS
-                  </p>
-                )}
-
-                {/* ----------------------------------------------- tiers -- */}
-                {st.tiers.size > 0 && (
-                  <div className="mt-6 overflow-x-auto">
-                    <table className="w-full min-w-[420px] border-collapse text-left">
-                      <thead>
-                        <tr className="label border-b border-line text-silverfaint">
-                          <th className="py-2 pr-4 font-normal">TIER</th>
-                          <th className="py-2 pr-4 font-normal">SOLD</th>
-                          <th className="py-2 pr-4 font-normal">ADMITS</th>
-                          <th className="py-2 font-normal">REVENUE</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[...st.tiers.entries()].map(([tierId, t]) => (
-                          <tr key={tierId} className="border-b border-line">
-                            <td className="py-2 pr-4 text-[0.9375rem] text-chalk">{t.tierName}</td>
-                            <td className="label py-2 pr-4 text-silverdim">{t.qty}</td>
-                            <td className="label py-2 pr-4 text-silverdim">{t.admits}</td>
-                            <td className="label py-2 text-silverdim">{usd(t.revenueCents)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {/* ------------------------------------------ guest list -- */}
-                <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-b border-line py-3">
-                  <span className="label text-silverfaint">
-                    WHO&rsquo;S COMING <span className="text-chalk">{st.rows.length}</span>
-                  </span>
-                  {st.rows.length + st.cancelledRows.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => exportCsv(party, e?.title ?? party, [...st.rows, ...st.cancelledRows])}
-                      className="label border border-line px-3 py-2 text-silverdim transition-colors hover:border-linehi hover:text-chalk"
-                    >
-                      DOWNLOAD CSV
-                    </button>
-                  )}
-                </div>
-
-                {st.rows.length + st.cancelledRows.length === 0 ? (
-                  <Empty>Nobody has RSVP&rsquo;d to this one yet.</Empty>
-                ) : (
+                return (
                   <>
-                    <input
-                      value={partyQuery}
-                      onChange={(ev) => setPartyQuery(ev.target.value)}
-                      placeholder="Find a name, email or ticket code"
-                      aria-label="Search the guest list"
-                      className={`${field} mt-4 w-full`}
-                    />
-
-                    {live.length === 0 && gone.length === 0 && (
-                      <Empty>Nobody on this list matches that.</Empty>
-                    )}
-
-                    <ul className="mt-4 flex flex-col gap-3">
-                      {live.map((o) => {
-                        return (
-                          <li key={o.id} className="border border-line p-4">
-                            <div className="flex flex-wrap items-baseline justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="truncate text-[1rem] text-chalk">{o.buyerName || "—"}</p>
-                                <p className="label mt-0.5 break-all text-silverdim">{o.buyerEmail}</p>
-                                {o.buyerPhone && (
-                                  <p className="label text-silverfaint">{o.buyerPhone}</p>
-                                )}
-                              </div>
-                              <div className="text-right">
-                                <p className="label text-chalk">{usd(o.totalCents)}</p>
-                                <p className="label text-silverfaint">{when(o.createdAt)}</p>
-                                {o.promoCode && (
-                                  <p className="label text-silverfaint">PROMO {o.promoCode}</p>
-                                )}
-                              </div>
-                            </div>
-
-                            {o.passes.length === 0 ? (
-                              <p className="label mt-3 text-silverfaint">GIFT - NO TICKET ON THIS ORDER</p>
+                    {/* ------------------------------ header and numbers -- */}
+                    <Panel>
+                      <div className="border-b border-line px-4">
+                        <button
+                          type="button"
+                          onClick={() => setParty(null)}
+                          className="label flex min-h-11 items-center text-silverfaint transition-colors hover:text-chalk"
+                        >
+                          &larr; ALL PARTIES
+                        </button>
+                      </div>
+                      <PanelBody className="flex gap-4">
+                        <div className="relative w-24 shrink-0 overflow-hidden border border-line sm:w-32">
+                          <div className="aspect-[3/4]">
+                            {e?.imageId ? (
+                              <Flyer id={e.imageId} alt={e.title} sizes="128px" maxWidth={256} />
                             ) : (
-                              <ul className="mt-3 flex flex-col gap-2">
-                                {o.passes.map((ps) => {
-                                  const key = `pass:${ps.code}`;
-                                  const busy = revoking === key;
-                                  const state = ps.revokedAt ? "CANCELLED" : ps.usedAt ? "CHECKED IN" : "VALID";
-                                  return (
-                                    <li
-                                      key={ps.code}
-                                      className={`flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 ${
-                                        ps.revokedAt ? "opacity-60" : ""
-                                      }`}
-                                    >
-                                      <span className="min-w-0">
-                                        <span className={`label ${ps.revokedAt ? "line-through" : ""} text-chalk`}>
-                                          {ps.tierName}
-                                          {ps.admits > 1 ? ` · ADMITS ${ps.admits}` : ""}
-                                        </span>
-                                        <span className="label ml-2 text-silverfaint">{ps.code}</span>
-                                      </span>
-                                      <span className="flex items-center gap-2">
-                                        <span
-                                          className={`label border px-2 py-1 ${
-                                            ps.revokedAt
-                                              ? "border-[rgba(200,16,46,0.5)] text-bloodhi"
-                                              : ps.usedAt
-                                                ? "border-linehi text-chalk"
-                                                : "border-line text-silverdim"
-                                          }`}
-                                        >
-                                          {state}
-                                        </span>
-                                        {ps.revokedAt ? (
-                                          <button
-                                            type="button"
-                                            disabled={revoking !== null}
-                                            onClick={() => void act(key, () => restorePass(ps.code))}
-                                            className="label min-h-9 border border-line px-2 text-silverdim transition-colors hover:border-linehi hover:text-chalk disabled:opacity-50"
-                                          >
-                                            {busy ? "…" : "RESTORE"}
-                                          </button>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            disabled={revoking !== null}
-                                            onClick={() => void act(key, () => revokePass(ps.code))}
-                                            className="label min-h-9 border border-line px-2 text-silverdim transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi disabled:opacity-50"
-                                          >
-                                            {busy ? "…" : "CANCEL"}
-                                          </button>
-                                        )}
-                                      </span>
-                                      {revokeError?.key === key && (
-                                        <p className="label w-full text-bloodhi" role="alert">
-                                          {revokeError.message}
-                                        </p>
-                                      )}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
+                              <div className="hairline-x h-full bg-ink2" />
                             )}
-
-                            <p className="label mt-3 border-t border-line pt-3 text-silverfaint">{o.id}</p>
-                          </li>
-                        );
-                      })}
-                    </ul>
-
-                    {gone.length > 0 && (
-                      <>
-                        <div className="label mt-8 border-b border-line py-3 text-silverfaint">
-                          CANCELLED <span className="text-chalk">{gone.length}</span>
+                          </div>
                         </div>
-                        <ul className="mt-3 flex flex-col gap-2">
-                          {gone.map((o) => (
-                            <li
-                              key={o.id}
-                              className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line py-2 opacity-60"
-                            >
-                              <span className="min-w-0">
-                                <span className="text-[0.9375rem] text-chalk line-through">
-                                  {o.buyerName || "—"}
-                                </span>
-                                <span className="label ml-2 break-all text-silverfaint">{o.buyerEmail}</span>
-                              </span>
-                              <span className="label text-silverfaint">
-                                {usd(o.totalCents)} · {when(o.cancelledAt ?? o.createdAt)}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
-                  </>
-                )}
-              </>
-            );
-          })()}
-        </section>
-      )}
-
-      {tab === "accounts" && (
-        <section>
-          <div className="label mt-7 flex items-center justify-between border-b border-line py-3">
-            <span className="text-silverfaint">ACCOUNTS</span>
-            <span className="text-chalk">
-              {accounts.kind === "ready" ? accounts.rows.length : "—"}
-            </span>
-          </div>
-
-          {accounts.kind === "loading" && <Waiting what="READING THE ROSTER…" />}
-          {accounts.kind === "error" && (
-            <Failed message={accounts.message} onRetry={retryAccounts} />
-          )}
-          {accounts.kind === "ready" &&
-            (accounts.rows.length === 0 ? (
-              <Empty>
-                The roster loaded and it is empty. Nobody has made an account
-                yet.
-              </Empty>
-            ) : (
-              <div className="mt-5 overflow-x-auto">
-                <table className="w-full min-w-[620px] border-collapse text-left">
-                  <thead>
-                    <tr className="label border-b border-line text-silverfaint">
-                      <th className="py-3 pr-4 font-normal">NAME</th>
-                      <th className="py-3 pr-4 font-normal">EMAIL</th>
-                      <th className="py-3 pr-4 font-normal">AGE</th>
-                      <th className="py-3 pr-4 font-normal">JOINED</th>
-                      <th className="py-3 font-normal">AGE CHECK</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {accounts.rows.map((a) => {
-                      const open = openAccount === a.id;
-                      const load = checks[a.id];
-                      const pic = avatarUrl(a.avatarPath);
-                      const who = displayName(a.name, a.instagram);
-                      return (
-                        <React.Fragment key={a.id}>
-                      <tr
-                        onClick={() => void openRow(a.id)}
-                        aria-expanded={open}
-                        className={`cursor-pointer border-b border-line align-baseline transition-colors hover:bg-ink2 ${
-                          open ? "bg-ink2" : ""
-                        }`}
-                      >
-                        <td className="py-3 pr-4 text-[0.9375rem] text-chalk">
-                          <span className="flex items-center gap-2">
-                            {pic ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={pic} alt="" className="h-7 w-7 shrink-0 rounded-full border border-line object-cover" />
-                            ) : (
-                              <span className="label flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line text-silverfaint">
-                                {(a.name.trim() || a.email)[0]?.toUpperCase()}
-                              </span>
-                            )}
-                            <span className="min-w-0">
-                              <span className="block truncate">{who || "—"}</span>
-                              {a.firstName && (
-                                <span className="label block truncate text-silverfaint">{a.firstName}</span>
-                              )}
+                        <div className="min-w-0">
+                          <h2 className="font-display text-[clamp(1.5rem,5vw,2.25rem)] leading-[0.9] break-words">
+                            {e?.title ?? party}
+                          </h2>
+                          <p className="label mt-2 text-silverfaint">
+                            {e ? `${e.dow} ${e.date} · ${e.time}` : "NOT ON THE CURRENT EVENT LIST"}
+                          </p>
+                          {e && isPastEvent(e, runtimeEvents.now) && (
+                            <span className="label mt-3 inline-block border border-line px-2 py-1 text-silverfaint">
+                              PAST
                             </span>
-                          </span>
-                        </td>
-                        <td className="label py-3 pr-4 break-all text-silverdim">
-                          {a.email}
-                        </td>
-                        <td className="label py-3 pr-4 whitespace-nowrap text-silverdim">
-                          {a.age ?? "—"}
-                        </td>
-                        <td className="label py-3 pr-4 whitespace-nowrap text-silverfaint">
-                          {when(a.createdAt)}
-                        </td>
-                        <td className="py-3">
-                          <span
-                            className={`label inline-flex whitespace-nowrap border px-2 py-1 ${
-                              a.verified
-                                ? "border-linehi text-chalk"
-                                : "border-[rgba(200,16,46,0.5)] text-bloodhi"
-                            }`}
-                          >
-                            {a.verified ? "VERIFIED" : "AWAITING"}
-                          </span>
-                        </td>
-                      </tr>
+                          )}
+                        </div>
+                      </PanelBody>
+                      <div className="grid grid-cols-2 gap-px border-t border-line bg-line sm:grid-cols-4">
+                        <Kpi label="RSVPS" value={String(st.admitCount)} sub={`${st.orderCount} ORDERS`} />
+                        <Kpi label="TICKET REVENUE" value={usd(st.ticketNetCents)} sub="AFTER PROMOS, BEFORE FEES" />
+                        <Kpi label="COLLECTED" value={usd(st.grossCents)} sub="FEES INCLUDED" />
+                        <Kpi
+                          label="CHECKED IN"
+                          value={`${st.checkedIn} / ${st.passCount}`}
+                          sub={revokedCount > 0 ? `${revokedCount} CANCELLED` : "AT THE DOOR"}
+                        />
+                      </div>
+                      {st.donationCents > 0 && (
+                        <p className="label border-t border-line px-4 py-3 text-silverfaint">
+                          PLUS {usd(st.donationCents)} IN GIFTS
+                        </p>
+                      )}
+                    </Panel>
 
-                      {open && (
-                        <tr className="border-b border-line bg-ink">
-                          <td colSpan={5} className="p-4 sm:p-5">
-                            <div className="flex flex-col gap-6 sm:flex-row">
-                              {/* ------------------------------ the person -- */}
-                              <div className="flex shrink-0 gap-4 sm:w-64 sm:flex-col">
-                                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border border-linehi bg-ink2">
-                                  {pic ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={pic} alt="" className="h-full w-full object-cover" />
-                                  ) : (
-                                    <div className="flex h-full items-center justify-center">
-                                      <span className="font-display text-[1.5rem] text-silverfaint">
-                                        {(a.name.trim() || a.email)[0]?.toUpperCase()}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                                <dl className="min-w-0 flex-1">
-                                  {[
-                                    ["INSTAGRAM", atHandle(a.instagram) || "—"],
-                                    ["FIRST NAME", a.firstName || "—"],
-                                    ["EMAIL", a.email],
-                                    ["PHONE", a.phone || "—"],
-                                    ["AGE (STATED)", a.age === null ? "—" : String(a.age)],
-                                    ["BORN (VERIFIED)", a.birthYear ? String(a.birthYear) : "—"],
-                                    ["JOINED", when(a.createdAt)],
-                                  ].map(([k, v]) => (
-                                    <div key={k} className="label flex items-baseline justify-between gap-3 border-b border-line py-2">
-                                      <dt className="text-silverfaint">{k}</dt>
-                                      <dd className="min-w-0 text-right break-all text-chalk">{v}</dd>
-                                    </div>
-                                  ))}
-                                </dl>
+                    {/* --------------------------------------------- tiers -- */}
+                    {st.tiers.size > 0 && (
+                      <Panel>
+                        <PanelHead title="TIERS" count={st.tiers.size} />
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[420px] border-collapse text-left">
+                            <thead>
+                              <tr className="label border-b border-line text-silverfaint">
+                                <th className="py-2.5 pr-4 pl-4 font-normal">TIER</th>
+                                <th className="py-2.5 pr-4 font-normal">SOLD</th>
+                                <th className="py-2.5 pr-4 font-normal">ADMITS</th>
+                                <th className="py-2.5 pr-4 font-normal">REVENUE</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[...st.tiers.entries()].map(([tierId, t]) => (
+                                <tr key={tierId} className="border-b border-line last:border-b-0">
+                                  <td className="py-2.5 pr-4 pl-4 text-[0.9375rem] text-chalk">{t.tierName}</td>
+                                  <td className="label py-2.5 pr-4 text-silverdim">{t.qty}</td>
+                                  <td className="label py-2.5 pr-4 text-silverdim">{t.admits}</td>
+                                  <td className="label py-2.5 pr-4 text-silverdim">{usd(t.revenueCents)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </Panel>
+                    )}
 
-                                {a.verified && (
-                                  <div className="mt-3">
-                                    {/* Sends them back through the check. The
-                                        function stamps a reset time so their
-                                        own phone's copy of "verified" stops
-                                        counting too - without that this would
-                                        change the badge here and nothing at
-                                        their end. */}
-                                    <button
-                                      type="button"
-                                      disabled={resetting !== null}
-                                      onClick={(ev) => {
-                                        ev.stopPropagation();
-                                        if (
-                                          window.confirm(
-                                            `Reset the age check for ${who || a.email}? They will have to send their ID again before they can RSVP.`,
-                                          )
-                                        ) {
-                                          void resetCheck(a.id);
-                                        }
-                                      }}
-                                      className="label min-h-11 w-full border border-line px-3 text-silverdim transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi disabled:opacity-50"
-                                    >
-                                      {resetting === a.id ? "RESETTING…" : "RESET AGE CHECK"}
-                                    </button>
-                                    {resetError?.id === a.id && (
-                                      <p className="label mt-2 leading-loose text-bloodhi" role="alert">
-                                        {resetError.message}
-                                      </p>
+                    {/* ---------------------------------------- guest list -- */}
+                    <Panel>
+                      <PanelHead
+                        title="WHO’S COMING"
+                        count={st.rows.length}
+                        right={
+                          st.rows.length + st.cancelledRows.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => exportCsv(party, e?.title ?? party, [...st.rows, ...st.cancelledRows])}
+                              className="label flex min-h-11 items-center border border-line px-3 text-silverdim transition-colors hover:border-linehi hover:text-chalk"
+                            >
+                              DOWNLOAD CSV
+                            </button>
+                          ) : undefined
+                        }
+                      />
+
+                      {st.rows.length + st.cancelledRows.length === 0 ? (
+                        <PanelBody>
+                          <Empty>Nobody has RSVP&rsquo;d to this one yet.</Empty>
+                        </PanelBody>
+                      ) : (
+                        <>
+                          <div className="border-b border-line px-4 py-3">
+                            <input
+                              value={partyQuery}
+                              onChange={(ev) => setPartyQuery(ev.target.value)}
+                              placeholder="Find a name, email or ticket code"
+                              aria-label="Search the guest list"
+                              className={`${field} w-full`}
+                            />
+                          </div>
+
+                          {live.length === 0 && gone.length === 0 && (
+                            <PanelBody>
+                              <Empty>Nobody on this list matches that.</Empty>
+                            </PanelBody>
+                          )}
+
+                          <ul>
+                            {live.map((o) => (
+                              <li key={o.id} className="border-b border-line px-4 py-3.5 last:border-b-0">
+                                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-[1rem] text-chalk">{o.buyerName || "—"}</p>
+                                    <p className="label mt-0.5 break-all text-silverdim">{o.buyerEmail}</p>
+                                    {o.buyerPhone && (
+                                      <p className="label text-silverfaint">{o.buyerPhone}</p>
                                     )}
                                   </div>
-                                )}
-                              </div>
+                                  <div className="text-right">
+                                    <p className="label text-chalk">{usd(o.totalCents)}</p>
+                                    <p className="label text-silverfaint">{when(o.createdAt)}</p>
+                                    {o.promoCode && (
+                                      <p className="label text-silverfaint">PROMO {o.promoCode}</p>
+                                    )}
+                                  </div>
+                                </div>
 
-                              {/* ------------------------------ their checks -- */}
-                              <div className="min-w-0 flex-1">
-                                <p className="label border-b border-line py-2 text-silverfaint">
-                                  AGE CHECKS{" "}
-                                  <span className="text-chalk">
-                                    {load?.kind === "ready" ? load.rows.length : "…"}
-                                  </span>
-                                </p>
-
-                                {(!load || load.kind === "loading") && (
-                                  <Waiting what="READING THEIR CHECKS…" />
-                                )}
-                                {load?.kind === "error" && (
-                                  <Failed message={load.message} onRetry={() => {
-                                    setChecks((c) => { const n = { ...c }; delete n[a.id]; return n; });
-                                    void openRow(a.id);
-                                    setOpenAccount(a.id);
-                                  }} />
-                                )}
-                                {load?.kind === "ready" && load.rows.length === 0 && (
-                                  <Empty>Nothing filed. They have not run the age check yet.</Empty>
-                                )}
-                                {load?.kind === "ready" && load.rows.length > 0 && (
-                                  <ul className="mt-3 flex flex-col gap-3">
-                                    {load.rows.map((v) => {
-                                      const doc = docs[v.id];
-                                      const documentPath = v.documentPath;
+                                {o.passes.length === 0 ? (
+                                  <p className="label mt-3 text-silverfaint">GIFT - NO TICKET ON THIS ORDER</p>
+                                ) : (
+                                  <ul className="mt-3 border-t border-line">
+                                    {o.passes.map((ps) => {
+                                      const key = `pass:${ps.code}`;
+                                      const working = revoking === key;
+                                      const state = ps.revokedAt ? "CANCELLED" : ps.usedAt ? "CHECKED IN" : "VALID";
                                       return (
-                                        <li key={v.id} className="border border-line p-3">
-                                          <div className="flex flex-wrap items-baseline justify-between gap-2">
-                                            <span className="label text-chalk">
-                                              {v.method === "barcode" ? "LICENCE SCAN" : (v.documentKind ?? "DOCUMENT").toUpperCase()}
+                                        <li
+                                          key={ps.code}
+                                          className={`flex flex-wrap items-center justify-between gap-2 border-b border-line py-2 last:border-b-0 ${
+                                            ps.revokedAt ? "opacity-60" : ""
+                                          }`}
+                                        >
+                                          <span className="min-w-0">
+                                            <span className={`label ${ps.revokedAt ? "line-through" : ""} text-chalk`}>
+                                              {ps.tierName}
+                                              {ps.admits > 1 ? ` · ADMITS ${ps.admits}` : ""}
                                             </span>
+                                            <span className="label ml-2 text-silverfaint">{ps.code}</span>
+                                          </span>
+                                          <span className="flex items-center gap-2">
                                             <span
                                               className={`label border px-2 py-1 ${
-                                                v.status === "approved"
-                                                  ? "border-linehi text-chalk"
-                                                  : v.status === "rejected"
-                                                    ? "border-[rgba(200,16,46,0.5)] text-bloodhi"
+                                                ps.revokedAt
+                                                  ? "border-[rgba(200,16,46,0.5)] text-bloodhi"
+                                                  : ps.usedAt
+                                                    ? "border-linehi text-chalk"
                                                     : "border-line text-silverdim"
                                               }`}
                                             >
-                                              {v.status.toUpperCase()}
+                                              {state}
                                             </span>
-                                          </div>
-                                          <p className="label mt-1 text-silverfaint">
-                                            {when(v.createdAt)}
-                                            {v.birthYear ? ` · BORN ${v.birthYear}` : ""}
-                                          </p>
-                                          {v.note && (
-                                            <p className="mt-2 text-[0.875rem] leading-relaxed text-silverdim">{v.note}</p>
-                                          )}
-
-                                          {documentPath ? (
-                                            <div className="mt-3">
+                                            {ps.revokedAt ? (
                                               <button
                                                 type="button"
-                                                onClick={() => void showDocument(v.id, documentPath)}
-                                                className="label inline-flex min-h-11 items-center text-silverfaint underline decoration-line underline-offset-4 transition-colors hover:text-chalk hover:decoration-silverdim"
+                                                disabled={revoking !== null}
+                                                onClick={() => void act(key, () => restorePass(ps.code))}
+                                                className="label min-h-11 border border-line px-3 text-silverdim transition-colors hover:border-linehi hover:text-chalk disabled:opacity-50"
                                               >
-                                                {doc?.kind === "ready" ? "RELOAD ID PHOTO" : "SHOW ID PHOTO"}
+                                                {working ? "…" : "RESTORE"}
                                               </button>
-                                              {doc?.kind === "loading" && (
-                                                <p className="label animate-pulse text-silverfaint">FETCHING A SIGNED LINK…</p>
-                                              )}
-                                              {doc?.kind === "error" && (
-                                                <p className="label text-bloodhi" role="alert">
-                                                  COULD NOT OPEN IT. THE FILE IS MISSING, OR STORAGE REFUSED THE READ.
-                                                </p>
-                                              )}
-                                              {doc?.kind === "ready" && (
-                                                <div className="mt-2">
-                                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                  <img
-                                                    src={doc.url}
-                                                    alt={`ID on file for ${a.email}`}
-                                                    className="max-h-[60vh] w-full border border-line object-contain"
-                                                  />
-                                                  <p className="label mt-2 text-silverfaint">
-                                                    THIS LINK DIES AFTER A MINUTE. RELOAD IT IF THE IMAGE GOES BLANK.
-                                                  </p>
-                                                </div>
-                                              )}
-                                            </div>
-                                          ) : (
-                                            <p className="label mt-2 text-silverfaint">NO PHOTO ON THIS ONE</p>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                disabled={revoking !== null}
+                                                onClick={() => void act(key, () => revokePass(ps.code))}
+                                                className="label min-h-11 border border-line px-3 text-silverdim transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi disabled:opacity-50"
+                                              >
+                                                {working ? "…" : "CANCEL"}
+                                              </button>
+                                            )}
+                                          </span>
+                                          {revokeError?.key === key && (
+                                            <p className="label w-full text-bloodhi" role="alert">
+                                              {revokeError.message}
+                                            </p>
                                           )}
                                         </li>
                                       );
                                     })}
                                   </ul>
                                 )}
+
+                                <p className="label mt-3 text-silverfaint">{o.id}</p>
+                              </li>
+                            ))}
+                          </ul>
+
+                          {gone.length > 0 && (
+                            <>
+                              <div className="label border-y border-line bg-void px-4 py-2.5 text-silverfaint">
+                                CANCELLED <span className="text-chalk">{gone.length}</span>
                               </div>
-                            </div>
-                          </td>
-                        </tr>
+                              <ul>
+                                {gone.map((o) => (
+                                  <li
+                                    key={o.id}
+                                    className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-2.5 opacity-60 last:border-b-0"
+                                  >
+                                    <span className="min-w-0">
+                                      <span className="text-[0.9375rem] text-chalk line-through">
+                                        {o.buyerName || "—"}
+                                      </span>
+                                      <span className="label ml-2 break-all text-silverfaint">{o.buyerEmail}</span>
+                                    </span>
+                                    <span className="label text-silverfaint">
+                                      {usd(o.totalCents)} · {when(o.cancelledAt ?? o.createdAt)}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </>
+                          )}
+                        </>
                       )}
-                        </React.Fragment>
+                    </Panel>
+                  </>
+                );
+              })()}
+            </>
+          )}
+
+          {tab === "accounts" && (
+            <Panel>
+              <PanelHead
+                title="ACCOUNTS"
+                count={accounts.kind === "ready" ? accounts.rows.length : "—"}
+              />
+
+              {accounts.kind === "loading" && (
+                <PanelBody>
+                  <Waiting what="READING THE ROSTER…" />
+                </PanelBody>
+              )}
+              {accounts.kind === "error" && (
+                <PanelBody>
+                  <Failed message={accounts.message} onRetry={retryAccounts} />
+                </PanelBody>
+              )}
+              {accounts.kind === "ready" &&
+                (accounts.rows.length === 0 ? (
+                  <PanelBody>
+                    <Empty>
+                      The roster loaded and it is empty. Nobody has made an
+                      account yet.
+                    </Empty>
+                  </PanelBody>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[680px] border-collapse text-left">
+                      <thead>
+                        <tr className="label border-b border-line text-silverfaint">
+                          <th className="py-3 pr-4 pl-4 font-normal">NAME</th>
+                          <th className="py-3 pr-4 font-normal">EMAIL</th>
+                          <th className="py-3 pr-4 font-normal">AGE</th>
+                          <th className="py-3 pr-4 font-normal">JOINED</th>
+                          <th className="py-3 pr-4 font-normal">AGE CHECK</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {accounts.rows.map((a) => {
+                          const open = openAccount === a.id;
+                          const load = checks[a.id];
+                          const pic = avatarUrl(a.avatarPath);
+                          const who = displayName(a.name, a.instagram);
+                          return (
+                            <React.Fragment key={a.id}>
+                              <tr
+                                onClick={() => void openRow(a.id)}
+                                aria-expanded={open}
+                                className={`cursor-pointer border-b border-line align-middle transition-colors hover:bg-ink2 ${
+                                  open ? "bg-ink2" : ""
+                                }`}
+                              >
+                                <td className="py-3 pr-4 pl-4 text-[0.9375rem] text-chalk">
+                                  <span className="flex items-center gap-2.5">
+                                    {pic ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={pic} alt="" className="h-8 w-8 shrink-0 rounded-full border border-line object-cover" />
+                                    ) : (
+                                      <span className="label flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line text-silverfaint">
+                                        {(a.name.trim() || a.email)[0]?.toUpperCase()}
+                                      </span>
+                                    )}
+                                    <span className="min-w-0">
+                                      <span className="block truncate">{who || "—"}</span>
+                                      {a.firstName && (
+                                        <span className="label block truncate text-silverfaint">{a.firstName}</span>
+                                      )}
+                                    </span>
+                                  </span>
+                                </td>
+                                <td className="label py-3 pr-4 break-all text-silverdim">
+                                  {a.email}
+                                </td>
+                                <td className="label py-3 pr-4 whitespace-nowrap text-silverdim">
+                                  {a.age ?? "—"}
+                                </td>
+                                <td className="label py-3 pr-4 whitespace-nowrap text-silverfaint">
+                                  {when(a.createdAt)}
+                                </td>
+                                <td className="py-3 pr-4">
+                                  <span
+                                    className={`label inline-flex whitespace-nowrap border px-2 py-1 ${
+                                      a.verified
+                                        ? "border-linehi text-chalk"
+                                        : "border-[rgba(200,16,46,0.5)] text-bloodhi"
+                                    }`}
+                                  >
+                                    {a.verified ? "VERIFIED" : "AWAITING"}
+                                  </span>
+                                </td>
+                              </tr>
+
+                              {open && (
+                                <tr className="border-b border-line bg-void">
+                                  <td colSpan={5} className="p-4 sm:p-5">
+                                    <div className="flex flex-col gap-6 lg:flex-row">
+                                      {/* ------------------------ the person -- */}
+                                      <div className="flex shrink-0 gap-4 sm:flex-col lg:w-64">
+                                        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border border-linehi bg-ink2">
+                                          {pic ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={pic} alt="" className="h-full w-full object-cover" />
+                                          ) : (
+                                            <div className="flex h-full items-center justify-center">
+                                              <span className="font-display text-[1.5rem] text-silverfaint">
+                                                {(a.name.trim() || a.email)[0]?.toUpperCase()}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <dl className="min-w-0 flex-1 border border-line">
+                                          {[
+                                            ["INSTAGRAM", atHandle(a.instagram) || "—"],
+                                            ["FIRST NAME", a.firstName || "—"],
+                                            ["EMAIL", a.email],
+                                            ["PHONE", a.phone || "—"],
+                                            ["AGE (STATED)", a.age === null ? "—" : String(a.age)],
+                                            ["BORN (VERIFIED)", a.birthYear ? String(a.birthYear) : "—"],
+                                            ["JOINED", when(a.createdAt)],
+                                          ].map(([k, v]) => (
+                                            <div key={k} className="label flex items-baseline justify-between gap-3 border-b border-line px-3 py-2 last:border-b-0">
+                                              <dt className="text-silverfaint">{k}</dt>
+                                              <dd className="min-w-0 text-right break-all text-chalk">{v}</dd>
+                                            </div>
+                                          ))}
+                                        </dl>
+
+                                        {a.verified && (
+                                          <div className="mt-3">
+                                            {/* Sends them back through the check. The
+                                                function stamps a reset time so their
+                                                own phone's copy of "verified" stops
+                                                counting too - without that this would
+                                                change the badge here and nothing at
+                                                their end. */}
+                                            <button
+                                              type="button"
+                                              disabled={resetting !== null}
+                                              onClick={(ev) => {
+                                                ev.stopPropagation();
+                                                if (
+                                                  window.confirm(
+                                                    `Reset the age check for ${who || a.email}? They will have to send their ID again before they can RSVP.`,
+                                                  )
+                                                ) {
+                                                  void resetCheck(a.id);
+                                                }
+                                              }}
+                                              className="label min-h-11 w-full border border-line px-3 text-silverdim transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi disabled:opacity-50"
+                                            >
+                                              {resetting === a.id ? "RESETTING…" : "RESET AGE CHECK"}
+                                            </button>
+                                            {resetError?.id === a.id && (
+                                              <p className="label mt-2 leading-loose text-bloodhi" role="alert">
+                                                {resetError.message}
+                                              </p>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* ------------------------ their checks -- */}
+                                      <div className="min-w-0 flex-1">
+                                        <p className="label border-b border-line pb-2 text-silverfaint">
+                                          AGE CHECKS{" "}
+                                          <span className="text-chalk">
+                                            {load?.kind === "ready" ? load.rows.length : "…"}
+                                          </span>
+                                        </p>
+
+                                        <div className="mt-3">
+                                          {(!load || load.kind === "loading") && (
+                                            <Waiting what="READING THEIR CHECKS…" />
+                                          )}
+                                          {load?.kind === "error" && (
+                                            <Failed message={load.message} onRetry={() => {
+                                              setChecks((c) => { const n = { ...c }; delete n[a.id]; return n; });
+                                              void openRow(a.id);
+                                              setOpenAccount(a.id);
+                                            }} />
+                                          )}
+                                          {load?.kind === "ready" && load.rows.length === 0 && (
+                                            <Empty>Nothing filed. They have not run the age check yet.</Empty>
+                                          )}
+                                          {load?.kind === "ready" && load.rows.length > 0 && (
+                                            <ul className="flex flex-col gap-3">
+                                              {load.rows.map((v) => {
+                                                const doc = docs[v.id];
+                                                const documentPath = v.documentPath;
+                                                return (
+                                                  <li key={v.id} className="border border-line bg-ink p-3">
+                                                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                                      <span className="label text-chalk">
+                                                        {v.method === "barcode" ? "LICENCE SCAN" : (v.documentKind ?? "DOCUMENT").toUpperCase()}
+                                                      </span>
+                                                      <span
+                                                        className={`label border px-2 py-1 ${
+                                                          v.status === "approved"
+                                                            ? "border-linehi text-chalk"
+                                                            : v.status === "rejected"
+                                                              ? "border-[rgba(200,16,46,0.5)] text-bloodhi"
+                                                              : "border-line text-silverdim"
+                                                        }`}
+                                                      >
+                                                        {v.status.toUpperCase()}
+                                                      </span>
+                                                    </div>
+                                                    <p className="label mt-1.5 text-silverfaint">
+                                                      {when(v.createdAt)}
+                                                      {v.birthYear ? ` · BORN ${v.birthYear}` : ""}
+                                                    </p>
+                                                    {v.note && (
+                                                      <p className="mt-2 text-[0.875rem] leading-relaxed text-silverdim">{v.note}</p>
+                                                    )}
+
+                                                    {documentPath ? (
+                                                      <div className="mt-2">
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => void showDocument(v.id, documentPath)}
+                                                          className="label inline-flex min-h-11 items-center text-silverfaint underline decoration-line underline-offset-4 transition-colors hover:text-chalk hover:decoration-silverdim"
+                                                        >
+                                                          {doc?.kind === "ready" ? "RELOAD ID PHOTO" : "SHOW ID PHOTO"}
+                                                        </button>
+                                                        {doc?.kind === "loading" && (
+                                                          <p className="label animate-pulse text-silverfaint">FETCHING A SIGNED LINK…</p>
+                                                        )}
+                                                        {doc?.kind === "error" && (
+                                                          <p className="label text-bloodhi" role="alert">
+                                                            COULD NOT OPEN IT. THE FILE IS MISSING, OR STORAGE REFUSED THE READ.
+                                                          </p>
+                                                        )}
+                                                        {doc?.kind === "ready" && (
+                                                          <div className="mt-2">
+                                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                            <img
+                                                              src={doc.url}
+                                                              alt={`ID on file for ${a.email}`}
+                                                              className="max-h-[60vh] w-full border border-line bg-void object-contain"
+                                                            />
+                                                            <p className="label mt-2 text-silverfaint">
+                                                              THIS LINK DIES AFTER A MINUTE. RELOAD IT IF THE IMAGE GOES BLANK.
+                                                            </p>
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    ) : (
+                                                      <p className="label mt-2 text-silverfaint">NO PHOTO ON THIS ONE</p>
+                                                    )}
+                                                  </li>
+                                                );
+                                              })}
+                                            </ul>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+            </Panel>
+          )}
+
+          {tab === "review" && (
+            <Panel>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+                <div className="min-w-0">
+                  <p className="label text-silverfaint">WAITING ON YOU</p>
+                  <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-silverdim">
+                    Every check is read here. Nothing is approved automatically.
+                  </p>
+                </div>
+                <span
+                  className={`font-display text-[2.5rem] leading-none ${
+                    queue.kind === "error" ? "text-bloodhi" : "text-chalk"
+                  }`}
+                >
+                  {queue.kind === "ready" ? pending : queue.kind === "error" ? "?" : "…"}
+                </span>
+              </div>
+
+              {queue.kind === "loading" && (
+                <PanelBody>
+                  <Waiting what="READING THE QUEUE…" />
+                </PanelBody>
+              )}
+              {queue.kind === "error" && (
+                <PanelBody>
+                  <Failed message={queue.message} onRetry={retryQueue} />
+                </PanelBody>
+              )}
+              {queue.kind === "ready" &&
+                (queue.rows.length === 0 ? (
+                  <PanelBody>
+                    <Empty>
+                      The queue loaded and it is empty. Nobody is waiting on an
+                      age check.
+                    </Empty>
+                  </PanelBody>
+                ) : (
+                  <ul>
+                    {queue.rows.map((v) => {
+                      const doc = docs[v.id];
+                      const working = busy?.id === v.id ? busy.status : null;
+                      // Bound to a const so the handler below closes over a path
+                      // that is known to exist rather than a nullable field.
+                      const documentPath = v.documentPath;
+                      return (
+                        <li key={v.id} className="border-b border-line px-4 py-4 last:border-b-0">
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <span className="min-w-0">
+                              <span className="block text-[1.0625rem] text-chalk">
+                                {v.profile
+                                  ? displayName(v.profile.name, v.profile.instagram) || "No name on file"
+                                  : "Name did not load"}
+                              </span>
+                              {v.profile?.firstName && (
+                                <span className="label block text-silverfaint">{v.profile.firstName}</span>
+                              )}
+                            </span>
+                            <span className="label border border-line px-2 py-1 text-silverfaint">
+                              {v.method === "barcode" ? "LICENCE SCAN" : (v.documentKind ?? "DOCUMENT").toUpperCase()}
+                            </span>
+                          </div>
+
+                          <p className="label mt-2 break-all text-silverdim">
+                            {v.profile?.email ?? v.userId}
+                          </p>
+                          {!v.profile && (
+                            // The roster lookup is separate from the queue and can
+                            // fail on its own; say so rather than let a user id
+                            // look like somebody's name.
+                            <p className="label mt-1 text-bloodhi">
+                              NAME AND EMAIL DID NOT LOAD - THIS IS THE USER ID
+                            </p>
+                          )}
+
+                          {/* The two ages side by side, because that is the whole
+                              review: what they claimed at sign-up, what they typed
+                              on the form, and the card in the photo below has to
+                              agree with both. */}
+                          <p className="label mt-2 text-silverfaint">
+                            STATED AGE {v.profile?.age ?? "—"} · DOB YEAR ON THE FORM{" "}
+                            {v.birthYear ?? "—"} · SUBMITTED {when(v.createdAt)}
+                          </p>
+
+                          {/* Gated on documentPath alone, never on `method` - a
+                              guest chooses what method a row claims to be, and a
+                              row with no file behind it must never look the same
+                              as one waiting on a signed link. See the account
+                              roster's identical check a few hundred lines up. */}
+                          {documentPath ? (
+                            <div className="mt-2">
+                              <button
+                                onClick={() => void showDocument(v.id, documentPath)}
+                                className="label inline-flex min-h-11 items-center text-silverfaint underline decoration-line underline-offset-4 transition-colors hover:text-chalk hover:decoration-silverdim"
+                              >
+                                {doc?.kind === "ready" ? "RELOAD ID PHOTO" : "SHOW ID PHOTO"}
+                              </button>
+
+                              {doc?.kind === "loading" && (
+                                <p className="label animate-pulse text-silverfaint">
+                                  FETCHING A SIGNED LINK…
+                                </p>
+                              )}
+                              {doc?.kind === "error" && (
+                                <p className="label text-bloodhi" role="alert">
+                                  COULD NOT OPEN IT. THE FILE IS MISSING, OR STORAGE
+                                  REFUSED THE READ.
+                                </p>
+                              )}
+                              {doc?.kind === "ready" && (
+                                <div className="mt-2">
+                                  {/* Plain <img>: the signed URL's host is not in
+                                      next.config's remotePatterns, and it should
+                                      not be - the link changes every time. */}
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={doc.url}
+                                    alt={`ID submitted by ${v.profile?.email ?? v.userId}`}
+                                    className="max-h-[60vh] w-full border border-line bg-void object-contain"
+                                  />
+                                  <p className="label mt-2 text-silverfaint">
+                                    THIS LINK DIES AFTER A MINUTE. RELOAD IT IF THE
+                                    IMAGE GOES BLANK.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            // Loud rather than absent: a row with no photo behind
+                            // it should never read the same as one that simply has
+                            // not been opened yet, since the only thing standing
+                            // between this and an approval is somebody reading it.
+                            <p
+                              className="label mt-3 border border-[rgba(200,16,46,0.5)] bg-[rgba(200,16,46,0.06)] px-3 py-2 leading-loose text-bloodhi"
+                              role="alert"
+                            >
+                              NO PHOTO ON FILE FOR THIS CHECK - THERE IS NOTHING HERE
+                              TO APPROVE AGAINST.
+                            </p>
+                          )}
+
+                          <input
+                            value={notes[v.id] ?? ""}
+                            onChange={(e) =>
+                              setNotes((n) => ({ ...n, [v.id]: e.target.value }))
+                            }
+                            placeholder="Note (optional) - why this was rejected"
+                            aria-label="Review note"
+                            className={`${field} mt-4 w-full`}
+                          />
+
+                          {/* Every row goes dead while one decision is in flight.
+                              The list is about to be refetched underneath them,
+                              and a second decision racing that refetch would be
+                              aimed at a row that has already moved. */}
+                          <div className="mt-3 flex flex-wrap gap-3">
+                            <button
+                              onClick={() => void decide(v.id, "approved")}
+                              disabled={busy !== null}
+                              className={btnGo}
+                            >
+                              {working === "approved" ? "Saving…" : "Approve"}
+                            </button>
+                            <button
+                              onClick={() => void decide(v.id, "rejected")}
+                              disabled={busy !== null}
+                              className={btn}
+                            >
+                              {working === "rejected" ? "Saving…" : "Reject"}
+                            </button>
+                          </div>
+
+                          {decisionError?.id === v.id && (
+                            <p
+                              className="label mt-3 leading-loose text-bloodhi"
+                              role="alert"
+                            >
+                              {decisionError.message}
+                            </p>
+                          )}
+                        </li>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-        </section>
-      )}
-
-      {tab === "review" && (
-        <section>
-          <div className="mt-7 flex items-baseline justify-between border-b border-line py-3">
-            <span className="label text-silverfaint">WAITING ON YOU</span>
-            <span
-              className={`font-display text-[2.5rem] leading-none ${
-                queue.kind === "error" ? "text-bloodhi" : "text-chalk"
-              }`}
-            >
-              {queue.kind === "ready" ? pending : queue.kind === "error" ? "?" : "…"}
-            </span>
-          </div>
-          <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-            Every check is read here. Nothing is approved automatically.
-          </p>
-
-          {queue.kind === "loading" && <Waiting what="READING THE QUEUE…" />}
-          {queue.kind === "error" && (
-            <Failed message={queue.message} onRetry={retryQueue} />
+                  </ul>
+                ))}
+            </Panel>
           )}
-          {queue.kind === "ready" &&
-            (queue.rows.length === 0 ? (
-              <Empty>
-                The queue loaded and it is empty. Nobody is waiting on an age
-                check.
-              </Empty>
-            ) : (
-              <ul className="mt-5 flex flex-col gap-4">
-                {queue.rows.map((v) => {
-                  const doc = docs[v.id];
-                  const working = busy?.id === v.id ? busy.status : null;
-                  // Bound to a const so the handler below closes over a path
-                  // that is known to exist rather than a nullable field.
-                  const documentPath = v.documentPath;
-                  return (
-                    <li key={v.id} className="border border-line p-4">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="min-w-0">
-                          <span className="block text-[1.0625rem] text-chalk">
-                            {v.profile
-                              ? displayName(v.profile.name, v.profile.instagram) || "No name on file"
-                              : "Name did not load"}
-                          </span>
-                          {v.profile?.firstName && (
-                            <span className="label block text-silverfaint">{v.profile.firstName}</span>
-                          )}
+
+          {/* ---------------------------------------------------------- door -- */}
+          {tab === "door" && (
+            <Panel>
+              <PanelHead title="SCANNED ON THIS DEVICE" count={scans.length} />
+              <PanelBody>
+                <p className="text-[0.9375rem] leading-relaxed text-silverdim">
+                  Point any phone camera at a ticket QR. It opens the ticket,
+                  shows whose name is on it, and offers to mark it used.
+                </p>
+              </PanelBody>
+
+              {scans.length === 0 ? (
+                <PanelBody className="pt-0">
+                  <Empty>
+                    Nothing scanned on this device yet. Point any phone camera
+                    at a ticket QR - it opens the ticket, shows whose name is on
+                    it, and offers to mark it used.
+                  </Empty>
+                </PanelBody>
+              ) : (
+                <>
+                  <ul className="border-t border-line">
+                    {scans.map(([code, at]) => (
+                      <li
+                        key={code}
+                        className="label flex items-baseline justify-between gap-4 border-b border-line px-4 py-3 last:border-b-0"
+                      >
+                        <span className="break-all text-chalk">{code}</span>
+                        <span className="whitespace-nowrap text-silverfaint">
+                          {new Date(at).toLocaleString(undefined, {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            day: "numeric",
+                            month: "short",
+                          })}
                         </span>
-                        <span className="label border border-line px-2 py-1 text-silverfaint">
-                          {v.method === "barcode" ? "LICENCE SCAN" : (v.documentKind ?? "DOCUMENT").toUpperCase()}
-                        </span>
-                      </div>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="border-t border-line p-4">
+                    <button
+                      onClick={clearScans}
+                      className="font-display min-h-11 w-full border border-line py-3 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi"
+                    >
+                      Clear scan list
+                    </button>
+                  </div>
+                </>
+              )}
+            </Panel>
+          )}
 
-                      <p className="label mt-2 break-all text-silverdim">
-                        {v.profile?.email ?? v.userId}
-                      </p>
-                      {!v.profile && (
-                        // The roster lookup is separate from the queue and can
-                        // fail on its own; say so rather than let a user id
-                        // look like somebody's name.
-                        <p className="label mt-1 text-bloodhi">
-                          NAME AND EMAIL DID NOT LOAD - THIS IS THE USER ID
-                        </p>
-                      )}
-
-                      {/* The two ages side by side, because that is the whole
-                          review: what they claimed at sign-up, what they typed
-                          on the form, and the card in the photo below has to
-                          agree with both. */}
-                      <p className="label mt-2 text-silverfaint">
-                        STATED AGE {v.profile?.age ?? "—"} · DOB YEAR ON THE FORM{" "}
-                        {v.birthYear ?? "—"} · SUBMITTED {when(v.createdAt)}
-                      </p>
-
-                      {/* Gated on documentPath alone, never on `method` - a
-                          guest chooses what method a row claims to be, and a
-                          row with no file behind it must never look the same
-                          as one waiting on a signed link. See the account
-                          roster's identical check a few hundred lines up. */}
-                      {documentPath ? (
-                        <div className="mt-3">
-                          <button
-                            onClick={() => void showDocument(v.id, documentPath)}
-                            className="label inline-flex min-h-11 items-center text-silverfaint underline decoration-line underline-offset-4 transition-colors hover:text-chalk hover:decoration-silverdim"
-                          >
-                            {doc?.kind === "ready" ? "RELOAD ID PHOTO" : "SHOW ID PHOTO"}
-                          </button>
-
-                          {doc?.kind === "loading" && (
-                            <p className="label animate-pulse text-silverfaint">
-                              FETCHING A SIGNED LINK…
-                            </p>
-                          )}
-                          {doc?.kind === "error" && (
-                            <p className="label text-bloodhi" role="alert">
-                              COULD NOT OPEN IT. THE FILE IS MISSING, OR STORAGE
-                              REFUSED THE READ.
-                            </p>
-                          )}
-                          {doc?.kind === "ready" && (
-                            <div className="mt-2">
-                              {/* Plain <img>: the signed URL's host is not in
-                                  next.config's remotePatterns, and it should
-                                  not be - the link changes every time. */}
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={doc.url}
-                                alt={`ID submitted by ${v.profile?.email ?? v.userId}`}
-                                className="max-h-[60vh] w-full border border-line object-contain"
-                              />
-                              <p className="label mt-2 text-silverfaint">
-                                THIS LINK DIES AFTER A MINUTE. RELOAD IT IF THE
-                                IMAGE GOES BLANK.
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        // Loud rather than absent: a row with no photo behind
-                        // it should never read the same as one that simply has
-                        // not been opened yet, since the only thing standing
-                        // between this and an approval is somebody reading it.
-                        <p
-                          className="label mt-3 border border-[rgba(200,16,46,0.5)] px-3 py-2 leading-loose text-bloodhi"
-                          role="alert"
-                        >
-                          NO PHOTO ON FILE FOR THIS CHECK - THERE IS NOTHING HERE
-                          TO APPROVE AGAINST.
-                        </p>
-                      )}
-
-                      <input
-                        value={notes[v.id] ?? ""}
-                        onChange={(e) =>
-                          setNotes((n) => ({ ...n, [v.id]: e.target.value }))
-                        }
-                        placeholder="Note (optional) - why this was rejected"
-                        aria-label="Review note"
-                        className={`${field} mt-4 w-full`}
-                      />
-
-                      {/* Every row goes dead while one decision is in flight.
-                          The list is about to be refetched underneath them,
-                          and a second decision racing that refetch would be
-                          aimed at a row that has already moved. */}
-                      <div className="mt-3 flex flex-wrap gap-3">
-                        <button
-                          onClick={() => void decide(v.id, "approved")}
-                          disabled={busy !== null}
-                          className={btnGo}
-                        >
-                          {working === "approved" ? "Saving…" : "Approve"}
-                        </button>
-                        <button
-                          onClick={() => void decide(v.id, "rejected")}
-                          disabled={busy !== null}
-                          className={btn}
-                        >
-                          {working === "rejected" ? "Saving…" : "Reject"}
-                        </button>
-                      </div>
-
-                      {decisionError?.id === v.id && (
-                        <p
-                          className="label mt-3 leading-loose text-bloodhi"
-                          role="alert"
-                        >
-                          {decisionError.message}
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            ))}
-        </section>
-      )}
-
-      {tab === "door" && (
-        <section>
-          <p className="mt-7 text-[0.9375rem] leading-relaxed text-silverdim">
-            Point any phone camera at a ticket QR. It opens the ticket, shows
-            whose name is on it, and offers to mark it used.
-          </p>
-          {door}
-        </section>
-      )}
-
-      <Link
-        href="/"
-        className="label mt-10 block text-center text-silverfaint transition-colors hover:text-chalk"
-      >
-        &larr; BACK HOME
-      </Link>
+          <Link
+            href="/"
+            className="label block py-2 text-center text-silverfaint transition-colors hover:text-chalk lg:text-left"
+          >
+            &larr; BACK HOME
+          </Link>
+        </div>
+      </div>
     </main>
   );
 }

@@ -395,7 +395,7 @@ export default function CheckoutFlow() {
                       {l.donation ? (
                         <Link
                           href={`/events/${event.slug}#tickets`}
-                          className="label border border-line px-3 py-2.5 text-silverdim transition-colors hover:border-linehi hover:text-chalk"
+                          className="label flex min-h-11 items-center border border-line px-3 text-silverdim transition-colors hover:border-linehi hover:text-chalk"
                         >
                           CHANGE
                         </Link>

@@ -59,9 +59,12 @@ export default function TicketsHeader({ runtime }: { runtime: RuntimeEventList }
           <>
             <span className="dot shrink-0" />
             <span className="label text-bloodhi">NEXT UP</span>
+            {/* Padded to a thumb and pulled back with a matching negative
+                margin, so the row keeps its height while the tap target
+                stops being a 24px line of text. */}
             <Link
               href={`/events/${nextUp.slug}#tickets`}
-              className="font-display text-[1.6rem] transition-colors hover:text-bloodhi"
+              className="font-display -my-2.5 inline-block py-2.5 text-[1.6rem] transition-colors hover:text-bloodhi"
             >
               {nextUp.title}
             </Link>
