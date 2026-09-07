@@ -68,7 +68,6 @@ const STEPS: Step[] = [
     key: "firstName",
     label: "FIRST NAME",
     question: "What's your first name?",
-    hint: "Just the first. Nobody here asks for a surname.",
     type: "text",
     autoComplete: "given-name",
     placeholder: "Jordan",

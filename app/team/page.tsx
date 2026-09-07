@@ -10,7 +10,7 @@ import {
 import { org } from "@/lib/events";
 import { asset } from "@/lib/asset";
 
-export const metadata = { title: "Meet Our Artists — WECAMETOOPARTY" };
+export const metadata = { title: "Meet The Team — WECAMETOOPARTY" };
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -95,7 +95,7 @@ function EmptySlot({ a }: { a: Artist }) {
   );
 }
 
-export default function Artists() {
+export default function Team() {
   const announced = roster.filter(isFilled).length;
 
   return (
@@ -103,7 +103,7 @@ export default function Artists() {
       <div className="flex flex-col items-start gap-3 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
         <div>
           <h1 className="font-display chrome text-[clamp(2.5rem,8vw,5.5rem)] leading-[0.82]">
-            Meet Our Artists
+            Meet The Team
           </h1>
           <p className="mt-4 max-w-[46ch] leading-relaxed text-silverdim">
             The people behind the nights. Want on the roster? Reach us at{" "}

@@ -25,7 +25,11 @@ export async function generateMetadata({
     description: `${event.dow} ${dayOf(event.date)} ${monthOf(event.date)}, ${
       event.time
     } · address emailed to the list before the night${
-      from !== null ? ` · tickets from ${money(from)}` : ""
+      from === null
+        ? ""
+        : from > 0
+          ? ` · tickets from ${money(from)}`
+          : " · free entry"
     }.`,
   };
 }

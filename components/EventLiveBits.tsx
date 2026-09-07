@@ -50,12 +50,14 @@ export function EventFromStat({ event }: { event: Event }) {
   const now = useNow();
   if (saleState(event, now) !== "on-sale") return null;
 
+  const from = priceFrom(event) ?? 0;
+  // "FROM Free" reads like a typo when the cheapest tier costs nothing - see
+  // the identical fix in TicketsBrowser.tsx. A floor of $0 is worth saying
+  // plainly rather than as the start of a range.
   return (
     <div>
-      <div className="label mb-1 text-silverfaint">FROM</div>
-      <div className="font-display text-2xl">
-        {money(priceFrom(event) ?? 0)}
-      </div>
+      <div className="label mb-1 text-silverfaint">{from > 0 ? "FROM" : "PRICE"}</div>
+      <div className="font-display text-2xl">{money(from)}</div>
     </div>
   );
 }
