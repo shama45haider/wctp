@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import Flyer from "./Flyer";
+import { Editable } from "./Editable";
 import { monthOf, dayOf, type Event } from "@/lib/events";
 import type { RuntimeEventList } from "@/lib/events-runtime";
 import {
@@ -102,16 +103,26 @@ function Card({ e, now }: { e: Event; now: Date }) {
         <div className="label">
           {closed ? (
             <span className="text-silverfaint">
-              {state === "sold-out" ? "SOLD OUT" : "SALES CLOSED"}
+              {state === "sold-out" ? (
+                <Editable k="tickets.card.soldOut">SOLD OUT</Editable>
+              ) : (
+                <Editable k="tickets.card.salesClosed">SALES CLOSED</Editable>
+              )}
             </span>
           ) : (
             <>
               {/* "From free" reads like a typo, so a zero floor just says free. */}
               {from !== null && from > 0 && tiers.length > 1 && (
-                <span className="text-silverfaint">FROM </span>
+                <span className="text-silverfaint">
+                  <Editable k="tickets.card.from">FROM</Editable>{" "}
+                </span>
               )}
               <span className="text-bloodhi">
-                {from === 0 ? "FREE" : money(from ?? 0)}
+                {from === 0 ? (
+                  <Editable k="tickets.card.free">FREE</Editable>
+                ) : (
+                  money(from ?? 0)
+                )}
               </span>
               <span className="text-silverfaint"> · {e.time}</span>
             </>
@@ -207,9 +218,13 @@ export default function TicketsBrowser({ runtime }: { runtime: RuntimeEventList 
 
       {events.length === 0 ? (
         <div className="border border-dashed border-linehi p-10 text-center">
-          <p className="font-display text-2xl">Nothing here</p>
+          <p className="font-display text-2xl">
+            <Editable k="tickets.browser.emptyTitle">Nothing here</Editable>
+          </p>
           <p className="mt-2 text-sm text-silverdim">
-            No dates match that. Try another word, or clear the filter.
+            <Editable k="tickets.browser.emptyBlurb">
+              No dates match that. Try another word, or clear the filter.
+            </Editable>
           </p>
         </div>
       ) : (
@@ -221,7 +236,9 @@ export default function TicketsBrowser({ runtime }: { runtime: RuntimeEventList 
       )}
 
       <p className="label mt-8 text-silverfaint">
-        SHOWING {String(events.length).padStart(2, "0")} OF{" "}
+        <Editable k="tickets.browser.showing">SHOWING</Editable>{" "}
+        {String(events.length).padStart(2, "0")}{" "}
+        <Editable k="tickets.browser.of">OF</Editable>{" "}
         {String(filter === "past" ? past.length : upcoming.length).padStart(2, "0")}
       </p>
     </>

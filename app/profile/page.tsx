@@ -13,6 +13,7 @@ import {
   type OwnProfile,
 } from "@/lib/profile-data";
 import { btn, btnGo, field } from "@/lib/ui";
+import { Editable } from "@/components/Editable";
 
 /**
  * The profile: a picture, a first name, an Instagram handle and a phone
@@ -103,12 +104,18 @@ export default function Profile() {
     return (
       <main className="mx-auto w-[92vw] max-w-[460px] py-[clamp(3rem,10vw,6rem)]">
         <h1 className="font-display chrome text-[clamp(2rem,8vw,3.25rem)] leading-[0.85]">
-          Not signed in
+          <Editable k="profile.signedOut.title">Not signed in</Editable>
         </h1>
         <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
-          {isSupabaseConfigured
-            ? "Sign in to see and change your profile."
-            : "Accounts are not connected in this build."}
+          {isSupabaseConfigured ? (
+            <Editable k="profile.signedOut.blurb">
+              Sign in to see and change your profile.
+            </Editable>
+          ) : (
+            <Editable k="profile.signedOut.notConnected">
+              Accounts are not connected in this build.
+            </Editable>
+          )}
         </p>
         {isSupabaseConfigured && (
           <Link href="/login" className={`${btnGo} mt-7 w-full`}>
@@ -232,7 +239,7 @@ export default function Profile() {
   return (
     <main className="mx-auto w-[92vw] max-w-[520px] py-[clamp(2.5rem,8vw,5rem)]">
       <h1 className="font-display chrome text-[clamp(2rem,8vw,3.25rem)] leading-[0.85]">
-        Your profile
+        <Editable k="profile.title">Your profile</Editable>
       </h1>
 
       {load.kind === "loading" && (
@@ -273,7 +280,11 @@ export default function Profile() {
             htmlFor="avatar"
             className={`${btn} inline-flex cursor-pointer px-4 py-2`}
           >
-            {avatarPath ? "Change picture" : "Add a picture"}
+            {avatarPath ? (
+              <Editable k="profile.avatar.change">Change picture</Editable>
+            ) : (
+              <Editable k="profile.avatar.add">Add a picture</Editable>
+            )}
           </label>
           <input
             id="avatar"
@@ -283,7 +294,9 @@ export default function Profile() {
             onChange={(e) => void choose(e.target.files?.[0] ?? null)}
             className="sr-only"
           />
-          <p className="label mt-2 text-silverfaint">JPG OR PNG, UP TO 4 MB</p>
+          <p className="label mt-2 text-silverfaint">
+            <Editable k="profile.avatar.hint">JPG OR PNG, UP TO 4 MB</Editable>
+          </p>
         </div>
       </section>
 
@@ -297,7 +310,7 @@ export default function Profile() {
         }}
       >
         <label htmlFor="firstName" className="label text-silverfaint">
-          FIRST NAME
+          <Editable k="profile.field.firstName">FIRST NAME</Editable>
         </label>
         <input
           id="firstName"
@@ -314,7 +327,7 @@ export default function Profile() {
         />
 
         <label htmlFor="instagram" className="label mt-6 block text-silverfaint">
-          INSTAGRAM
+          <Editable k="profile.field.instagram">INSTAGRAM</Editable>
         </label>
         <input
           id="instagram"
@@ -330,12 +343,14 @@ export default function Profile() {
           className={`${field} mt-2 w-full`}
         />
         <p className="label mt-2 leading-loose text-silverfaint">
-          YOUR ACCOUNT IS NAMED AFTER IT - IT&rsquo;S WHAT&rsquo;S ON YOUR
-          TICKET AND WHAT THE DOOR READS.
+          <Editable k="profile.field.instagramHint">
+            YOUR ACCOUNT IS NAMED AFTER IT - IT&rsquo;S WHAT&rsquo;S ON YOUR
+            TICKET AND WHAT THE DOOR READS.
+          </Editable>
         </p>
 
         <label htmlFor="phone" className="label mt-6 block text-silverfaint">
-          PHONE (OPTIONAL)
+          <Editable k="profile.field.phone">PHONE (OPTIONAL)</Editable>
         </label>
         <input
           id="phone"
@@ -352,7 +367,9 @@ export default function Profile() {
           className={`${field} mt-2 w-full`}
         />
         <p className="label mt-2 leading-loose text-silverfaint">
-          ONLY USED IF SOMETHING CHANGES ON THE NIGHT.
+          <Editable k="profile.field.phoneHint">
+            ONLY USED IF SOMETHING CHANGES ON THE NIGHT.
+          </Editable>
         </p>
 
         {save.kind === "failed" && (
@@ -366,7 +383,7 @@ export default function Profile() {
 
         {save.kind === "saved" && (
           <p className="label mt-5 text-silverdim" role="status">
-            SAVED.
+            <Editable k="profile.saved">SAVED.</Editable>
           </p>
         )}
 
@@ -379,33 +396,39 @@ export default function Profile() {
 
       <dl className="mt-10 border-t border-line">
         {[
-          ["ACCOUNT NAME", accountName],
-          ["EMAIL", user.email],
-          ["AGE", profile?.age != null ? String(profile.age) : "—"],
-        ].map(([k, v]) => (
+          ["accountName", "ACCOUNT NAME", accountName],
+          ["email", "EMAIL", user.email],
+          ["age", "AGE", profile?.age != null ? String(profile.age) : "—"],
+        ].map(([id, k, v]) => (
           <div
-            key={k}
+            key={id}
             className="label flex items-baseline justify-between gap-4 border-b border-line py-3"
           >
-            <dt className="text-silverfaint">{k}</dt>
+            <dt className="text-silverfaint">
+              <Editable k={`profile.details.${id}`}>{k}</Editable>
+            </dt>
             <dd className="text-right break-all text-chalk">{v}</dd>
           </div>
         ))}
         <div className="label border-b border-line py-3">
           <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-silverfaint">AGE CHECK</dt>
+            <dt className="text-silverfaint">
+              <Editable k="profile.details.ageCheck">AGE CHECK</Editable>
+            </dt>
             <dd
               className={
                 verified ? "text-chalk" : awaiting ? "text-silverdim" : "text-bloodhi"
               }
             >
-              {verified
-                ? "VERIFIED"
-                : awaiting
-                  ? "PENDING"
-                  : refused
-                    ? "REFUSED"
-                    : "NOT VERIFIED"}
+              {verified ? (
+                <Editable k="profile.ageCheck.verified">VERIFIED</Editable>
+              ) : awaiting ? (
+                <Editable k="profile.ageCheck.pending">PENDING</Editable>
+              ) : refused ? (
+                <Editable k="profile.ageCheck.refused">REFUSED</Editable>
+              ) : (
+                <Editable k="profile.ageCheck.notVerified">NOT VERIFIED</Editable>
+              )}
             </dd>
           </div>
           {refused && check?.note && (

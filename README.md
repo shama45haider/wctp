@@ -34,9 +34,23 @@ The site is automatically deployed to GitHub Pages when you push to `main`. See 
 
 ## Age checks
 
-Nothing about the age check is automatic. A guest sends a photo of their ID from `/verify`, blacking out anything they'd rather not share before it ever leaves their phone; an admin reads the redacted photo in the dashboard and approves or rejects it; the outcome is emailed from `party@wecametooparty.com`. Nothing in the browser can mark an account verified - only an admin approving a verifications row does.
+Nothing about the age check is automatic. A guest sends a photo of their ID from `/verify`, blacking out anything they'd rather not share before it ever leaves their phone; an admin reads the redacted photo in the dashboard and approves or rejects it; the outcome is emailed from `events@wecametooparty.com`. Nothing in the browser can mark an account verified - only an admin approving a verifications row does.
 
 Where a night happens is never on the site. The address is emailed to everyone on the list before each date.
+
+## On a phone
+
+The site installs to a home screen (`app/manifest.ts`, icons in `public/icons` and `public/apple-touch-icon.png`) and runs full-screen with a bottom tab bar. `public/sw.js` caches the hashed files under `/_next/static` and the last copy of each page, so repeat visits load from the phone and a dropped connection still shows something. Pages always try the network first, so a deploy is never hidden behind the cache; bump `VERSION` in `public/sw.js` only to throw every cached file away.
+
+## Raffle
+
+Run from the **RAFFLE** tab in `/admin`: title, description and prizes, whether it's on the site, whether it's taking entries, who has entered, and the live draw. The site's pop-up (`components/Raffle.tsx`) shows the newest raffle marked visible. A new raffle starts hidden, and opens the pop-up for everyone again once it's shown. Only accounts an admin has verified can enter, one entry each - enforced in the database by `0015_raffle.sql` and `0016_raffle_admin_live.sql`, both in `RUN_THIS.sql`.
+
+**Live draw.** *Go live* closes entries and makes a link (`/raffle/live/?t=…`) that works for one hour, then shows "ended" to everyone. Anyone with it sees the wheel - every entrant's picture and handle - and the prizes. Signed in as an admin, the same page has a spin button for each place: the database picks the winner at random, and every open copy of the page spins to that same person within a few seconds. Nobody wins twice; *Clear & spin again* on a place is for a winner who isn't there.
+
+## Editing page text
+
+Signed in as an admin, every public page shows a small pencil after each piece of text; it opens an editor that saves to `public.site_copy` (migration `0014_site_copy.sql`, also in `RUN_THIS.sql`). The text in the code is the default - a saved edit replaces it for everyone, and "Reset to default" deletes the row. A button in the bottom-right corner hides the pencils when you want to see the page the way guests do. Event details are edited in `/admin/events`, and team cards and gallery photos have their own Edit buttons.
 
 ## Email
 
@@ -60,7 +74,7 @@ The function only sends for a caller whose user id is in the `admins` table. Tha
 Until the domain is verified in the Resend dashboard, mail goes out from `onboarding@resend.dev`, which only ever delivers to the address that owns the Resend account. Once `wecametooparty.com` is verified, set the sender:
 
 ```bash
-npx supabase secrets set EMAIL_FROM="WECAMETOOPARTY <party@wecametooparty.com>"
+npx supabase secrets set EMAIL_FROM="WECAMETOOPARTY <events@wecametooparty.com>"
 ```
 
 ### Verifying email before signup

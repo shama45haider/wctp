@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { btn, btnGo } from "@/lib/ui";
+import { Editable } from "./Editable";
 
 /**
  * The camera, for a guest who would rather photograph their ID here than dig
@@ -138,9 +139,11 @@ export default function IdCamera({
   return (
     <>
       <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-        Hold your ID up to the camera. Every line should be readable - you can
-        black out the parts you&rsquo;d rather keep to yourself on the next
-        screen.
+        <Editable k="idCamera.intro">
+          Hold your ID up to the camera. Every line should be readable - you can
+          black out the parts you&rsquo;d rather keep to yourself on the next
+          screen.
+        </Editable>
       </p>
 
       <div className="relative mt-6 overflow-hidden border border-line bg-ink">
@@ -166,7 +169,9 @@ export default function IdCamera({
           <div className="flex aspect-[4/3] flex-col items-center justify-center px-6 text-center">
             {phase === "idle" && (
               <p className="label leading-loose text-silverfaint">
-                HOLD YOUR ID UP TO THE CAMERA. EVERY LINE SHOULD BE READABLE.
+                <Editable k="idCamera.idle">
+                  HOLD YOUR ID UP TO THE CAMERA. EVERY LINE SHOULD BE READABLE.
+                </Editable>
               </p>
             )}
             {phase === "starting" && <p className="label text-silverfaint">STARTING CAMERA…</p>}

@@ -11,7 +11,7 @@ export const field =
   "min-h-11 border border-line bg-[#0a0b0d] px-3.5 py-2.5 text-chalk transition-colors focus:border-silverdim focus:outline-none";
 
 const btnBase =
-  "font-display inline-flex min-h-11 items-center justify-center py-[0.7rem] px-[1.15rem] tracking-[0.12em] uppercase transition-all disabled:cursor-not-allowed disabled:opacity-50";
+  "font-display inline-flex min-h-11 items-center justify-center py-[0.7rem] px-[1.15rem] tracking-[0.12em] uppercase transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100";
 
 /** Secondary: cancel, back, anything that is not the way forward. */
 export const btn = `${btnBase} border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] text-chalk hover:border-silverdim`;

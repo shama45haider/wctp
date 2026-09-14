@@ -4,6 +4,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { findEvent, monthOf, dayOf } from "@/lib/events";
 import { decodePass, type PassToken } from "@/lib/pass-token";
+import { Editable } from "@/components/Editable";
 
 /**
  * Where a scanned ticket lands.
@@ -106,15 +107,35 @@ export default function Pass() {
     return (
       <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(3rem,10vw,6rem)] text-center">
         <span className="label border border-[rgba(200,16,46,0.5)] px-3 py-2 text-bloodhi">
-          {bad ? "NOT VALID" : "NO TICKET"}
+          {bad ? (
+            <Editable k="pass.bad.badge">NOT VALID</Editable>
+          ) : (
+            <Editable k="pass.empty.badge">NO TICKET</Editable>
+          )}
         </span>
         <h1 className="font-display chrome mt-7 text-[clamp(2rem,8vw,3.25rem)] leading-[0.85]">
-          {bad ? "Do not admit" : "Nothing to show"}
+          {bad ? (
+            <Editable k="pass.bad.title">Do not admit</Editable>
+          ) : (
+            <Editable k="pass.empty.title">Nothing to show</Editable>
+          )}
         </h1>
         <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
-          {bad
-            ? REASONS[state.reason] ?? "This ticket could not be verified."
-            : "Open this page by scanning the QR on a ticket."}
+          {bad ? (
+            REASONS[state.reason] ? (
+              <Editable k={`pass.bad.reason.${state.reason}`}>
+                {REASONS[state.reason]}
+              </Editable>
+            ) : (
+              <Editable k="pass.bad.reason.fallback">
+                This ticket could not be verified.
+              </Editable>
+            )
+          ) : (
+            <Editable k="pass.empty.blurb">
+              Open this page by scanning the QR on a ticket.
+            </Editable>
+          )}
         </p>
         <Link
           href="/tickets"
@@ -139,7 +160,11 @@ export default function Pass() {
             : "border-line text-silverdim"
         }`}
       >
-        {used ? "ALREADY USED" : "VALID TICKET"}
+        {used ? (
+          <Editable k="pass.ok.alreadyUsed">ALREADY USED</Editable>
+        ) : (
+          <Editable k="pass.ok.valid">VALID TICKET</Editable>
+        )}
       </span>
 
       <h1 className="font-display chrome mt-6 text-[clamp(2rem,8vw,3.25rem)] leading-[0.85] break-words">
@@ -147,23 +172,30 @@ export default function Pass() {
       </h1>
 
       <dl className="mt-7 border-t border-line">
-        {[
+        {([
           ["EVENT", ev?.title ?? p.e],
           [
             "WHEN",
             ev ? `${ev.dow} ${dayOf(ev.date)} ${monthOf(ev.date)} · ${ev.time}` : "—",
           ],
-          ["WHERE", "Emailed to the list"],
+          [
+            "WHERE",
+            <Editable key="where" k="pass.details.whereValue">
+              Emailed to the list
+            </Editable>,
+          ],
           ["TIER", p.t],
           ["ADMITS", String(p.a)],
           ["TICKET", p.c],
           ["ORDER", p.o],
-        ].map(([k, v]) => (
+        ] as const).map(([k, v]) => (
           <div
             key={k}
             className="label flex items-baseline justify-between gap-4 border-b border-line py-3"
           >
-            <dt className="text-silverfaint">{k}</dt>
+            <dt className="text-silverfaint">
+              <Editable k={`pass.details.${k.toLowerCase()}`}>{k}</Editable>
+            </dt>
             <dd className="text-right break-words text-chalk">{v}</dd>
           </div>
         ))}
@@ -171,7 +203,7 @@ export default function Pass() {
 
       {used ? (
         <p className="label mt-6 border border-[rgba(200,16,46,0.5)] px-3 py-3 leading-loose text-bloodhi">
-          MARKED USED ON THIS DEVICE AT{" "}
+          <Editable k="pass.ok.markedUsedAt">MARKED USED ON THIS DEVICE AT</Editable>{" "}
           {new Date(usedAt).toLocaleString(undefined, {
             hour: "2-digit",
             minute: "2-digit",

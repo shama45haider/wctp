@@ -7,6 +7,7 @@ import { atHandle } from "@/lib/handle";
 import { useNow } from "@/lib/now";
 import { isPastEvent, usd } from "@/lib/tickets";
 import TicketPass from "@/components/TicketPass";
+import { Editable } from "@/components/Editable";
 import { btn, btnGo } from "@/lib/ui";
 
 export default function Account() {
@@ -26,11 +27,13 @@ export default function Account() {
     return (
       <main className="mx-auto w-[92vw] max-w-[420px] py-[clamp(2.5rem,7vw,5rem)]">
         <h1 className="font-display chrome text-[clamp(2rem,6vw,3rem)]">
-          Not signed in
+          <Editable k="account.signedOut.title">Not signed in</Editable>
         </h1>
         <p className="mt-3 text-silverdim">
-          Sign in to see your tickets, or make an account if you don&rsquo;t
-          have one yet.
+          <Editable k="account.signedOut.blurb">
+            Sign in to see your tickets, or make an account if you don&rsquo;t
+            have one yet.
+          </Editable>
         </p>
         <div className="mt-6 flex flex-col gap-3">
           <Link href="/login" className={btnGo}>
@@ -62,11 +65,13 @@ export default function Account() {
           <p className="label mt-3 flex flex-wrap gap-x-5 gap-y-1 text-silverfaint">
             <span className="break-all">{user.email.toUpperCase()}</span>
             <span className={user.verified ? "text-bloodhi" : "text-silverdim"}>
-              {user.verified
-                ? "AGE VERIFIED"
-                : pending
-                  ? "AGE CHECK PENDING"
-                  : "AGE NOT VERIFIED"}
+              {user.verified ? (
+                <Editable k="account.age.verified">AGE VERIFIED</Editable>
+              ) : pending ? (
+                <Editable k="account.age.pending">AGE CHECK PENDING</Editable>
+              ) : (
+                <Editable k="account.age.notVerified">AGE NOT VERIFIED</Editable>
+              )}
             </span>
           </p>
         </div>
@@ -103,10 +108,15 @@ export default function Account() {
         className="mt-8 mb-6 flex flex-wrap items-end justify-between gap-4 scroll-mt-28"
       >
         <h2 className="font-display text-[2rem]">
-          Tickets
+          <Editable k="account.tickets.title">Tickets</Editable>
           <span className="label ml-3 align-middle text-silverfaint">
-            {passCount} ACROSS {orders.length}{" "}
-            {orders.length === 1 ? "ORDER" : "ORDERS"}
+            {passCount} <Editable k="account.tickets.across">ACROSS</Editable>{" "}
+            {orders.length}{" "}
+            {orders.length === 1 ? (
+              <Editable k="account.tickets.order">ORDER</Editable>
+            ) : (
+              <Editable k="account.tickets.orders">ORDERS</Editable>
+            )}
           </span>
         </h2>
         <Link href="/tickets" className="label text-silverdim hover:text-chalk">
@@ -127,7 +137,9 @@ export default function Account() {
 
       {orders.length === 0 ? (
         <div className="border border-dashed border-linehi p-8 text-center">
-          <p className="text-silverdim">Nothing booked yet.</p>
+          <p className="text-silverdim">
+            <Editable k="account.empty">Nothing booked yet.</Editable>
+          </p>
           <Link href="/tickets" className={`${btnGo} mt-5`}>
             Browse tickets
           </Link>
@@ -150,16 +162,26 @@ export default function Account() {
                       </Link>
                     </h3>
                     <p className="label mt-1 flex flex-wrap gap-x-4 gap-y-1 text-silverfaint">
-                      <span>ORDER {o.id}</span>
+                      <span>
+                        <Editable k="account.order.label">ORDER</Editable> {o.id}
+                      </span>
                       {ev && (
                         <span>
                           {ev.dow} {dayOf(ev.date)} {monthOf(ev.date)}
                         </span>
                       )}
                       <span className="text-chalk">
-                        {o.totalCents === 0 ? "FREE" : usd(o.totalCents)}
+                        {o.totalCents === 0 ? (
+                          <Editable k="account.order.free">FREE</Editable>
+                        ) : (
+                          usd(o.totalCents)
+                        )}
                       </span>
-                      {spent && <span>PAST</span>}
+                      {spent && (
+                        <span>
+                          <Editable k="account.order.past">PAST</Editable>
+                        </span>
+                      )}
                     </p>
                   </div>
                   <button
@@ -186,7 +208,9 @@ export default function Account() {
 
                 {o.discountCents > 0 && (
                   <p className="label border-t border-line px-4 py-3 text-silverfaint sm:px-5">
-                    {o.promoCode} APPLIED · SAVED {usd(o.discountCents)}
+                    {o.promoCode}{" "}
+                    <Editable k="account.order.promoSaved">APPLIED · SAVED</Editable>{" "}
+                    {usd(o.discountCents)}
                   </p>
                 )}
               </section>

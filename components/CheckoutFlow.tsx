@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Flyer from "./Flyer";
 import TicketPass from "./TicketPass";
+import { Editable } from "./Editable";
 import { findEvent, monthOf, dayOf, org } from "@/lib/events";
 import { atHandle } from "@/lib/handle";
 import {
@@ -48,7 +49,7 @@ function Progress({ step }: { step: Step }) {
                 : "border-line"
           }`}
         >
-          {s.label}
+          <Editable k={`checkout.step.${s.id}`}>{s.label}</Editable>
         </li>
       ))}
     </ol>
@@ -74,11 +75,13 @@ function NothingToBuy({ ticketCount }: { ticketCount: number }) {
   return (
     <Shell>
       <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
-        Your order is empty
+        <Editable k="checkout.empty.title">Your order is empty</Editable>
       </h1>
       <p className="mt-3 max-w-[46ch] text-silverdim">
-        Nothing is being held. Pick a night and choose your tickets - the order
-        stays put while you sign in.
+        <Editable k="checkout.empty.blurb">
+          Nothing is being held. Pick a night and choose your tickets - the order
+          stays put while you sign in.
+        </Editable>
       </p>
       <div className="mt-6 flex flex-wrap gap-3">
         <Link href="/tickets" className={btnGo}>
@@ -155,13 +158,21 @@ function Summary({
         ))}
 
         <div className="label mt-4 flex justify-between border-t border-line pt-4 text-silverdim">
-          <dt>SUBTOTAL</dt>
+          <dt>
+            <Editable k="checkout.summary.subtotal">SUBTOTAL</Editable>
+          </dt>
           <dd className="text-chalk">{usd(totals.subtotalCents)}</dd>
         </div>
 
         {totals.discountCents > 0 && (
           <div className="label mt-2 flex justify-between text-bloodhi">
-            <dt>{promoLabel ? promoLabel.toUpperCase() : "DISCOUNT"}</dt>
+            <dt>
+              {promoLabel ? (
+                promoLabel.toUpperCase()
+              ) : (
+                <Editable k="checkout.summary.discount">DISCOUNT</Editable>
+              )}
+            </dt>
             <dd>&minus;{usd(totals.discountCents)}</dd>
           </div>
         )}
@@ -171,15 +182,23 @@ function Summary({
             code actually took one away. */}
         {(totals.feeCents > 0 || feeWaived) && (
           <div className="label mt-2 flex justify-between text-silverdim">
-            <dt>SERVICE FEE</dt>
+            <dt>
+              <Editable k="checkout.summary.serviceFee">SERVICE FEE</Editable>
+            </dt>
             <dd className={feeWaived ? "text-bloodhi" : ""}>
-              {feeWaived ? "WAIVED" : usd(totals.feeCents)}
+              {feeWaived ? (
+                <Editable k="checkout.summary.feeWaived">WAIVED</Editable>
+              ) : (
+                usd(totals.feeCents)
+              )}
             </dd>
           </div>
         )}
 
         <div className="font-display mt-4 flex justify-between border-t border-line pt-4 text-[1.65rem]">
-          <dt>Total</dt>
+          <dt>
+            <Editable k="checkout.summary.total">Total</Editable>
+          </dt>
           <dd>{usd(totals.totalCents)}</dd>
         </div>
       </dl>
@@ -368,7 +387,7 @@ export default function CheckoutFlow() {
           {step === "order" && (
             <section>
               <h1 className="font-display chrome text-[clamp(1.9rem,5vw,3rem)] leading-[0.9]">
-                Your order
+                <Editable k="checkout.order.title">Your order</Editable>
               </h1>
 
               <div className="mt-6 border border-line">
@@ -386,10 +405,23 @@ export default function CheckoutFlow() {
                           {l.tierName}
                         </p>
                         <p className="label mt-0.5 text-silverfaint">
-                          {l.donation
-                            ? "GIFT · NO FEE, NO TICKET"
-                            : `${money(l.unitCents)} EACH`}
-                          {l.admits > 1 && ` · ADMITS ${l.admits}`}
+                          {l.donation ? (
+                            <Editable k="checkout.order.giftNote">
+                              GIFT · NO FEE, NO TICKET
+                            </Editable>
+                          ) : (
+                            <>
+                              {money(l.unitCents)}{" "}
+                              <Editable k="checkout.order.each">EACH</Editable>
+                            </>
+                          )}
+                          {l.admits > 1 && (
+                            <>
+                              {" · "}
+                              <Editable k="checkout.order.admits">ADMITS</Editable>{" "}
+                              {l.admits}
+                            </>
+                          )}
                         </p>
                       </div>
                       {l.donation ? (
@@ -419,7 +451,7 @@ export default function CheckoutFlow() {
 
               <div className="mt-6 border border-line p-4">
                 <label htmlFor="promo" className="label text-silverfaint">
-                  PROMO CODE
+                  <Editable k="checkout.promo.label">PROMO CODE</Editable>
                 </label>
                 {promo ? (
                   <div className="mt-2 flex items-center justify-between gap-4 border border-[rgba(200,16,46,0.5)] px-3 py-2.5">
@@ -461,7 +493,8 @@ export default function CheckoutFlow() {
                       </p>
                     )}
                     <p className="label mt-3 text-silverfaint">
-                      DEMO CODES: {PROMOS.map((p) => p.code).join(" · ")}
+                      <Editable k="checkout.promo.demoCodes">DEMO CODES:</Editable>{" "}
+                      {PROMOS.map((p) => p.code).join(" · ")}
                     </p>
                   </>
                 )}
@@ -470,16 +503,26 @@ export default function CheckoutFlow() {
               {gate ? (
                 <div className="mt-6 border border-line p-5">
                   <p className="label mb-3 text-bloodhi">
-                    {gate === "signin"
-                      ? "SIGN IN TO RSVP"
-                      : "AGE CHECK REQUIRED"}
+                    {gate === "signin" ? (
+                      <Editable k="checkout.gate.signinLabel">SIGN IN TO RSVP</Editable>
+                    ) : (
+                      <Editable k="checkout.gate.verifyLabel">AGE CHECK REQUIRED</Editable>
+                    )}
                   </p>
                   <p className="text-sm leading-relaxed text-silverdim">
-                    {gate === "signin"
-                      ? "Tickets attach to an account, and every account has its age checked once. Your selection stays here while you sign in."
-                      : pending
-                        ? `Your ID is with us. A person reads every one, so give it a little time - you'll hear from ${org.email}, and you can RSVP the moment it's approved.`
-                        : "Our nights are 18+. Send a photo of your ID once and you're cleared for every date after this one."}
+                    {gate === "signin" ? (
+                      <Editable k="checkout.gate.signinBlurb">
+                        {"Tickets attach to an account, and every account has its age checked once. Your selection stays here while you sign in."}
+                      </Editable>
+                    ) : pending ? (
+                      <Editable k="checkout.gate.pendingBlurb">
+                        {`Your ID is with us. A person reads every one, so give it a little time - you'll hear from ${org.email}, and you can RSVP the moment it's approved.`}
+                      </Editable>
+                    ) : (
+                      <Editable k="checkout.gate.verifyBlurb">
+                        {"Our nights are 18+. Send a photo of your ID once and you're cleared for every date after this one."}
+                      </Editable>
+                    )}
                   </p>
                   <Link
                     href={gate === "signin" ? "/login" : "/verify"}
@@ -506,12 +549,12 @@ export default function CheckoutFlow() {
           {step === "details" && (
             <section>
               <h1 className="font-display chrome text-[clamp(1.9rem,5vw,3rem)] leading-[0.9]">
-                Who is coming
+                <Editable k="checkout.details.title">Who is coming</Editable>
               </h1>
               <p className="mt-3 max-w-[48ch] text-sm leading-relaxed text-silverdim">
-                Tickets carry the name below - it&rsquo;s what the door reads.
-                The address for the night is emailed from {org.email} to the
-                email you give here, so make it one you read.
+                <Editable k="checkout.details.blurb">
+                  {`Tickets carry the name below - it’s what the door reads. The address for the night is emailed from ${org.email} to the email you give here, so make it one you read.`}
+                </Editable>
               </p>
 
               <form
@@ -524,7 +567,7 @@ export default function CheckoutFlow() {
               >
                 <div className="mb-4 flex flex-col gap-2">
                   <label htmlFor="c-name" className="label text-silverfaint">
-                    NAME ON THE TICKET
+                    <Editable k="checkout.details.nameLabel">NAME ON THE TICKET</Editable>
                   </label>
                   {user?.instagram ? (
                     <>
@@ -536,8 +579,10 @@ export default function CheckoutFlow() {
                         className={`${field} cursor-not-allowed text-silverdim`}
                       />
                       <p id="c-name-note" className="text-sm text-silverfaint">
-                        Tickets are issued to your Instagram handle - it&rsquo;s
-                        what the door reads. Change it on{" "}
+                        <Editable k="checkout.details.handleNote">
+                          Tickets are issued to your Instagram handle - it&rsquo;s
+                          what the door reads. Change it on
+                        </Editable>{" "}
                         <Link
                           href="/profile"
                           className="underline hover:text-chalk"
@@ -567,7 +612,7 @@ export default function CheckoutFlow() {
 
                 <div className="mb-4 flex flex-col gap-2">
                   <label htmlFor="c-email" className="label text-silverfaint">
-                    EMAIL
+                    <Editable k="checkout.details.emailLabel">EMAIL</Editable>
                   </label>
                   <input
                     id="c-email"
@@ -588,7 +633,10 @@ export default function CheckoutFlow() {
 
                 <div className="mb-6 flex flex-col gap-2">
                   <label htmlFor="c-phone" className="label text-silverfaint">
-                    PHONE <span className="text-silverdim">(OPTIONAL)</span>
+                    <Editable k="checkout.details.phoneLabel">PHONE</Editable>{" "}
+                    <span className="text-silverdim">
+                      <Editable k="checkout.details.optional">(OPTIONAL)</Editable>
+                    </span>
                   </label>
                   <input
                     id="c-phone"
@@ -622,24 +670,32 @@ export default function CheckoutFlow() {
           {step === "payment" && (
             <section>
               <h1 className="font-display chrome text-[clamp(1.9rem,5vw,3rem)] leading-[0.9]">
-                {free ? "Confirm your spot" : "Payment"}
+                {free ? (
+                  <Editable k="checkout.payment.freeTitle">Confirm your spot</Editable>
+                ) : (
+                  <Editable k="checkout.payment.title">Payment</Editable>
+                )}
               </h1>
 
               {free ? (
                 <p className="mt-3 max-w-[48ch] text-sm leading-relaxed text-silverdim">
-                  Nothing to pay - this one is free entry. Confirm and your
-                  tickets are issued straight away.
+                  <Editable k="checkout.payment.freeBlurb">
+                    Nothing to pay - this one is free entry. Confirm and your
+                    tickets are issued straight away.
+                  </Editable>
                 </p>
               ) : (
                 <>
                   <div className="label mt-6 border border-[rgba(200,16,46,0.5)] px-3 py-2.5 text-bloodhi">
-                    TEST MODE · NO CARD IS CHARGED AND NO CARD DETAILS ARE TAKEN
+                    <Editable k="checkout.payment.testMode">
+                      TEST MODE · NO CARD IS CHARGED AND NO CARD DETAILS ARE TAKEN
+                    </Editable>
                   </div>
 
                   <div className="mt-5 border border-line p-5">
                     <div className="mb-4 flex flex-col gap-2">
                       <label htmlFor="card" className="label text-silverfaint">
-                        CARD NUMBER
+                        <Editable k="checkout.payment.cardLabel">CARD NUMBER</Editable>
                       </label>
                       <input
                         id="card"
@@ -660,7 +716,9 @@ export default function CheckoutFlow() {
                             htmlFor={f.id}
                             className="label text-silverfaint"
                           >
-                            {f.label}
+                            <Editable k={`checkout.payment.${f.id}Label`}>
+                              {f.label}
+                            </Editable>
                           </label>
                           <input
                             id={f.id}
@@ -672,8 +730,10 @@ export default function CheckoutFlow() {
                       ))}
                     </div>
                     <p id="card-note" className="label mt-4 text-silverfaint">
-                      FIXED TEST CARD. A LIVE BUILD HANDS THIS STEP TO STRIPE SO
-                      NO CARD NUMBER EVER REACHES THIS SITE.
+                      <Editable k="checkout.payment.cardNote">
+                        FIXED TEST CARD. A LIVE BUILD HANDS THIS STEP TO STRIPE SO
+                        NO CARD NUMBER EVER REACHES THIS SITE.
+                      </Editable>
                     </p>
                   </div>
                 </>
@@ -681,11 +741,20 @@ export default function CheckoutFlow() {
 
               <div className="label mt-5 flex justify-between border border-line px-3 py-3">
                 <span className="text-silverfaint">
-                  {donationOnly
-                    ? "DONATION"
-                    : `${totals.ticketCount} ${
-                        totals.ticketCount === 1 ? "TICKET" : "TICKETS"
-                      } · ${totals.admitCount} IN`}
+                  {donationOnly ? (
+                    <Editable k="checkout.payment.donation">DONATION</Editable>
+                  ) : (
+                    <>
+                      {totals.ticketCount}{" "}
+                      {totals.ticketCount === 1 ? (
+                        <Editable k="checkout.payment.ticket">TICKET</Editable>
+                      ) : (
+                        <Editable k="checkout.payment.tickets">TICKETS</Editable>
+                      )}
+                      {` · ${totals.admitCount} `}
+                      <Editable k="checkout.payment.in">IN</Editable>
+                    </>
+                  )}
                 </span>
                 <span className="text-chalk">{usd(totals.totalCents)}</span>
               </div>
@@ -735,9 +804,15 @@ export default function CheckoutFlow() {
               </div>
 
               <p className="label mt-5 leading-loose text-silverfaint">
-                {donationOnly
-                  ? "DONATIONS SUPPORT SOUND, LIGHTS AND THE NEXT DATE. THEY ARE NOT A TICKET AND DO NOT HOLD A SPOT."
-                  : "BY COMPLETING THIS ORDER YOU AGREE TO THE 18+ DOOR POLICY. TICKETS ARE NON-REFUNDABLE ONCE THE ADDRESS HAS BEEN EMAILED."}
+                {donationOnly ? (
+                  <Editable k="checkout.payment.donationTerms">
+                    {"DONATIONS SUPPORT SOUND, LIGHTS AND THE NEXT DATE. THEY ARE NOT A TICKET AND DO NOT HOLD A SPOT."}
+                  </Editable>
+                ) : (
+                  <Editable k="checkout.payment.orderTerms">
+                    {"BY COMPLETING THIS ORDER YOU AGREE TO THE 18+ DOOR POLICY. TICKETS ARE NON-REFUNDABLE ONCE THE ADDRESS HAS BEEN EMAILED."}
+                  </Editable>
+                )}
               </p>
             </section>
           )}
@@ -781,49 +856,87 @@ function Confirmation({ order }: { order: Order }) {
       <Progress step="done" />
 
       <div className="border border-line bg-ink p-6 sm:p-8">
-        <p className="label text-bloodhi">ORDER {order.id}</p>
+        <p className="label text-bloodhi">
+          <Editable k="checkout.done.orderLabel">ORDER</Editable> {order.id}
+        </p>
         <h1 className="font-display chrome mt-2 text-[clamp(2.25rem,7vw,4.5rem)] leading-[0.85]">
-          {gift ? "Thank you" : "You’re in"}
+          {gift ? (
+            <Editable k="checkout.done.giftTitle">Thank you</Editable>
+          ) : (
+            <Editable k="checkout.done.title">You’re in</Editable>
+          )}
         </h1>
         <p className="mt-3 max-w-[52ch] leading-relaxed text-silverdim">
           {gift ? (
             <>
-              Your {usd(order.totalCents)} goes straight into {order.eventTitle}
-              {ev && `, ${ev.dow} ${dayOf(ev.date)} ${monthOf(ev.date)}`}. This
-              is a gift, not a ticket - it does not hold you a spot, so grab one
-              when sales open.
+              <Editable k="checkout.done.giftYour">Your</Editable>{" "}
+              {usd(order.totalCents)}{" "}
+              <Editable k="checkout.done.giftInto">goes straight into</Editable>{" "}
+              {order.eventTitle}
+              {ev && `, ${ev.dow} ${dayOf(ev.date)} ${monthOf(ev.date)}`}.{" "}
+              <Editable k="checkout.done.giftNote">
+                This is a gift, not a ticket - it does not hold you a spot, so
+                grab one when sales open.
+              </Editable>
             </>
           ) : (
             <>
-              {order.passes.length === 1
-                ? "One ticket"
-                : `${order.passes.length} tickets`}{" "}
-              for {order.eventTitle}
-              {ev && `, ${ev.dow} ${dayOf(ev.date)} ${monthOf(ev.date)}`}. A
-              copy would land in {order.buyer.email} on a live build - here they
-              live in your account, on this device. The address is emailed
-              from {org.email} to {order.buyer.email} before the night.
+              {order.passes.length === 1 ? (
+                <Editable k="checkout.done.oneTicket">One ticket</Editable>
+              ) : (
+                <>
+                  {order.passes.length}{" "}
+                  <Editable k="checkout.done.tickets">tickets</Editable>
+                </>
+              )}{" "}
+              <Editable k="checkout.done.for">for</Editable> {order.eventTitle}
+              {ev && `, ${ev.dow} ${dayOf(ev.date)} ${monthOf(ev.date)}`}.{" "}
+              <Editable k="checkout.done.copyWouldLand">A copy would land in</Editable>{" "}
+              {order.buyer.email}{" "}
+              <Editable k="checkout.done.liveBuildNote">
+                {`on a live build - here they live in your account, on this device. The address is emailed from ${org.email} to`}
+              </Editable>{" "}
+              {order.buyer.email}{" "}
+              <Editable k="checkout.done.beforeNight">before the night.</Editable>
             </>
           )}
         </p>
 
         <dl className="label mt-6 grid gap-x-8 gap-y-3 border-t border-line pt-5 sm:grid-cols-3">
           <div>
-            <dt className="text-silverfaint">{gift ? "GIVEN" : "PAID"}</dt>
+            <dt className="text-silverfaint">
+              {gift ? (
+                <Editable k="checkout.done.givenLabel">GIVEN</Editable>
+              ) : (
+                <Editable k="checkout.done.paidLabel">PAID</Editable>
+              )}
+            </dt>
             <dd className="mt-1 text-chalk">
-              {order.totalCents === 0 ? "FREE ENTRY" : usd(order.totalCents)}
+              {order.totalCents === 0 ? (
+                <Editable k="checkout.done.freeEntry">FREE ENTRY</Editable>
+              ) : (
+                usd(order.totalCents)
+              )}
             </dd>
           </div>
           {!gift && (
             <div>
-              <dt className="text-silverfaint">ADMITS</dt>
+              <dt className="text-silverfaint">
+                <Editable k="checkout.done.admitsLabel">ADMITS</Editable>
+              </dt>
               <dd className="mt-1 text-chalk">
                 {order.passes.reduce((n, p) => n + p.admits, 0)}
               </dd>
             </div>
           )}
           <div>
-            <dt className="text-silverfaint">{gift ? "FROM" : "ISSUED TO"}</dt>
+            <dt className="text-silverfaint">
+              {gift ? (
+                <Editable k="checkout.done.fromLabel">FROM</Editable>
+              ) : (
+                <Editable k="checkout.done.issuedToLabel">ISSUED TO</Editable>
+              )}
+            </dt>
             <dd className="mt-1 break-words text-chalk">{order.buyer.name}</dd>
           </div>
         </dl>
@@ -846,9 +959,9 @@ function Confirmation({ order }: { order: Order }) {
       {order.passes.length > 0 && (
         <>
           <h2 className="font-display mt-10 mb-5 text-[2rem]">
-            Your tickets
+            <Editable k="checkout.done.ticketsTitle">Your tickets</Editable>
             <span className="label ml-3 align-middle text-silverfaint">
-              SCAN AT THE DOOR
+              <Editable k="checkout.done.scanAtDoor">SCAN AT THE DOOR</Editable>
             </span>
           </h2>
 

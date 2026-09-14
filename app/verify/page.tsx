@@ -7,6 +7,7 @@ import { useAccount } from "@/lib/demo-account";
 import { atHandle } from "@/lib/handle";
 import { btn, btnGo } from "@/lib/ui";
 import IdDocumentUpload from "@/components/IdDocumentUpload";
+import { Editable } from "@/components/Editable";
 
 /**
  * Age check.
@@ -46,11 +47,13 @@ export default function Verify() {
     return (
       <main className="mx-auto w-[92vw] max-w-[420px] py-[clamp(2.5rem,7vw,5rem)]">
         <h1 className="font-display chrome text-[clamp(2rem,6vw,3rem)]">
-          Sign in first
+          <Editable k="verify.signedOut.title">Sign in first</Editable>
         </h1>
         <p className="mt-3 text-silverdim">
-          You need an account before we can run the age check - it is how we
-          know whose ID it is, and where to write back.
+          <Editable k="verify.signedOut.body">
+            You need an account before we can run the age check - it is how we
+            know whose ID it is, and where to write back.
+          </Editable>
         </p>
         <div className="mt-6 flex flex-col gap-3">
           <Link href="/login" className={btnGo}>
@@ -88,15 +91,21 @@ export default function Verify() {
     return (
       <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(2.5rem,7vw,5rem)]">
         <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
-          You&rsquo;re cleared
+          <Editable k="verify.cleared.title">You&rsquo;re cleared</Editable>
         </h1>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-          {who}, you&rsquo;re verified for {MIN_AGE}+ nights. Bring the same
-          ID - the door still looks at the card itself.
+          {who}
+          <Editable k="verify.cleared.body">
+            {`, you’re verified for ${MIN_AGE}+ nights. Bring the same ID - the door still looks at the card itself.`}
+          </Editable>
         </p>
         <div className="label mt-6 flex items-center justify-between border border-line px-3 py-3">
-          <span className="text-silverfaint">AGE CHECK</span>
-          <span className="text-bloodhi">VERIFIED</span>
+          <span className="text-silverfaint">
+            <Editable k="verify.cleared.statusLabel">AGE CHECK</Editable>
+          </span>
+          <span className="text-bloodhi">
+            <Editable k="verify.cleared.statusValue">VERIFIED</Editable>
+          </span>
         </div>
         {onward}
       </main>
@@ -107,15 +116,21 @@ export default function Verify() {
     return (
       <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(2.5rem,7vw,5rem)]">
         <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
-          With us
+          <Editable k="verify.pending.title">With us</Editable>
         </h1>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-          Your ID is in the queue. A person reads every one of these, so it is
-          not instant.
+          <Editable k="verify.pending.body">
+            Your ID is in the queue. A person reads every one of these, so it is
+            not instant.
+          </Editable>
         </p>
         <div className="label mt-6 flex items-center justify-between border border-line px-3 py-3">
-          <span className="text-silverfaint">AGE CHECK</span>
-          <span className="text-chalk">AWAITING REVIEW</span>
+          <span className="text-silverfaint">
+            <Editable k="verify.pending.statusLabel">AGE CHECK</Editable>
+          </span>
+          <span className="text-chalk">
+            <Editable k="verify.pending.statusValue">AWAITING REVIEW</Editable>
+          </span>
         </div>
         {/* Not "cleared". Nothing is approved until an admin says so, and the
             buttons go on with the evening rather than promising it. */}
@@ -127,18 +142,18 @@ export default function Verify() {
   return (
     <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(2.5rem,7vw,5rem)]">
       <h1 className="font-display chrome text-[clamp(2rem,6vw,3.25rem)] leading-[0.85]">
-        Age check
+        <Editable k="verify.title">Age check</Editable>
       </h1>
       <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-        Our nights are {MIN_AGE}+. Send a photo of your ID and a person will
-        check it. You can black out anything on it except your photo, your name
-        and your date of birth.
+        <Editable k="verify.intro">
+          {`Our nights are ${MIN_AGE}+. Send a photo of your ID and a person will check it. You can black out anything on it except your photo, your name and your date of birth.`}
+        </Editable>
       </p>
 
       {refused && user.check && (
         <div className="mt-6 border border-[rgba(200,16,46,0.5)] px-4 py-4">
           <p className="label leading-loose text-bloodhi">
-            YOUR LAST CHECK WAS REFUSED
+            <Editable k="verify.refused.title">YOUR LAST CHECK WAS REFUSED</Editable>
           </p>
           {user.check.note && (
             <p className="mt-2 text-[0.9375rem] leading-relaxed text-chalk">
@@ -146,7 +161,7 @@ export default function Verify() {
             </p>
           )}
           <p className="mt-2 text-[0.9375rem] leading-relaxed text-silverdim">
-            Send another.
+            <Editable k="verify.refused.body">Send another.</Editable>
           </p>
         </div>
       )}

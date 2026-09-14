@@ -28,18 +28,18 @@ function seeded(seed: number) {
 const rand = seeded(20260914);
 
 /** Half of these are hidden below sm - see globals.css. */
-const CONFETTI = Array.from({ length: 24 }, () => ({
+const CONFETTI = Array.from({ length: 14 }, () => ({
   /** Column to fall through, as a percentage of the viewport. */
   left: rand() * 100,
-  width: 3 + rand() * 3,
-  height: 2 + rand() * 3,
+  width: 2.5 + rand() * 2,
+  height: 1.5 + rand() * 2,
   /** Full spectrum - this is the one spot on the site allowed to be a rainbow. */
   hue: rand() * 360,
   /** Peak opacity. A hint of color, not a sticker - nothing here should read as a foreground. */
-  opacity: 0.08 + rand() * 0.14,
-  duration: 16 + rand() * 22,
+  opacity: 0.04 + rand() * 0.06,
+  duration: 26 + rand() * 30,
   /** Negative, so every piece is already mid-fall on the first paint. */
-  delay: rand() * -38,
+  delay: rand() * -56,
   /** Sideways drift over one fall, so they do not fall in parallel lines. */
   drift: (rand() - 0.5) * 20,
   /** Full turns over one fall, direction picked per piece. */

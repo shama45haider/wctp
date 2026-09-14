@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Editable } from "@/components/Editable";
 import { org } from "@/lib/events";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
@@ -82,16 +83,24 @@ export default function Login() {
             : "border-[rgba(200,16,46,0.5)] text-bloodhi"
         }`}
       >
-        {signedIn ? "SIGNED IN" : connected ? "SIGN IN" : "NOT CONNECTED"}
+        {signedIn ? (
+          <Editable k="login.badge.signedIn">SIGNED IN</Editable>
+        ) : connected ? (
+          <Editable k="login.badge.signIn">SIGN IN</Editable>
+        ) : (
+          <Editable k="login.badge.offline">NOT CONNECTED</Editable>
+        )}
       </span>
 
       <h1 className="font-display chrome mt-7 text-[clamp(2.5rem,9vw,4rem)] leading-[0.85]">
-        Accounts
+        <Editable k="login.title">Accounts</Editable>
       </h1>
 
       {signedIn ? (
         <section className="mt-8 w-full text-left">
-          <p className="label text-silverfaint">SIGNED IN AS</p>
+          <p className="label text-silverfaint">
+            <Editable k="login.signedInAs">SIGNED IN AS</Editable>
+          </p>
           <p className="mt-2 break-all text-chalk">{user?.email}</p>
 
           <div className="mt-6 flex flex-col gap-3">
@@ -114,8 +123,10 @@ export default function Login() {
         <p className="label mt-8 text-silverfaint">CHECKING&hellip;</p>
       ) : !connected ? (
         <p className="mt-6 max-w-[38ch] text-[0.9375rem] leading-relaxed text-silverdim">
-          Accounts are not connected in this build, so there is nothing to sign
-          in to yet. Everything below still works.
+          <Editable k="login.offline.body">
+            Accounts are not connected in this build, so there is nothing to sign
+            in to yet. Everything below still works.
+          </Editable>
         </p>
       ) : (
         <form
@@ -126,7 +137,7 @@ export default function Login() {
           }}
         >
           <label htmlFor="email" className="label text-silverfaint">
-            EMAIL
+            <Editable k="login.emailLabel">EMAIL</Editable>
           </label>
           <input
             id="email"
@@ -139,7 +150,7 @@ export default function Login() {
           />
 
           <label htmlFor="password" className="label mt-5 block text-silverfaint">
-            PASSWORD
+            <Editable k="login.passwordLabel">PASSWORD</Editable>
           </label>
           <input
             id="password"
@@ -173,17 +184,25 @@ export default function Login() {
             {busy ? "Signing in…" : "Sign in"}
           </button>
 
+          <div className="mt-9 flex items-center gap-3" aria-hidden="true">
+            <span className="h-px flex-1 bg-line" />
+            <span className="label text-silverfaint">
+              <Editable k="login.newHere">NEW HERE?</Editable>
+            </span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+
           <Link
             href="/signup"
-            className="label mt-5 block w-full text-center text-silverfaint transition-colors hover:text-chalk"
+            className="font-display mt-4 flex min-h-12 w-full items-center justify-center border border-chalk bg-chalk px-[1.15rem] text-[1.0625rem] tracking-[0.12em] text-void uppercase transition-all hover:bg-white hover:shadow-[0_10px_34px_-12px_rgba(242,244,247,0.45)] active:scale-[0.98]"
           >
-            OR SIGN UP
+            Sign up
           </Link>
         </form>
       )}
 
       <p className="mt-8 max-w-[38ch] text-[0.9375rem] leading-relaxed text-silverdim">
-        Send suggestions to{" "}
+        <Editable k="login.suggestions">Send suggestions to</Editable>{" "}
         <a
           href="https://www.instagram.com/stopaura/"
           target="_blank"

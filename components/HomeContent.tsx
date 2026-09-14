@@ -3,6 +3,7 @@
 import Link from "next/link";
 import EventManifest from "./EventManifest";
 import Flyer from "./Flyer";
+import { Editable } from "./Editable";
 import { org, monthOf, dayOf } from "@/lib/events";
 import { useRuntimeEvents } from "@/lib/events-runtime";
 
@@ -31,9 +32,9 @@ function SectionHead({
   blurb,
   aside,
 }: {
-  title: string;
-  blurb?: string;
-  aside?: string;
+  title: React.ReactNode;
+  blurb?: React.ReactNode;
+  aside?: React.ReactNode;
 }) {
   return (
     <div className="mb-10 flex flex-col items-start gap-3 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
@@ -60,24 +61,35 @@ export default function HomeContent() {
         {/* stamped index strip */}
         <div className="border-b border-line">
           <div className="label mx-auto flex w-[92vw] max-w-[1180px] justify-between py-2 text-silverfaint">
-            <span>EST. NYC</span>
+            <span>
+              <Editable k="home.strip.est">EST. NYC</Editable>
+            </span>
             <span>
               {org.totalEvents} / {org.totalAttendees.toLocaleString()}
-              <span className="hidden sm:inline"> HEADS</span>
+              <span className="hidden sm:inline">
+                {" "}
+                <Editable k="home.strip.heads">HEADS</Editable>
+              </span>
             </span>
-            <span>18+</span>
+            <span>
+              <Editable k="home.strip.age">18+</Editable>
+            </span>
           </div>
         </div>
 
         <div className="mx-auto grid w-[92vw] max-w-[1180px] grid-cols-1 items-end gap-x-8 pt-8 pb-7 md:grid-cols-[1fr_auto]">
           <div className="relative z-10">
             <h1 className="font-display text-[clamp(2.75rem,10.5vw,7.5rem)] leading-[0.78] tracking-[-0.03em]">
-              <span className="chrome block">WE CAME</span>
-              <span className="text-outline block">TOO PARTY</span>
+              <span className="chrome block">
+                <Editable k="home.hero.line1">WE CAME</Editable>
+              </span>
+              <span className="text-outline block">
+                <Editable k="home.hero.line2">TOO PARTY</Editable>
+              </span>
             </h1>
 
             <p className="mt-5 max-w-[38ch] text-[0.9375rem] leading-relaxed text-silverdim">
-              {org.bio}
+              <Editable k="home.hero.bio">{org.bio}</Editable>
             </p>
 
             {/* Next-up strip. Centred as a stack on a phone, where the pieces
@@ -90,7 +102,9 @@ export default function HomeContent() {
               <div className="mt-6 flex flex-col items-center gap-3 border-t border-line pt-4 text-center sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2 sm:text-left">
                 <span className="flex items-center gap-2">
                   <span className="dot shrink-0" />
-                  <span className="label text-bloodhi">NEXT</span>
+                  <span className="label text-bloodhi">
+                    <Editable k="home.next.label">NEXT</Editable>
+                  </span>
                 </span>
                 {/* Padded to a thumb and pulled back with a matching negative
                     margin, so the strip keeps its spacing while the headline
@@ -103,7 +117,8 @@ export default function HomeContent() {
                 </Link>
                 <span className="label text-silverdim">
                   {next.dow} {dayOf(next.date)} {monthOf(next.date)}
-                  &nbsp;/&nbsp;{next.time}&nbsp;/&nbsp;ADDRESS BY EMAIL
+                  &nbsp;/&nbsp;{next.time}&nbsp;/&nbsp;
+                  <Editable k="home.next.address">ADDRESS BY EMAIL</Editable>
                 </span>
                 <Link
                   href={`/events/${next.slug}#tickets`}
@@ -115,7 +130,9 @@ export default function HomeContent() {
             ) : (
               <div className="mt-6 border-t border-line pt-4 text-center sm:text-left">
                 <span className="label text-silverfaint">
-                  NOTHING ON SALE RIGHT NOW - WATCH {org.instagramHandle.toUpperCase()} FOR THE NEXT ONE
+                  <Editable k="home.next.none">
+                    {`NOTHING ON SALE RIGHT NOW - WATCH ${org.instagramHandle.toUpperCase()} FOR THE NEXT ONE`}
+                  </Editable>
                 </span>
               </div>
             )}
@@ -185,16 +202,25 @@ export default function HomeContent() {
       <section id="events" className="py-[clamp(3.5rem,7vw,6rem)]">
         <div className="mx-auto w-[92vw] max-w-[1180px]">
           <SectionHead
-            title="Upcoming"
-            aside={`${String(upcoming.length).padStart(2, "0")} DATES`}
+            title={<Editable k="home.upcoming.title">Upcoming</Editable>}
+            aside={
+              <>
+                {String(upcoming.length).padStart(2, "0")}{" "}
+                <Editable k="home.upcoming.datesLabel">DATES</Editable>
+              </>
+            }
           />
           {upcoming.length > 0 ? (
             <EventManifest events={upcoming} />
           ) : (
             <div className="border border-dashed border-linehi p-10 text-center">
-              <p className="font-display text-2xl">Nothing on sale yet</p>
+              <p className="font-display text-2xl">
+                <Editable k="home.upcoming.emptyTitle">Nothing on sale yet</Editable>
+              </p>
               <p className="mt-2 text-sm text-silverdim">
-                The next date drops on {org.instagramHandle} first.
+                <Editable k="home.upcoming.emptyBlurb">
+                  {`The next date drops on ${org.instagramHandle} first.`}
+                </Editable>
               </p>
             </div>
           )}
@@ -207,12 +233,29 @@ export default function HomeContent() {
         </div>
       </section>
 
-      <section id="archive" className="py-[clamp(3.5rem,7vw,6rem)]">
+      {/* content-visibility: the archive is the longest stretch of the page
+          and starts below the fold, so the browser skips laying it out until
+          it is scrolled near. */}
+      <section
+        id="archive"
+        className="py-[clamp(3.5rem,7vw,6rem)] [contain-intrinsic-size:auto_2400px] [content-visibility:auto]"
+      >
         <div className="mx-auto w-[92vw] max-w-[1180px]">
           <SectionHead
-            title="Archive"
-            blurb="Everything we&rsquo;ve thrown. Nothing gets taken down."
-            aside={`${org.totalEvents} EVENTS · ${org.totalAttendees.toLocaleString()} ATTENDEES`}
+            title={<Editable k="home.archive.title">Archive</Editable>}
+            blurb={
+              <Editable k="home.archive.blurb">
+                Everything we&rsquo;ve thrown. Nothing gets taken down.
+              </Editable>
+            }
+            aside={
+              <>
+                {org.totalEvents} <Editable k="home.archive.eventsLabel">EVENTS</Editable>
+                {" · "}
+                {org.totalAttendees.toLocaleString()}{" "}
+                <Editable k="home.archive.attendeesLabel">ATTENDEES</Editable>
+              </>
+            }
           />
           {/* Two-up on a phone: a portrait flyer squeezed into one full-width
               180px band loses most of the artwork, which is the whole point of

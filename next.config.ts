@@ -8,6 +8,14 @@ import type { NextConfig } from "next";
 // break every asset URL on the site.
 const basePath = "";
 
+// The day this build happened, as a New York calendar date (YYYY-MM-DD). Read
+// once, here, so every page of one export agrees on it. lib/events.ts turns it
+// into TODAY, which is what the static HTML - and so every link preview a
+// crawler builds from it - decides "next event" against.
+const buildDay = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/New_York",
+}).format(new Date());
+
 const nextConfig: NextConfig = {
   output: "export",
   // Emit directory/index.html so shared URLs work with or without a trailing slash.
@@ -15,7 +23,7 @@ const nextConfig: NextConfig = {
   basePath: basePath || undefined,
   // unoptimized images skip the loader that would otherwise apply basePath,
   // so components prefix local asset paths themselves via asset().
-  env: { NEXT_PUBLIC_BASE_PATH: basePath },
+  env: { NEXT_PUBLIC_BASE_PATH: basePath, NEXT_PUBLIC_BUILD_DAY: buildDay },
   images: {
     // Static export has no image optimization server.
     unoptimized: true,

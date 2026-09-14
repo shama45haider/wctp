@@ -125,7 +125,7 @@ export const org = {
    * night, the outcome of an age check, a ticket that went missing. Every
    * "write to us" on the site points here.
    */
-  email: "party@wecametooparty.com",
+  email: "events@wecametooparty.com",
   posh: "https://posh.vip/g/wecametooparty",
   totalEvents: 42,
   totalAttendees: 4342,
@@ -133,19 +133,31 @@ export const org = {
 };
 
 /**
- * "Now", pinned to whatever it was on the last deploy rather than read from
- * the clock - this is the one instant every page can render against during
- * the static export, so the first paint the export ships and the first
- * client render agree and hydration has nothing to disagree about.
+ * "Now" as of the day this copy of the site was built: the New York calendar
+ * date next.config.ts reads off the clock when the build starts and passes in
+ * as NEXT_PUBLIC_BUILD_DAY. It is the one instant every page renders against
+ * during the static export, so the HTML the export ships and the first client
+ * render agree and hydration has nothing to disagree about. It is also what
+ * crawlers see - they run no JavaScript - so it decides which flyer a shared
+ * link previews with.
  *
- * Nothing needs to move this forward by hand any more. lib/now.ts reads the
- * visitor's real clock instead the moment a page has mounted, which is what
- * actually decides whether a date has passed - see useNow() and
- * useRuntimeEvents(). This stays only as that shared starting point, and as
- * the fallback for isPastEvent()/saleState() callers that never ask for the
- * live date at all.
+ * Pinned to noon UTC rather than midnight. isPastEvent() compares *local*
+ * calendar days, and noon UTC falls on the same date in every timezone from
+ * UTC-11 to UTC+11, so the build server (UTC) and a visitor's browser across
+ * the US and Europe read the same day off it.
+ *
+ * It is still only a starting point. lib/now.ts swaps in the visitor's real
+ * clock the moment a page has mounted - see useNow() and useRuntimeEvents() -
+ * and the scheduled deploy in .github/workflows/static.yml rebuilds every few
+ * hours so the HTML itself moves forward too. It stays the default for
+ * isPastEvent()/saleState() callers that never ask for the live date. The
+ * fixed fallback only applies when the variable is missing, i.e. this module
+ * loaded outside a Next build.
  */
-export const TODAY = new Date("2026-09-01");
+const BUILD_DAY = process.env.NEXT_PUBLIC_BUILD_DAY;
+export const TODAY = new Date(
+  `${BUILD_DAY && /^\d{4}-\d{2}-\d{2}$/.test(BUILD_DAY) ? BUILD_DAY : "2026-09-01"}T12:00:00Z`,
+);
 
 export const allEvents = [...upcoming, ...past];
 export const findEvent = (slug: string) => allEvents.find((e) => e.slug === slug);

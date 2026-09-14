@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Editable } from "./Editable";
 import type { Event } from "@/lib/events";
 import { useState } from "react";
 import {
@@ -110,7 +111,11 @@ function DonationRow({
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
         <h3 className="font-display text-[1.35rem]">{tier.name}</h3>
         <span className="font-display text-[1.6rem] whitespace-nowrap">
-          {amountCents > 0 ? usd(amountCents) : "Any amount"}
+          {amountCents > 0 ? (
+            usd(amountCents)
+          ) : (
+            <Editable k="event.picker.anyAmount">Any amount</Editable>
+          )}
         </span>
       </div>
       {tier.blurb && (
@@ -119,7 +124,7 @@ function DonationRow({
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <label htmlFor={`amt-${tier.id}`} className="label text-silverfaint">
-          ENTER AN AMOUNT
+          <Editable k="event.picker.enterAmount">ENTER AN AMOUNT</Editable>
         </label>
         <div className="flex items-center">
           <span className="label border border-r-0 border-line px-3 py-2.5 text-silverfaint">
@@ -190,15 +195,29 @@ function TierRow({
           </p>
         )}
         <div className="label mt-2 flex flex-wrap gap-x-4 gap-y-1 text-silverfaint">
-          {admits > 1 && <span>ADMITS {admits}</span>}
-          {soldOut ? (
-            <span>SOLD OUT</span>
-          ) : left <= LOW_STOCK ? (
-            <span className="text-bloodhi">ONLY {left} LEFT</span>
-          ) : (
-            <span>{left} AVAILABLE</span>
+          {admits > 1 && (
+            <span>
+              <Editable k="event.picker.tier.admits">ADMITS</Editable> {admits}
+            </span>
           )}
-          <span>MAX {tier.maxPerOrder} PER ORDER</span>
+          {soldOut ? (
+            <span>
+              <Editable k="event.picker.tier.soldOut">SOLD OUT</Editable>
+            </span>
+          ) : left <= LOW_STOCK ? (
+            <span className="text-bloodhi">
+              <Editable k="event.picker.tier.only">ONLY</Editable> {left}{" "}
+              <Editable k="event.picker.tier.left">LEFT</Editable>
+            </span>
+          ) : (
+            <span>
+              {left} <Editable k="event.picker.tier.available">AVAILABLE</Editable>
+            </span>
+          )}
+          <span>
+            <Editable k="event.picker.tier.max">MAX</Editable> {tier.maxPerOrder}{" "}
+            <Editable k="event.picker.tier.perOrder">PER ORDER</Editable>
+          </span>
         </div>
       </div>
 
@@ -208,7 +227,7 @@ function TierRow({
 
       {soldOut ? (
         <div className="label border border-line px-4 py-3 text-silverfaint">
-          SOLD OUT
+          <Editable k="event.picker.tier.soldOutBox">SOLD OUT</Editable>
         </div>
       ) : (
         <Stepper tier={tier} qty={qty} onStep={onStep} />
@@ -247,9 +266,11 @@ export default function TicketPicker({ event }: { event: Event }) {
   if (state === "closed") {
     return (
       <div className="label border border-line px-4 py-4 text-silverfaint">
-        {isPastEvent(event, now)
-          ? "THIS EVENT HAS PASSED"
-          : "TICKETS ARE NOT ON SALE YET"}
+        {isPastEvent(event, now) ? (
+          <Editable k="event.picker.passed">THIS EVENT HAS PASSED</Editable>
+        ) : (
+          <Editable k="event.picker.notYet">TICKETS ARE NOT ON SALE YET</Editable>
+        )}
       </div>
     );
   }
@@ -257,10 +278,14 @@ export default function TicketPicker({ event }: { event: Event }) {
   if (state === "sold-out") {
     return (
       <div className="border border-line p-6">
-        <p className="font-display text-2xl">Sold out</p>
+        <p className="font-display text-2xl">
+          <Editable k="event.picker.soldOutTitle">Sold out</Editable>
+        </p>
         <p className="mt-2 text-sm text-silverdim">
-          Every tier is gone. Releases sometimes drop the week of the event -
-          watch the feed.
+          <Editable k="event.picker.soldOutBlurb">
+            Every tier is gone. Releases sometimes drop the week of the event -
+            watch the feed.
+          </Editable>
         </p>
       </div>
     );
@@ -316,8 +341,17 @@ export default function TicketPicker({ event }: { event: Event }) {
   return (
     <div id="tickets" className="border border-line bg-ink">
       <div className="label flex items-center justify-between border-b border-line px-4 py-3 text-silverfaint">
-        <span>SELECT TICKETS</span>
-        <span>{tiers.length === 1 ? "1 TIER" : `${tiers.length} TIERS`}</span>
+        <span>
+          <Editable k="event.picker.selectTickets">SELECT TICKETS</Editable>
+        </span>
+        <span>
+          {tiers.length}{" "}
+          {tiers.length === 1 ? (
+            <Editable k="event.picker.tierLabel">TIER</Editable>
+          ) : (
+            <Editable k="event.picker.tiersLabel">TIERS</Editable>
+          )}
+        </span>
       </div>
 
       {tiers.map((t) =>
@@ -340,17 +374,23 @@ export default function TicketPicker({ event }: { event: Event }) {
 
       <div className="p-4">
         <div className="label flex items-center justify-between text-silverdim">
-          <span>SUBTOTAL</span>
+          <span>
+            <Editable k="event.picker.subtotal">SUBTOTAL</Editable>
+          </span>
           <span className="text-chalk">{usd(totals.subtotalCents)}</span>
         </div>
         {totals.feeCents > 0 && (
           <div className="label mt-2 flex items-center justify-between text-silverfaint">
-            <span>SERVICE FEE</span>
+            <span>
+              <Editable k="event.picker.serviceFee">SERVICE FEE</Editable>
+            </span>
             <span>{usd(totals.feeCents)}</span>
           </div>
         )}
         <div className="font-display mt-3 flex items-center justify-between border-t border-line pt-3 text-[1.5rem]">
-          <span>Total</span>
+          <span>
+            <Editable k="event.picker.total">Total</Editable>
+          </span>
           <span>{usd(totals.totalCents)}</span>
         </div>
 
@@ -364,7 +404,7 @@ export default function TicketPicker({ event }: { event: Event }) {
         </button>
 
         <p className="label mt-3 text-center text-silverfaint">
-          18+ · AGE CHECKED BY A PERSON ·{" "}
+          <Editable k="event.picker.footer">18+ · AGE CHECKED BY A PERSON ·</Editable>{" "}
           <Link
             href="/tickets"
             className="-my-3 inline-block py-3 underline hover:text-chalk"

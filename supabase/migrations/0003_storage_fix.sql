@@ -30,6 +30,7 @@ drop policy if exists "read own id document" on storage.objects;
 -- A guest may only write into a folder named for their own user id. This is
 -- what makes the upload path in IdDocumentUpload load-bearing rather than
 -- cosmetic: a file placed anywhere else is rejected by the database.
+drop policy if exists "upload own id document" on storage.objects;
 create policy "upload own id document" on storage.objects for insert
   with check (
     bucket_id = 'id-documents'
@@ -38,14 +39,17 @@ create policy "upload own id document" on storage.objects for insert
 
 -- Guests can see back what they sent, which is the difference between "we have
 -- your ID" and "something was uploaded, we think".
+drop policy if exists "read own id document" on storage.objects;
 create policy "read own id document" on storage.objects for select
   using (
     bucket_id = 'id-documents'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
+drop policy if exists "admins read id documents" on storage.objects;
 create policy "admins read id documents" on storage.objects for select
   using (bucket_id = 'id-documents' and public.is_admin());
 
+drop policy if exists "admins delete id documents" on storage.objects;
 create policy "admins delete id documents" on storage.objects for delete
   using (bucket_id = 'id-documents' and public.is_admin());

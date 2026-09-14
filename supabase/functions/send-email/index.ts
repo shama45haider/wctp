@@ -38,7 +38,7 @@ const RESEND_ENDPOINT = "https://api.resend.com/emails";
  * wecametooparty.com is verified in the Resend dashboard, onboarding@resend.dev
  * is the sandbox sender, and it only ever delivers to the address that owns
  * the Resend account - which is enough to prove the wiring and nothing more.
- * Set EMAIL_FROM to "WECAMETOOPARTY <party@wecametooparty.com>" once the
+ * Set EMAIL_FROM to "WECAMETOOPARTY <events@wecametooparty.com>" once the
  * domain is verified.
  */
 const FROM = Deno.env.get("EMAIL_FROM") ?? "onboarding@resend.dev";

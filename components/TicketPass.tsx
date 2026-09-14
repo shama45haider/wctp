@@ -3,6 +3,7 @@ import { admitsOf, money } from "@/lib/tickets";
 import type { Pass } from "@/lib/demo-account";
 import { passUrl } from "@/lib/pass-token";
 import TicketQr from "./TicketQr";
+import { Editable } from "./Editable";
 
 /**
  * One admission, drawn as a stub.
@@ -60,12 +61,25 @@ export default function TicketPass({
         {/* The time, never the place. A ticket gets screenshotted and passed
             around; the address only ever goes out by email to the list. */}
         <p className="label mt-1 text-silverdim">
-          {ev ? `${ev.time} · ADDRESS BY EMAIL` : "DETAILS TO FOLLOW"}
+          {ev ? (
+            <>
+              {`${ev.time} · `}
+              <Editable k="ticketPass.addressByEmail">ADDRESS BY EMAIL</Editable>
+            </>
+          ) : (
+            <Editable k="ticketPass.detailsToFollow">DETAILS TO FOLLOW</Editable>
+          )}
         </p>
         <p className="label mt-3 flex flex-wrap gap-x-3 gap-y-1">
           <span className="text-chalk">{pass.tierName.toUpperCase()}</span>
           <span className="text-silverfaint">
-            {admits === 1 ? "ADMITS ONE" : `ADMITS ${admits}`}
+            {admits === 1 ? (
+              <Editable k="ticketPass.admitsOne">ADMITS ONE</Editable>
+            ) : (
+              <>
+                <Editable k="ticketPass.admitsLabel">ADMITS</Editable> {admits}
+              </>
+            )}
           </span>
         </p>
         <p className="label mt-2 text-silverfaint">
@@ -76,7 +90,7 @@ export default function TicketPass({
       <div className="mt-auto border-t border-dashed border-linehi px-4 py-5">
         <TicketQr code={pass.code} value={url} size={qrSize} />
         <p className="label mt-3 text-center text-silverfaint">
-          ORDER {orderId}
+          <Editable k="ticketPass.orderLabel">ORDER</Editable> {orderId}
         </p>
       </div>
     </article>

@@ -1,6 +1,7 @@
 "use client";
 
 import Flyer from "./Flyer";
+import { Editable } from "./Editable";
 import { allEvents, monthOf, dayOf, type Event } from "@/lib/events";
 import type { RuntimeEventList } from "@/lib/events-runtime";
 import { isPastEvent } from "@/lib/tickets";
@@ -45,7 +46,7 @@ function Card({ e, now }: { e: Event; now: Date }) {
           />
         ) : (
           <div className="hairline-x label flex h-full items-center justify-center bg-ink2 text-silverfaint">
-            NO FLYER
+            <Editable k="tickets.announced.noFlyer">NO FLYER</Editable>
           </div>
         )}
 
@@ -75,11 +76,17 @@ function Card({ e, now }: { e: Event; now: Date }) {
       )}
 
       <div className="label mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3.5">
-        <span className="text-silverfaint">{past ? "PAST DATE" : e.time}</span>
+        <span className="text-silverfaint">
+          {past ? <Editable k="tickets.announced.pastDate">PAST DATE</Editable> : e.time}
+        </span>
         {/* Tiers live in lib/tickets.ts, so a date posted from the dashboard has
             nothing to sell yet. Saying so beats a button that cannot check out. */}
         <span className={past ? "text-silverfaint" : "text-bloodhi"}>
-          {past ? "ARCHIVE" : "TICKETS SOON"}
+          {past ? (
+            <Editable k="tickets.announced.archive">ARCHIVE</Editable>
+          ) : (
+            <Editable k="tickets.announced.ticketsSoon">TICKETS SOON</Editable>
+          )}
         </span>
       </div>
     </article>
@@ -94,9 +101,12 @@ export default function RuntimeEvents({ runtime }: { runtime: RuntimeEventList }
   return (
     <section className="mt-14 border-t border-line pt-8">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <h2 className="font-display text-[1.75rem]">Just announced</h2>
+        <h2 className="font-display text-[1.75rem]">
+          <Editable k="tickets.announced.title">Just announced</Editable>
+        </h2>
         <span className="label text-silverfaint">
-          {String(added.length).padStart(2, "0")} NEW
+          {String(added.length).padStart(2, "0")}{" "}
+          <Editable k="tickets.announced.newLabel">NEW</Editable>
         </span>
       </div>
 

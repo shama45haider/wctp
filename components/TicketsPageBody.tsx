@@ -3,6 +3,7 @@
 import TicketsBrowser from "./TicketsBrowser";
 import TicketsHeader from "./TicketsHeader";
 import RuntimeEvents from "./RuntimeEvents";
+import { Editable } from "./Editable";
 import { org } from "@/lib/events";
 import { useRuntimeEvents } from "@/lib/events-runtime";
 
@@ -26,13 +27,12 @@ export default function TicketsPageBody() {
     <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(2rem,5vw,4rem)]">
       <header className="mb-8">
         <h1 className="font-display chrome text-[clamp(2.75rem,13vw,7rem)] leading-[0.82]">
-          Tickets
+          <Editable k="tickets.title">Tickets</Editable>
         </h1>
         <p className="mt-4 max-w-[46ch] leading-relaxed text-silverdim">
-          Every date on sale. Every RSVP, free or paid, needs an account with a
-          verified age; paid tiers get you past the line. The address is
-          emailed to the list from {org.email} before the night. Nothing is
-          held at the door.
+          <Editable k="tickets.intro">
+            {`Every date on sale. Every RSVP, free or paid, needs an account with a verified age; paid tiers get you past the line. The address is emailed to the list from ${org.email} before the night. Nothing is held at the door.`}
+          </Editable>
         </p>
 
         <TicketsHeader runtime={runtime} />
@@ -46,7 +46,9 @@ export default function TicketsPageBody() {
       <RuntimeEvents runtime={runtime} />
 
       <section className="mt-14 border-t border-line pt-8">
-        <h2 className="font-display text-[1.75rem]">How the door works</h2>
+        <h2 className="font-display text-[1.75rem]">
+          <Editable k="tickets.how.title">How the door works</Editable>
+        </h2>
         <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
@@ -69,12 +71,14 @@ export default function TicketsPageBody() {
               t: "Scan and walk in",
               d: `Show the QR from your account. 18+ with ID, no exceptions. ${org.instagramHandle} for anything else.`,
             },
-          ].map((s) => (
+          ].map((s, i) => (
             <div key={s.n} className="border border-line p-5">
               <span className="label text-bloodhi">{s.n}</span>
-              <h3 className="font-display mt-2 text-[1.35rem]">{s.t}</h3>
+              <h3 className="font-display mt-2 text-[1.35rem]">
+                <Editable k={`tickets.how.${i}.title`}>{s.t}</Editable>
+              </h3>
               <p className="mt-2 text-sm leading-relaxed text-silverdim">
-                {s.d}
+                <Editable k={`tickets.how.${i}.body`}>{s.d}</Editable>
               </p>
             </div>
           ))}

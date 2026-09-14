@@ -2,6 +2,7 @@ import Link from "next/link";
 import { monthOf, dayOf, type Event } from "@/lib/events";
 import { money, priceFrom, saleState, ticketsLeft } from "@/lib/tickets";
 import Flyer from "./Flyer";
+import { Editable } from "./Editable";
 
 const LOW_STOCK = 25;
 
@@ -65,21 +66,23 @@ function Row({ e }: { e: Event }) {
             {e.title}
           </Link>
         </h3>
-        <div className="label mt-0.5 text-silverfaint">WECAMETOOPARTY</div>
+        <div className="label mt-0.5 text-silverfaint">
+          <Editable k="manifest.row.host">WECAMETOOPARTY</Editable>
+        </div>
         <div className="mt-2 flex flex-wrap gap-2">
           {typeof e.going === "number" && (
             <span className="label inline-block border border-[rgba(200,16,46,0.55)] px-2.5 py-1 text-bloodhi">
-              {e.going} GOING
+              {e.going} <Editable k="manifest.row.going">GOING</Editable>
             </span>
           )}
           {state === "on-sale" && left <= LOW_STOCK && (
             <span className="label inline-block border border-line px-2.5 py-1 text-silverdim">
-              {left} LEFT
+              {left} <Editable k="manifest.row.left">LEFT</Editable>
             </span>
           )}
           {state === "sold-out" && (
             <span className="label inline-block border border-line px-2.5 py-1 text-silverdim">
-              SOLD OUT
+              <Editable k="manifest.row.soldOut">SOLD OUT</Editable>
             </span>
           )}
         </div>
@@ -96,7 +99,9 @@ function Row({ e }: { e: Event }) {
         {e.endTime && (
           <>
             <br />
-            <span className="text-silverfaint">TIL {e.endTime}</span>
+            <span className="text-silverfaint">
+              <Editable k="manifest.row.til">TIL</Editable> {e.endTime}
+            </span>
           </>
         )}
       </div>

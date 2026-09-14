@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Editable } from "./Editable";
 import { monthOf, dayOf } from "@/lib/events";
 import type { RuntimeEventList } from "@/lib/events-runtime";
 import { money, priceFrom, saleState, ticketsLeft } from "@/lib/tickets";
@@ -29,25 +30,33 @@ export default function TicketsHeader({ runtime }: { runtime: RuntimeEventList }
       {/* Facts strip: wraps to two rows on a phone instead of shrinking. */}
       <dl className="label mt-6 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-line py-4 sm:grid-cols-4">
         <div>
-          <dt className="text-silverfaint">ON SALE</dt>
+          <dt className="text-silverfaint">
+            <Editable k="tickets.facts.onSale">ON SALE</Editable>
+          </dt>
           <dd className="font-display mt-1 text-[1.5rem]">
             {String(onSale.length).padStart(2, "0")}
           </dd>
         </div>
         <div>
-          <dt className="text-silverfaint">FROM</dt>
+          <dt className="text-silverfaint">
+            <Editable k="tickets.facts.from">FROM</Editable>
+          </dt>
           <dd className="font-display mt-1 text-[1.5rem]">
             {money(Number.isFinite(cheapest) ? cheapest : 0)}
           </dd>
         </div>
         <div>
-          <dt className="text-silverfaint">NEXT</dt>
+          <dt className="text-silverfaint">
+            <Editable k="tickets.facts.next">NEXT</Editable>
+          </dt>
           <dd className="font-display mt-1 text-[1.5rem]">
             {nextUp ? `${dayOf(nextUp.date)} ${monthOf(nextUp.date)}` : "—"}
           </dd>
         </div>
         <div>
-          <dt className="text-silverfaint">SPOTS LEFT</dt>
+          <dt className="text-silverfaint">
+            <Editable k="tickets.facts.spotsLeft">SPOTS LEFT</Editable>
+          </dt>
           <dd className="font-display mt-1 text-[1.5rem]">
             {onSale.reduce((n, e) => n + ticketsLeft(e.slug), 0)}
           </dd>
@@ -58,7 +67,9 @@ export default function TicketsHeader({ runtime }: { runtime: RuntimeEventList }
         {nextUp ? (
           <>
             <span className="dot shrink-0" />
-            <span className="label text-bloodhi">NEXT UP</span>
+            <span className="label text-bloodhi">
+              <Editable k="tickets.nextUp.label">NEXT UP</Editable>
+            </span>
             {/* Padded to a thumb and pulled back with a matching negative
                 margin, so the row keeps its height while the tap target
                 stops being a 24px line of text. */}
@@ -71,7 +82,7 @@ export default function TicketsHeader({ runtime }: { runtime: RuntimeEventList }
           </>
         ) : (
           <span className="label text-silverfaint">
-            NOTHING ON SALE RIGHT NOW
+            <Editable k="tickets.nextUp.none">NOTHING ON SALE RIGHT NOW</Editable>
           </span>
         )}
         <Link

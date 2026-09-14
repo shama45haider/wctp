@@ -24,6 +24,7 @@ import { isPastEvent, usd } from "@/lib/tickets";
 import { atHandle } from "@/lib/handle";
 import Flyer from "@/components/Flyer";
 import { avatarUrl } from "@/lib/profile-data";
+import RaffleAdmin from "@/components/RaffleAdmin";
 
 /**
  * The dashboard.
@@ -52,7 +53,7 @@ import { avatarUrl } from "@/lib/profile-data";
 
 const SCAN_KEY = "wctp.scanned";
 
-type Tab = "parties" | "accounts" | "review" | "door";
+type Tab = "parties" | "accounts" | "review" | "door" | "raffle";
 
 type Load<T> =
   | { kind: "loading" }
@@ -821,6 +822,7 @@ export default function Admin() {
       label: "DOOR",
       badge: <span className="text-silver">{scans.length}</span>,
     },
+    { id: "raffle", label: "RAFFLE", badge: null },
   ];
 
   return (
@@ -887,7 +889,7 @@ export default function Admin() {
               printed in it. */}
           <nav
             aria-label="Dashboard sections"
-            className="grid grid-cols-2 gap-px border border-line bg-line lg:hidden"
+            className="grid grid-cols-2 gap-px border border-line bg-line lg:hidden [&>:last-child:nth-child(odd)]:col-span-2"
           >
             {sections.map((s) => (
               <button
@@ -1908,6 +1910,8 @@ export default function Admin() {
               )}
             </Panel>
           )}
+
+          {tab === "raffle" && <RaffleAdmin />}
 
           <Link
             href="/"

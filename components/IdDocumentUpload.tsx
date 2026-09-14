@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import IdCamera from "./IdCamera";
 import IdRedactor from "./IdRedactor";
+import { Editable } from "./Editable";
 import { org } from "@/lib/events";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
@@ -163,9 +164,15 @@ export default function IdDocumentUpload({
     return (
       <>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-          {isSupabaseConfigured
-            ? "Sending an ID needs an account, so we know whose age check it is and where to write back."
-            : "This build has no account service connected, so there is nowhere to send an ID."}
+          {isSupabaseConfigured ? (
+            <Editable k="idUpload.signedOut.body">
+              Sending an ID needs an account, so we know whose age check it is and where to write back.
+            </Editable>
+          ) : (
+            <Editable k="idUpload.offline.body">
+              This build has no account service connected, so there is nowhere to send an ID.
+            </Editable>
+          )}
         </p>
         <div className="mt-7 flex flex-col gap-3">
           {isSupabaseConfigured && (
@@ -365,8 +372,10 @@ export default function IdDocumentUpload({
     return (
       <>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-          Take the photo here, or send one you already have. Either way you
-          get to black parts of it out before it goes anywhere.
+          <Editable k="idUpload.source.body">
+            Take the photo here, or send one you already have. Either way you
+            get to black parts of it out before it goes anywhere.
+          </Editable>
         </p>
 
         {alert}
@@ -404,10 +413,9 @@ export default function IdDocumentUpload({
   return (
     <>
       <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-        Check your photo, your name and your date of birth are still readable,
-        then type the date of birth as it is on the card. A person reads every
-        one of these, so it takes a while - you&rsquo;ll hear from {org.email}{" "}
-        before the next date.
+        <Editable k="idUpload.details.body">
+          {`Check your photo, your name and your date of birth are still readable, then type the date of birth as it is on the card. A person reads every one of these, so it takes a while - you’ll hear from ${org.email} before the next date.`}
+        </Editable>
       </p>
 
       <div className="mt-7 flex flex-col gap-5">
@@ -422,7 +430,10 @@ export default function IdDocumentUpload({
               className="max-h-[46vh] w-full object-contain"
             />
             <figcaption className="label mt-2 flex items-center justify-between gap-3 text-silverfaint">
-              <span>{megabytes(step.redacted.size)} · WHAT THE REVIEWER WILL SEE</span>
+              <span>
+                {megabytes(step.redacted.size)} ·{" "}
+                <Editable k="idUpload.preview.caption">WHAT THE REVIEWER WILL SEE</Editable>
+              </span>
               <button
                 type="button"
                 // The already-redacted image, not the raw one: re-entering
@@ -441,7 +452,7 @@ export default function IdDocumentUpload({
 
         <div className="flex flex-col gap-2">
           <label htmlFor="id-kind" className="label text-silverfaint">
-            WHAT IS IT
+            <Editable k="idUpload.kindLabel">WHAT IS IT</Editable>
           </label>
           <select
             id="id-kind"
@@ -460,7 +471,7 @@ export default function IdDocumentUpload({
 
         <div className="flex flex-col gap-2">
           <label htmlFor="id-dob" className="label text-silverfaint">
-            DATE OF BIRTH
+            <Editable k="idUpload.dobLabel">DATE OF BIRTH</Editable>
           </label>
           <input
             id="id-dob"

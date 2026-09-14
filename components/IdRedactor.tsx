@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { btn, btnGo } from "@/lib/ui";
+import { Editable } from "./Editable";
 
 /**
  * Blackouts, drawn by the guest before the photo leaves the phone.
@@ -268,9 +269,11 @@ export default function IdRedactor({
   return (
     <>
       <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-        Black out anything you&rsquo;d rather we didn&rsquo;t see - the
-        address, the card number. Leave your photo, your name and your date of
-        birth readable, or it can&rsquo;t be approved.
+        <Editable k="idRedactor.intro">
+          Black out anything you&rsquo;d rather we didn&rsquo;t see - the
+          address, the card number. Leave your photo, your name and your date of
+          birth readable, or it can&rsquo;t be approved.
+        </Editable>
       </p>
 
       <div className="mt-6 border border-line bg-ink p-2">

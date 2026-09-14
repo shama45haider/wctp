@@ -16,6 +16,7 @@ import {
   type GalleryItem,
 } from "@/lib/site-content";
 import { btn, btnGo, field } from "@/lib/ui";
+import { Editable } from "./Editable";
 
 /**
  * The gallery, in three walls: the photos an admin puts up, every flyer this
@@ -333,22 +334,24 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
   return (
     <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(2.5rem,6vw,4.5rem)]">
       <h1 className="font-display chrome text-[clamp(2.5rem,8vw,5.5rem)] leading-[0.82]">
-        Gallery
+        <Editable k="gallery.heading">Gallery</Editable>
       </h1>
       <p className="mt-4 max-w-[52ch] leading-relaxed text-silverdim">
-        Every flyer we&rsquo;ve put out, and the feed from{" "}
-        {org.instagramHandle}. Nothing here gets taken down.
+        <Editable k="gallery.intro">
+          {`Every flyer we’ve put out, and the feed from ${org.instagramHandle}. Nothing here gets taken down.`}
+        </Editable>
       </p>
 
       {showPhotos && (
         <>
           <div className="mt-10 flex items-end justify-between gap-4 border-b border-line pb-4">
             <h2 className="font-display text-[clamp(1.9rem,5vw,3rem)]">
-              Photos
+              <Editable k="gallery.photos.title">Photos</Editable>
             </h2>
             {shown.length > 0 && (
               <span className="label text-silverfaint">
-                {String(shown.length).padStart(2, "0")} SHOTS
+                {String(shown.length).padStart(2, "0")}{" "}
+                <Editable k="gallery.photos.countLabel">SHOTS</Editable>
               </span>
             )}
           </div>
@@ -480,9 +483,13 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
             </div>
           ) : (
             <div className="mt-6 border border-dashed border-linehi p-10 text-center">
-              <p className="font-display text-2xl">No photos up yet</p>
+              <p className="font-display text-2xl">
+                <Editable k="gallery.photos.emptyTitle">No photos up yet</Editable>
+              </p>
               <p className="mt-2 text-sm text-silverdim">
-                Add the first ones and they appear here for everybody.
+                <Editable k="gallery.photos.emptyBlurb">
+                  Add the first ones and they appear here for everybody.
+                </Editable>
               </p>
             </div>
           )}
@@ -493,10 +500,11 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
         className={`${showPhotos ? "mt-14" : "mt-10"} flex items-end justify-between gap-4 border-b border-line pb-4`}
       >
         <h2 className="font-display text-[clamp(1.9rem,5vw,3rem)]">
-          Flyers
+          <Editable k="gallery.flyers.title">Flyers</Editable>
         </h2>
         <span className="label text-silverfaint">
-          {String(flyers.length).padStart(2, "0")} SO FAR
+          {String(flyers.length).padStart(2, "0")}{" "}
+          <Editable k="gallery.flyers.countLabel">SO FAR</Editable>
         </span>
       </div>
 
@@ -524,11 +532,12 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
 
       <div className="mt-14 flex items-end justify-between gap-4 border-b border-line pb-4">
         <h2 className="font-display text-[clamp(1.9rem,5vw,3rem)]">
-          From Instagram
+          <Editable k="gallery.instagram.title">From Instagram</Editable>
         </h2>
         {posts.length > 0 && (
           <span className="label text-silverfaint">
-            {String(posts.length).padStart(2, "0")} POSTS
+            {String(posts.length).padStart(2, "0")}{" "}
+            <Editable k="gallery.instagram.countLabel">POSTS</Editable>
           </span>
         )}
       </div>
@@ -576,7 +585,9 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
             ))}
           </div>
           <div className="label flex flex-wrap items-center justify-between gap-4 border-t border-line p-5 text-silverfaint">
-            <span>NEW POSTS DROP HERE</span>
+            <span>
+              <Editable k="gallery.instagram.empty">NEW POSTS DROP HERE</Editable>
+            </span>
             <a
               href={org.instagram}
               target="_blank"

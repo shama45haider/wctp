@@ -5,6 +5,7 @@ import { listEvents, type EventRow } from "./admin-data";
 import { allEvents, findEvent, type Event } from "./events";
 import { isPastEvent } from "./tickets";
 import { useNow } from "./now";
+import { dowOf, poshImageId } from "./posh";
 
 /**
  * The public date list, with anything published from the dashboard folded in
@@ -45,45 +46,9 @@ export type RuntimeEventList = {
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-const DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-
 const UNREACHABLE = "The database did not answer";
 
 const STATIC_SLUGS = new Set(allEvents.map((e) => e.slug));
-
-/**
- * Day of the week for an ISO date, in the fixed three letters the cards print.
- *
- * The events table defaults `dow` to an empty string, so a row written without
- * one still has to render. Parsed and read back in UTC: taken as local time, a
- * date west of Greenwich lands on the previous evening and every flyer in that
- * timezone gets stamped with the wrong day.
- */
-function dowOf(iso: string) {
-  const ms = Date.parse(`${iso}T00:00:00Z`);
-  return Number.isNaN(ms) ? "" : DOW[new Date(ms).getUTCDay()];
-}
-
-const POSH_ORIGINAL = /images\.posh\.vip\/originals\/([A-Za-z0-9_-]+)/;
-
-/**
- * The Posh image id inside a stored flyer link.
- *
- * `Event.imageId` is an id rather than a URL - components/Flyer.tsx builds the
- * CDN link and the whole srcSet from it - so a flyer hosted anywhere else
- * cannot survive the crossing and the card falls back to its no-flyer state.
- * Every flyer this crew makes is already on Posh, which is where the dashboard
- * is copying from.
- */
-function poshImageId(flyerUrl: string | null): string | undefined {
-  const raw = flyerUrl?.trim();
-  if (!raw) return undefined;
-
-  const found = POSH_ORIGINAL.exec(raw);
-  if (found) return found[1];
-  // Someone who pasted the id on its own rather than the whole link.
-  return /^[A-Za-z0-9_-]{16,}$/.test(raw) ? raw : undefined;
-}
 
 /**
  * One row as the rest of the site expects an event to look.

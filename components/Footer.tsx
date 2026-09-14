@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { org } from "@/lib/events";
+import { Editable } from "./Editable";
 import { navLinks } from "./Nav";
 
 export default function Footer() {
@@ -8,9 +9,9 @@ export default function Footer() {
       <div className="mx-auto w-[92vw] max-w-[1180px]">
         <div className="mb-12 flex flex-wrap items-end justify-between gap-8">
           <div className="font-display chrome text-[clamp(2rem,7vw,4.5rem)] leading-[0.9]">
-            WE CAME
+            <Editable k="footer.wordmark.line1">WE CAME</Editable>
             <br />
-            TOO PARTY
+            <Editable k="footer.wordmark.line2">TOO PARTY</Editable>
           </div>
           <div className="label -my-3.5 flex flex-wrap gap-x-6">
             {navLinks.map((l) => (
@@ -28,7 +29,9 @@ export default function Footer() {
           </div>
         </div>
         <div className="label flex flex-wrap justify-between gap-4 border-t border-line pt-6 text-silverfaint">
-          <span>© 2026 WECAMETOOPARTY · NEW YORK CITY</span>
+          <span>
+            <Editable k="footer.copyright">© 2026 WECAMETOOPARTY · NEW YORK CITY</Editable>
+          </span>
           {/* Wraps rather than holding one line: the handle and the address
               together run wider than a 375px phone, and unwrapped they pushed
               the whole document three pixels sideways - every page on the site

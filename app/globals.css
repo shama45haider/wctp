@@ -50,7 +50,52 @@ body::before {
   opacity: 0.035;
   pointer-events: none;
   z-index: 9999;
-  mix-blend-mode: screen;
+}
+
+/* Blending a full-screen fixed layer is re-done on every scroll frame, which
+   a phone GPU feels and a desktop does not. At 3.5% opacity the plain layer
+   looks the same on a dark page. */
+@media (hover: hover) and (pointer: fine) {
+  body::before {
+    mix-blend-mode: screen;
+  }
+}
+
+/* --- touch --- */
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* No double-tap-to-zoom wait on anything tappable. */
+a,
+button,
+input,
+select,
+textarea,
+label,
+summary {
+  touch-action: manipulation;
+}
+
+.tabbar a {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.tabbar a:active {
+  opacity: 0.6;
+}
+
+/* Installed to a home screen there is no browser chrome to pull on, so the
+   rubber-band and pull-to-refresh only read as the "app" coming loose. */
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
 }
 
 /* Drifting dust. Component and rationale in components/Particles.tsx. */
@@ -119,7 +164,7 @@ body::before {
   position: absolute;
   top: -12px;
   display: block;
-  background: hsl(var(--c-hue) 85% 65%);
+  background: hsl(var(--c-hue) 70% 62%);
   /* Starts invisible: the keyframes fade it in once it is on screen. */
   opacity: 0;
   animation-name: confetti-fall;
@@ -143,7 +188,7 @@ body::before {
 }
 
 @media (max-width: 639px) {
-  .confetti span:nth-child(n + 13) {
+  .confetti span:nth-child(n + 8) {
     display: none;
   }
 }
@@ -207,6 +252,49 @@ button.label:not([class*="min-h-"]) {
   outline-offset: 3px;
 }
 
+/* Admin-only pencil after editable text (components/Editable.tsx). It sits
+   inside whatever element holds the text - a chrome gradient heading, an
+   outlined one, a mono label - so every inherited paint trick is reset here,
+   and the 44px hit area comes from ::after rather than the box, so showing
+   the buttons never reflows the page. */
+.edit-pencil {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  width: 1.625rem;
+  height: 1.625rem;
+  margin: -0.5rem 0 -0.5rem 0.4em;
+  padding: 0;
+  border: 1px solid var(--line-hi);
+  border-radius: 999px;
+  background: var(--ink-2);
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--silver);
+  -webkit-text-fill-color: currentColor;
+  -webkit-text-stroke: 0;
+  font: 400 11px/1 var(--font-mono), ui-monospace, monospace;
+  letter-spacing: 0;
+  text-transform: none;
+  text-shadow: none;
+  filter: none;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.edit-pencil::after {
+  content: "";
+  position: absolute;
+  inset: -0.5625rem;
+}
+
+.edit-pencil:hover {
+  border-color: var(--blood-hi);
+  color: var(--white);
+}
+
 @keyframes pulse-dot {
   0% { box-shadow: 0 0 0 0 rgba(232, 33, 63, 0.6); }
   70% { box-shadow: 0 0 0 8px rgba(232, 33, 63, 0); }
@@ -268,31 +356,166 @@ button.label:not([class*="min-h-"]) {
     linear-gradient(-45deg, transparent 47%, var(--line-hi) 47%, var(--line-hi) 53%, transparent 53%);
 }
 
-/* --- rainbow accent ---
-   One thin, slow-moving line of color on an otherwise black-and-silver site -
-   everything else stays monochrome so this reads as a deliberate accent
-   rather than a theme change. Slides rather than pulses so it never
-   competes with .dot for attention. Killed outright by the reduced-motion
-   block above, same as every other animation on the site; the gradient
-   still shows, just as a fixed slice of color rather than a moving one. */
-@keyframes rainbow-flow {
+/* --- raffle (components/Raffle.tsx) ---
+   Gold for first, the site's chrome for second, bronze for third, and a
+   slowly turning rainbow ring that picks up the confetti behind the page.
+   Every animation here falls to the reduced-motion rule above. */
+
+@property --raffle-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes raffle-spin {
+  to {
+    --raffle-angle: 360deg;
+  }
+}
+
+@keyframes raffle-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes raffle-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes raffle-shimmer {
   to {
     background-position: 200% 50%;
   }
 }
 
-.rainbow-edge {
-  background-image: linear-gradient(
-    90deg,
-    #ff5f6d,
-    #ffc371,
-    #f4f97a,
-    #6bffb8,
-    #5ec8ff,
+@keyframes raffle-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  70% {
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes raffle-ping {
+  0% {
+    box-shadow: 0 0 0 0 rgba(246, 226, 122, 0.45);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 16px rgba(246, 226, 122, 0);
+  }
+}
+
+.raffle-backdrop {
+  animation: raffle-fade 0.25s ease-out;
+}
+
+.raffle-ring,
+.raffle-bubble {
+  background: conic-gradient(
+    from var(--raffle-angle),
+    #f6e27a,
+    #ff7ab8,
     #a78bfa,
-    #ff5f6d
+    #5ec8ff,
+    #6bffb8,
+    #f6e27a
   );
+}
+
+.raffle-ring {
+  padding: 1px;
+  animation:
+    raffle-spin 7s linear infinite,
+    raffle-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow:
+    0 40px 120px -40px rgba(246, 226, 122, 0.35),
+    0 30px 80px -30px rgba(0, 0, 0, 0.9);
+}
+
+.raffle-glow {
+  background: radial-gradient(
+    closest-side,
+    rgba(246, 226, 122, 0.2),
+    rgba(255, 122, 184, 0.09) 55%,
+    transparent
+  );
+}
+
+.raffle-gold,
+.raffle-silver,
+.raffle-bronze {
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.raffle-gold {
+  background-image: linear-gradient(180deg, #fff7d1 0%, #f6e27a 32%, #c9962b 55%, #fff1b0 78%, #b8860b 100%);
+  filter: drop-shadow(0 6px 22px rgba(246, 226, 122, 0.28));
+}
+
+.raffle-silver {
+  background-image: linear-gradient(180deg, #ffffff 0%, #cfd4dc 35%, #7d848e 56%, #eef1f5 80%, #98a0aa 100%);
+}
+
+.raffle-bronze {
+  background-image: linear-gradient(180deg, #ffe0c2 0%, #e0a36b 35%, #8c4a1f 58%, #f0b98a 80%, #9a5a2c 100%);
+}
+
+.raffle-cta {
+  background-image: linear-gradient(100deg, #f6e27a, #fff7d1 25%, #ffb8dc 50%, #bde9ff 75%, #f6e27a);
   background-size: 200% 100%;
-  animation: rainbow-flow 14s linear infinite;
-  opacity: 0.55;
+  animation: raffle-shimmer 5s linear infinite;
+  color: var(--void);
+  box-shadow: 0 18px 50px -18px rgba(246, 226, 122, 0.6);
+}
+
+.raffle-cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.raffle-coin {
+  background: linear-gradient(135deg, #f6e27a, #fff5c7 45%, #b8860b);
+}
+
+.raffle-bubble {
+  border-radius: 999px;
+  padding: 1.5px;
+  animation:
+    raffle-spin 4s linear infinite,
+    raffle-pop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1),
+    raffle-ping 2.8s ease-out 1s infinite;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.raffle-bubble:active {
+  transform: scale(0.96);
+}
+
+.raffle-entrants {
+  scrollbar-width: thin;
+}
+
+.raffle-wheel-glow {
+  background: radial-gradient(
+    closest-side,
+    rgba(246, 226, 122, 0.16),
+    rgba(167, 139, 250, 0.08) 62%,
+    transparent
+  );
 }

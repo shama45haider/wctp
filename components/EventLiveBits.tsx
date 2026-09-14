@@ -1,6 +1,7 @@
 "use client";
 
 import Flyer from "./Flyer";
+import { Editable } from "./Editable";
 import type { Event } from "@/lib/events";
 import { useNow } from "@/lib/now";
 import { isPastEvent, money, priceFrom, saleState } from "@/lib/tickets";
@@ -35,13 +36,13 @@ export function EventFlyer({ event }: { event: Event }) {
       />
       {onSale && (
         <span className="label absolute bottom-0 left-0 bg-void/85 px-2.5 py-1.5 text-bloodhi">
-          ON SALE NOW
+          <Editable k="event.flyer.onSale">ON SALE NOW</Editable>
         </span>
       )}
     </>
   ) : (
     <div className="hairline-x label flex h-full items-center justify-center text-silverfaint">
-      NO FLYER
+      <Editable k="event.flyer.none">NO FLYER</Editable>
     </div>
   );
 }
@@ -56,7 +57,13 @@ export function EventFromStat({ event }: { event: Event }) {
   // plainly rather than as the start of a range.
   return (
     <div>
-      <div className="label mb-1 text-silverfaint">{from > 0 ? "FROM" : "PRICE"}</div>
+      <div className="label mb-1 text-silverfaint">
+        {from > 0 ? (
+          <Editable k="event.stats.from">FROM</Editable>
+        ) : (
+          <Editable k="event.stats.price">PRICE</Editable>
+        )}
+      </div>
       <div className="font-display text-2xl">{money(from)}</div>
     </div>
   );

@@ -62,13 +62,17 @@ create table if not exists public.team_members (
 
 alter table public.team_members enable row level security;
 
+drop policy if exists "anyone reads team" on public.team_members;
 create policy "anyone reads team" on public.team_members for select
   using (true);
 
+drop policy if exists "admins write team" on public.team_members;
 create policy "admins write team" on public.team_members for insert
   with check (public.is_admin());
+drop policy if exists "admins update team" on public.team_members;
 create policy "admins update team" on public.team_members for update
   using (public.is_admin());
+drop policy if exists "admins delete team" on public.team_members;
 create policy "admins delete team" on public.team_members for delete
   using (public.is_admin());
 
@@ -94,12 +98,16 @@ alter table public.gallery_items enable row level security;
 
 -- Drafts stay with the admin who wrote them, the same rule public.events
 -- uses for an unpublished date.
+drop policy if exists "anyone reads published gallery" on public.gallery_items;
 create policy "anyone reads published gallery" on public.gallery_items for select
   using (published or public.is_admin());
 
+drop policy if exists "admins write gallery" on public.gallery_items;
 create policy "admins write gallery" on public.gallery_items for insert
   with check (public.is_admin());
+drop policy if exists "admins update gallery" on public.gallery_items;
 create policy "admins update gallery" on public.gallery_items for update
   using (public.is_admin());
+drop policy if exists "admins delete gallery" on public.gallery_items;
 create policy "admins delete gallery" on public.gallery_items for delete
   using (public.is_admin());

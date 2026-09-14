@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import TicketPicker from "@/components/TicketPicker";
 import { EventFlyer, EventFromStat } from "@/components/EventLiveBits";
+import { Editable } from "@/components/Editable";
 import { allEvents, findEvent, monthOf, dayOf, org } from "@/lib/events";
 import { money, priceFrom } from "@/lib/tickets";
+import { eventShareMetadata, findEventForSharing } from "@/lib/share-events";
 
 export const dynamicParams = false;
 
@@ -20,17 +22,27 @@ export async function generateMetadata({
   const event = findEvent(slug);
   if (!event) return {};
   const from = priceFrom(event);
+  const title = `${event.title} · WECAMETOOPARTY`;
+  const description = `${event.dow} ${dayOf(event.date)} ${monthOf(event.date)}, ${
+    event.time
+  } · address emailed to the list before the night${
+    from === null
+      ? ""
+      : from > 0
+        ? ` · tickets from ${money(from)}`
+        : " · free entry"
+  }.`;
   return {
-    title: `${event.title} · WECAMETOOPARTY`,
-    description: `${event.dow} ${dayOf(event.date)} ${monthOf(event.date)}, ${
-      event.time
-    } · address emailed to the list before the night${
-      from === null
-        ? ""
-        : from > 0
-          ? ` · tickets from ${money(from)}`
-          : " · free entry"
-    }.`,
+    title,
+    description,
+    // The preview uses this event's own flyer, including one swapped in from
+    // the dashboard since the last push.
+    ...eventShareMetadata({
+      event: findEventForSharing(slug) ?? event,
+      url: `/events/${event.slug}/`,
+      title,
+      description,
+    }),
   };
 }
 
@@ -70,27 +82,38 @@ export default async function EventPage({
 
           <div className="mt-7 grid grid-cols-2 gap-x-8 gap-y-6 border-y border-line py-6 sm:flex sm:flex-wrap sm:gap-x-12">
             <div>
-              <div className="label mb-1 text-silverfaint">WHEN</div>
+              <div className="label mb-1 text-silverfaint">
+                <Editable k="event.stats.when">WHEN</Editable>
+              </div>
               <div className="font-display text-2xl">
                 {event.dow} {dayOf(event.date)} {monthOf(event.date)}
               </div>
               <div className="label mt-1 text-silverdim">
                 {event.time}
-                {event.endTime && ` – ${event.endTime}`} EDT
+                {event.endTime && ` – ${event.endTime}`}{" "}
+                <Editable k="event.stats.timezone">EDT</Editable>
               </div>
             </div>
             {/* Never an address. Where a night happens goes out by email to
                 the list, and only there - see lib/events.ts. */}
             <div>
-              <div className="label mb-1 text-silverfaint">WHERE</div>
-              <div className="font-display text-2xl">By email</div>
+              <div className="label mb-1 text-silverfaint">
+                <Editable k="event.stats.where">WHERE</Editable>
+              </div>
+              <div className="font-display text-2xl">
+                <Editable k="event.stats.whereValue">By email</Editable>
+              </div>
               <div className="label mt-1 text-silverdim">
-                Sent to everyone on the list before the night
+                <Editable k="event.stats.whereNote">
+                  Sent to everyone on the list before the night
+                </Editable>
               </div>
             </div>
             {typeof event.going === "number" && (
               <div>
-                <div className="label mb-1 text-silverfaint">GOING</div>
+                <div className="label mb-1 text-silverfaint">
+                  <Editable k="event.stats.going">GOING</Editable>
+                </div>
                 <div className="font-display text-2xl">{event.going}</div>
               </div>
             )}

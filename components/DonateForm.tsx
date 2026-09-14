@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usd } from "@/lib/tickets";
 import { btn, btnGo, field } from "@/lib/ui";
+import { Editable } from "./Editable";
 
 /**
  * A gift, taken the same way the "TEST MODE" step in checkout already takes
@@ -85,12 +86,16 @@ export default function DonateForm() {
   if (phase === "done") {
     return (
       <div className="mt-8 border border-line bg-ink p-6">
-        <p className="label text-bloodhi">THANK YOU</p>
+        <p className="label text-bloodhi">
+          <Editable k="donate.done.eyebrow">THANK YOU</Editable>
+        </p>
         <h2 className="font-display chrome mt-2 text-[clamp(1.75rem,6vw,2.5rem)] leading-[0.9]">
-          {usd(given)} given
+          {usd(given)} <Editable k="donate.done.givenLabel">given</Editable>
         </h2>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-          It goes straight into the next date. See you there.
+          <Editable k="donate.done.blurb">
+            It goes straight into the next date. See you there.
+          </Editable>
         </p>
         <div className="mt-6 flex flex-col gap-3">
           <Link href="/tickets" className={btnGo}>
@@ -110,7 +115,7 @@ export default function DonateForm() {
     <form onSubmit={submit} className="mt-8 flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <label htmlFor="donate-amount" className="label text-silverfaint">
-          AMOUNT
+          <Editable k="donate.form.amountLabel">AMOUNT</Editable>
         </label>
         <div className="flex items-center">
           <span className="label border border-r-0 border-line px-3.5 py-2.5 text-silverfaint">
@@ -133,7 +138,7 @@ export default function DonateForm() {
 
       <div className="flex flex-col gap-2">
         <label htmlFor="donate-name" className="label text-silverfaint">
-          NAME
+          <Editable k="donate.form.nameLabel">NAME</Editable>
         </label>
         <input
           id="donate-name"
@@ -150,7 +155,7 @@ export default function DonateForm() {
 
       <div className="flex flex-col gap-2">
         <label htmlFor="donate-email" className="label text-silverfaint">
-          EMAIL
+          <Editable k="donate.form.emailLabel">EMAIL</Editable>
         </label>
         <input
           id="donate-email"
@@ -167,13 +172,17 @@ export default function DonateForm() {
           className={field}
         />
         <p className="label leading-loose text-silverfaint">
-          FOR A RECEIPT ONLY. NOT AN ACCOUNT AND NOT A TICKET.
+          <Editable k="donate.form.emailNote">
+            FOR A RECEIPT ONLY. NOT AN ACCOUNT AND NOT A TICKET.
+          </Editable>
         </p>
       </div>
 
       {!paying && (
         <div className="label border border-[rgba(200,16,46,0.5)] px-3 py-2.5 text-bloodhi">
-          TEST MODE · NO CARD IS CHARGED AND NO CARD DETAILS ARE TAKEN
+          <Editable k="donate.form.testMode">
+            TEST MODE · NO CARD IS CHARGED AND NO CARD DETAILS ARE TAKEN
+          </Editable>
         </div>
       )}
 

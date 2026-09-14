@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Editable } from "@/components/Editable";
 import { org } from "@/lib/events";
 import { handleProblem, normalizeHandle } from "@/lib/handle";
 import { requestSignupCode, verifySignupCode } from "@/lib/signup-code";
@@ -316,11 +317,13 @@ export default function SignUp() {
     return (
       <main className="mx-auto w-[92vw] max-w-[460px] py-[clamp(3rem,10vw,6rem)]">
         <h1 className="font-display chrome text-[clamp(2rem,8vw,3.25rem)] leading-[0.85]">
-          Sign up
+          <Editable k="signup.offline.title">Sign up</Editable>
         </h1>
         <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
-          Accounts are not connected in this build, so there is nothing to sign
-          up to yet.
+          <Editable k="signup.offline.body">
+            Accounts are not connected in this build, so there is nothing to sign
+            up to yet.
+          </Editable>
         </p>
         <Link href="/tickets" className={`${btnGo} mt-7 w-full`}>
           See the dates
@@ -333,10 +336,10 @@ export default function SignUp() {
     return (
       <main className="mx-auto w-[92vw] max-w-[460px] py-[clamp(3rem,10vw,6rem)]">
         <h1 className="font-display chrome text-[clamp(2rem,8vw,3.25rem)] leading-[0.85]">
-          Already in
+          <Editable k="signup.signedIn.title">Already in</Editable>
         </h1>
         <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
-          You&rsquo;re signed in as{" "}
+          <Editable k="signup.signedIn.lead">You&rsquo;re signed in as</Editable>{" "}
           <span className="break-all text-chalk">{user.email}</span>.
         </p>
         <Link href="/account" className={`${btnGo} mt-7 w-full`}>
@@ -358,24 +361,32 @@ export default function SignUp() {
     return (
       <main className="mx-auto w-[92vw] max-w-[460px] py-[clamp(3rem,10vw,6rem)]">
         <span className="label border border-line px-3 py-2 text-silverfaint">
-          {signedIn ? "ONE LAST THING" : "CHECK YOUR EMAIL"}
+          {signedIn ? (
+            <Editable k="signup.made.badgeSignedIn">ONE LAST THING</Editable>
+          ) : (
+            <Editable k="signup.made.badgeCheckEmail">CHECK YOUR EMAIL</Editable>
+          )}
         </span>
 
         <h1 className="font-display chrome mt-7 text-[clamp(2rem,8vw,3.25rem)] leading-[0.85]">
-          Verify your age
+          <Editable k="signup.made.title">Verify your age</Editable>
         </h1>
 
         <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
           {signedIn ? (
             <>
-              Our nights are {MIN_AGE}+, and this is the one thing left before
-              the account is any use. Send a photo of your ID and a person
-              checks it by hand, which takes a little while. You&rsquo;ll hear
-              back from <span className="break-all text-chalk">{org.email}</span>
-              - nothing here RSVPs to anything until it&rsquo;s approved.
+              <Editable k="signup.made.verifyBody">
+                {`Our nights are ${MIN_AGE}+, and this is the one thing left before the account is any use. Send a photo of your ID and a person checks it by hand, which takes a little while. You’ll hear back from`}
+              </Editable>{" "}
+              <span className="break-all text-chalk">{org.email}</span>
+              <Editable k="signup.made.verifyBodyAfter">
+                - nothing here RSVPs to anything until it&rsquo;s approved.
+              </Editable>
             </>
           ) : (
-            "Your account is made. Confirm the address from the email we just sent, sign in, and the age check is the next thing you'll see."
+            <Editable k="signup.made.checkEmailBody">
+              Your account is made. Confirm the address from the email we just sent, sign in, and the age check is the next thing you&apos;ll see.
+            </Editable>
           )}
         </p>
 
@@ -452,20 +463,23 @@ export default function SignUp() {
         }}
       >
         <label htmlFor={step.key} className="label text-silverfaint">
-          {step.label}
+          <Editable k={`signup.step.${step.key}.label`}>{step.label}</Editable>
         </label>
 
         <h1 className="font-display chrome mt-2 text-[clamp(1.75rem,7vw,2.5rem)] leading-[0.95]">
           {step.key === "code" ? (
-            <>What&rsquo;s the code we sent {answers.email}?</>
+            <>
+              <Editable k="signup.step.code.question">What&rsquo;s the code we sent</Editable>{" "}
+              {answers.email}?
+            </>
           ) : (
-            step.question
+            <Editable k={`signup.step.${step.key}.question`}>{step.question}</Editable>
           )}
         </h1>
 
         {step.hint && (
           <p className="mt-3 text-[0.9375rem] leading-relaxed text-silverdim">
-            {step.hint}
+            <Editable k={`signup.step.${step.key}.hint`}>{step.hint}</Editable>
           </p>
         )}
 
