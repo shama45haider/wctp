@@ -91,3 +91,17 @@ npx supabase functions deploy verify-signup-code --project-ref mkcuiglmsmxcchywr
 Both need `RESEND_API_KEY` and, optionally, `EMAIL_FROM` - already set if `send-email` is deployed, since secrets are shared across every function in the project. They also need `SUPABASE_SERVICE_ROLE_KEY`, which Supabase sets on every Edge Function automatically; nothing to add there.
 
 Once this is live, turn off Supabase's own "Confirm email" (**Authentication → Providers → Email**) - see the note above.
+
+## Donate
+
+`/donate` takes a real payment through Stripe Checkout - a guest never types a card number into this site. `components/DonateForm.tsx` asks `supabase/functions/create-donation-checkout` to start a session and sends the browser to the URL it returns; Stripe sends it back to `/donate` with `?success=1&session_id=…` or `?canceled=1`, and `donation-status` reads the session back from Stripe itself so the thank-you screen shows what was actually paid, not what the browser remembers typing before it left the site.
+
+No sign-in and no database row: a gift here isn't attached to an account, same as it always wasn't. Stripe's own dashboard is the ledger - every payment, receipt and refund lives there.
+
+```bash
+npx supabase secrets set STRIPE_SECRET_KEY=sk_live_your_real_key
+npx supabase functions deploy create-donation-checkout --project-ref mkcuiglmsmxcchywruay
+npx supabase functions deploy donation-status --project-ref mkcuiglmsmxcchywruay
+```
+
+Use a `sk_test_…` key first and pay with Stripe's [test card](https://stripe.com/docs/testing) `4242 4242 4242 4242`, any future expiry, any CVC, to prove the whole path end to end before switching to a live key. Nothing else to configure - both functions read the amount, name and email straight off the request, and the redirect back only ever lands on `wecametooparty.com` or `localhost:3000`, whichever the request came from.

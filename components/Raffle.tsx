@@ -339,7 +339,7 @@ export default function Raffle() {
                       </span>
                     )}
                     {p.items.length > 0 && (
-                      <ul className="mt-1.5 flex flex-col gap-0.5 text-[0.75rem] leading-tight font-medium break-words">
+                      <ul className="raffle-glare mt-1.5 flex flex-col gap-0.5 text-[0.75rem] leading-tight font-bold break-words">
                         {p.items.map((item, j) => (
                           <li key={j}>{item}</li>
                         ))}
