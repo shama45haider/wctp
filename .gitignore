@@ -42,3 +42,6 @@ next-env.d.ts
 
 # instagram feed, fetched at build time
 /data/instagram.json
+
+# supabase cli local state
+/supabase/.temp/

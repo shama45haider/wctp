@@ -5,34 +5,52 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { org } from "@/lib/events";
 import { handleProblem, normalizeHandle } from "@/lib/handle";
+import { requestSignupCode, verifySignupCode } from "@/lib/signup-code";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { btn, btnGo, field } from "@/lib/ui";
 
 /**
- * Sign up, one question at a time.
+ * Sign up, one question at a time - email and a code first, then everything
+ * else.
  *
  * Built for a phone held in one hand at a bar, which is where most of these
  * actually happen: one field per screen, the keyboard already open on it, and
- * a thumb-sized button underneath. A single form with six stacked inputs is
- * faster to build and worse to fill in - on a small screen the keyboard covers
- * half of it, and every validation error appears somewhere the guest has to go
- * looking for.
+ * a thumb-sized button underneath.
  *
- * First name, age, Instagram handle and phone go up as sign-up metadata rather
- * than being written afterwards. handle_new_user reads them when it creates
- * the profile row, and that trigger fires on the auth user rather than on a
- * session - so they survive email confirmation, which otherwise leaves no
- * signed-in moment to write them in and would mean asking twice.
+ * The account does not exist until the email does: submitting the email
+ * sends a 6-digit code (request-signup-code), and only a correct code
+ * (verify-signup-code) unlocks the rest of the form. handle_new_user() -
+ * see supabase/migrations/0013_verify_email_before_signup.sql - checks for
+ * that same proof again and refuses the insert outright if it is missing,
+ * so the guarantee holds even against a call that skips this page entirely.
+ * That is also why this is a real difference from Supabase's own "Confirm
+ * email": that one creates the account first and asks afterward, which is
+ * exactly the gap this closes.
+ *
+ * First name, age, Instagram handle and phone still go up as sign-up
+ * metadata rather than being written afterwards, for the same reason as
+ * before: handle_new_user reads them off the auth user, not a session, so
+ * they survive whatever Supabase's own confirmation setting happens to be.
  *
  * The handle is the account's name: it goes on the ticket and it is what the
  * door reads off a screen, so it is asked for as itself and checked the way
  * Instagram would check it. No surname is asked anywhere. The age is what the
  * guest says it is - the age check, a person reading a photo of their ID
  * afterwards, is what decides whether they are cleared.
+ *
+ * The ID itself is still not one of these questions. Uploading a photo needs
+ * a signed-in session to attach it to, and whether one exists the instant
+ * signUp() resolves depends on whether Supabase's own "Confirm email" is
+ * still switched on for this project - see the made screen below, which
+ * reads that live rather than assuming either way. What this page does
+ * regardless is make sure nobody mistakes the gap for a way out: the screen
+ * after signing up offers exactly one button forward, straight into
+ * /verify, and nothing to skip it with.
  */
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CODE = /^\d{6}$/;
 const MIN_PASSWORD = 6;
 const MIN_AGE = 18;
 
@@ -40,10 +58,11 @@ const MIN_AGE = 18;
 const digitsOf = (s: string) => s.replace(/\D/g, "");
 
 type Answers = {
+  email: string;
+  code: string;
   firstName: string;
   age: string;
   instagram: string;
-  email: string;
   password: string;
   phone: string;
 };
@@ -64,6 +83,29 @@ type Step = {
 };
 
 const STEPS: Step[] = [
+  {
+    key: "email",
+    label: "EMAIL",
+    question: "What's your email?",
+    hint: "We'll send a 6-digit code to make sure it's really yours before anything else.",
+    type: "email",
+    autoComplete: "email",
+    inputMode: "email",
+    placeholder: "you@example.com",
+    check: (v) => (EMAIL.test(v.trim()) ? null : "That email doesn't look right."),
+  },
+  {
+    key: "code",
+    label: "CODE",
+    question: "What's the code?",
+    hint: "Check your inbox - it expires in 15 minutes.",
+    type: "text",
+    autoComplete: "one-time-code",
+    inputMode: "numeric",
+    pattern: "[0-9]*",
+    placeholder: "123456",
+    check: (v) => (CODE.test(v.trim()) ? null : "Enter the 6-digit code."),
+  },
   {
     key: "firstName",
     label: "FIRST NAME",
@@ -104,17 +146,6 @@ const STEPS: Step[] = [
     check: handleProblem,
   },
   {
-    key: "email",
-    label: "EMAIL",
-    question: "What's your email?",
-    hint: "Tickets and the address on the night go here.",
-    type: "email",
-    autoComplete: "email",
-    inputMode: "email",
-    placeholder: "you@example.com",
-    check: (v) => (EMAIL.test(v.trim()) ? null : "That email doesn't look right."),
-  },
-  {
     key: "password",
     label: "PASSWORD",
     question: "Pick a password.",
@@ -150,15 +181,24 @@ export default function SignUp() {
 
   const [at, setAt] = useState(0);
   const [answers, setAnswers] = useState<Answers>({
+    email: "",
+    code: "",
     firstName: "",
     age: "",
     instagram: "",
-    email: "",
     password: "",
     phone: "",
   });
   const [problem, setProblem] = useState<string | null>(null);
+  // A non-error confirmation, distinct from `problem` so "we sent it again"
+  // does not paint itself in the same red as something going wrong.
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The exact address a code has been confirmed for. Compared against the
+  // live value on the email step so going back to look at it, then forward
+  // again without changing anything, does not burn the code that already
+  // worked and send a guest back to their inbox for no reason.
+  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   // Set once the account exists. Whether a session came with it is read live
   // below rather than captured here: signUp resolving and the auth listener
   // firing are two different moments, so asking at this one would show "check
@@ -180,12 +220,24 @@ export default function SignUp() {
 
   const set = (v: string) => {
     setProblem(null);
+    setNotice(null);
     setAnswers((a) => ({ ...a, [step.key]: v }));
   };
 
   const back = () => {
     setProblem(null);
+    setNotice(null);
     setAt((i) => Math.max(0, i - 1));
+  };
+
+  const resend = async () => {
+    setBusy(true);
+    setProblem(null);
+    setNotice(null);
+    const out = await requestSignupCode(answers.email);
+    setBusy(false);
+    if (!out.ok) return setProblem(out.error ?? "Could not send a code.");
+    setNotice("Sent again.");
   };
 
   const submit = async () => {
@@ -204,6 +256,36 @@ export default function SignUp() {
     const wrong = step.check(value);
     if (wrong) return setProblem(wrong);
 
+    // The email step's job is not "is this shaped like an email" - check()
+    // already did that - it is "send a code", and skip straight past the
+    // code screen too when this exact address already has a live one.
+    if (step.key === "email") {
+      const clean = value.trim().toLowerCase();
+      if (verifiedEmail === clean) {
+        setAt((i) => i + 2);
+        return;
+      }
+      setBusy(true);
+      setProblem(null);
+      setNotice(null);
+      const out = await requestSignupCode(clean);
+      setBusy(false);
+      if (!out.ok) return setProblem(out.error ?? "Could not send a code.");
+      setAt((i) => i + 1);
+      return;
+    }
+
+    if (step.key === "code") {
+      setBusy(true);
+      setProblem(null);
+      const out = await verifySignupCode(answers.email, value);
+      setBusy(false);
+      if (!out.ok) return setProblem(out.error ?? "That code is not right.");
+      setVerifiedEmail(answers.email.trim().toLowerCase());
+      setAt((i) => i + 1);
+      return;
+    }
+
     if (!last) {
       setAt((i) => i + 1);
       return;
@@ -215,8 +297,9 @@ export default function SignUp() {
     setBusy(false);
 
     if (!out.ok) {
-      // Sent back to the email screen when that is what was refused, since
-      // "already registered" is the common one and the fix is up there.
+      // The code proved the address is theirs, not that nobody has already
+      // signed up with it - Supabase still checks that itself, here, same
+      // as before this page asked for a code at all.
       if (/registered|already/i.test(out.error ?? "")) {
         setAt(EMAIL_STEP);
         setProblem("There's already an account on that email. Sign in instead.");
@@ -266,8 +349,11 @@ export default function SignUp() {
   // ------------------------------------------------------- the last screen --
 
   if (made) {
-    // Live, not captured: with confirmation off a session lands moments after
-    // signUp resolves, and this screen should follow it when it does.
+    // Live, not captured: whether a session lands the instant signUp
+    // resolves depends on whether Supabase's own "Confirm email" is still
+    // switched on for this project - this page's own code already proved
+    // the address either way, so that setting is worth turning off, but
+    // reading this live means the screen is still correct even until it is.
     const signedIn = Boolean(user);
     return (
       <main className="mx-auto w-[92vw] max-w-[460px] py-[clamp(3rem,10vw,6rem)]">
@@ -282,26 +368,25 @@ export default function SignUp() {
         <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
           {signedIn ? (
             <>
-              Our nights are {MIN_AGE}+. Send a photo of your ID and a person
+              Our nights are {MIN_AGE}+, and this is the one thing left before
+              the account is any use. Send a photo of your ID and a person
               checks it by hand, which takes a little while. You&rsquo;ll hear
-              back from <span className="break-all text-chalk">{org.email}</span>,
-              and you can&rsquo;t RSVP until it&rsquo;s approved.
+              back from <span className="break-all text-chalk">{org.email}</span>
+              - nothing here RSVPs to anything until it&rsquo;s approved.
             </>
           ) : (
-            "Your account is made. Confirm the address from the email we just sent, sign in, and the age check is the last step."
+            "Your account is made. Confirm the address from the email we just sent, sign in, and the age check is the next thing you'll see."
           )}
         </p>
 
         <div className="mt-8 flex flex-col gap-3">
           {signedIn ? (
-            <>
-              <button onClick={() => router.push("/verify")} className={btnGo}>
-                Verify my age
-              </button>
-              <Link href="/tickets" className={btn}>
-                Later - show me the dates
-              </Link>
-            </>
+            // No second button here on purpose - see the file's header
+            // comment. An account with nothing left to skip to is worth
+            // more than one more click saved today.
+            <button onClick={() => router.push("/verify")} className={btnGo}>
+              Verify my age
+            </button>
           ) : (
             <>
               <Link href="/login" className={btnGo}>
@@ -318,6 +403,22 @@ export default function SignUp() {
   }
 
   // ------------------------------------------------------------ the slides --
+
+  const buttonLabel = busy
+    ? step.key === "email"
+      ? "Sending…"
+      : step.key === "code"
+        ? "Checking…"
+        : last
+          ? "Making your account…"
+          : "Working…"
+    : step.key === "email"
+      ? "Send code"
+      : step.key === "code"
+        ? "Verify"
+        : last
+          ? "Create account"
+          : "Continue";
 
   return (
     <main className="mx-auto flex w-[92vw] max-w-[460px] flex-col py-[clamp(2.5rem,8vw,5rem)]">
@@ -355,7 +456,11 @@ export default function SignUp() {
         </label>
 
         <h1 className="font-display chrome mt-2 text-[clamp(1.75rem,7vw,2.5rem)] leading-[0.95]">
-          {step.question}
+          {step.key === "code" ? (
+            <>What&rsquo;s the code we sent {answers.email}?</>
+          ) : (
+            step.question
+          )}
         </h1>
 
         {step.hint && (
@@ -385,10 +490,26 @@ export default function SignUp() {
             {problem}
           </p>
         )}
+        {notice && !problem && (
+          <p className="label mt-3 text-silverdim" role="status">
+            {notice}
+          </p>
+        )}
 
         <button type="submit" disabled={busy} className={`${btnGo} mt-7 w-full`}>
-          {busy ? "Making your account…" : last ? "Create account" : "Continue"}
+          {buttonLabel}
         </button>
+
+        {step.key === "code" && (
+          <button
+            type="button"
+            onClick={() => void resend()}
+            disabled={busy}
+            className="label mt-4 w-full text-silverfaint transition-colors hover:text-chalk"
+          >
+            RESEND THE CODE
+          </button>
+        )}
 
         {at > 0 && (
           <button
