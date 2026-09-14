@@ -206,8 +206,23 @@ export const maxSelectable = (t: Tier) => Math.min(t.maxPerOrder, remaining(t));
  * browser, the picker - passes one from useNow() instead; that is the one
  * change that lets an event's date crossing the real "now" move it into the
  * archive without a rebuild. See lib/now.ts.
+ *
+ * Compared as calendar days, not instants: `new Date(e.date)` on its own
+ * parses an ISO date-only string as UTC midnight, which in any timezone west
+ * of UTC lands hours *before* that date even begins locally - an event dated
+ * today could already read as past that same morning, or one dated tomorrow
+ * as past this evening. Pulling the event's own year/month/day out of the
+ * string and building a *local* midnight from them, then comparing against
+ * `now`'s own local midnight, means a night stays "upcoming" for the whole
+ * calendar day it happens on and only drops into the archive once the next
+ * day has actually started on the visitor's own clock.
  */
-export const isPastEvent = (e: Event, now: Date = TODAY) => new Date(e.date) < now;
+export function isPastEvent(e: Event, now: Date = TODAY): boolean {
+  const [year, month, day] = e.date.split("-").map(Number);
+  const eventDay = new Date(year, month - 1, day);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return eventDay < today;
+}
 
 export type SaleState = "on-sale" | "sold-out" | "closed";
 
