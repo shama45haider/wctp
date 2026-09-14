@@ -394,6 +394,11 @@ export default function Admin() {
   const [resetting, setResetting] = useState<string | null>(null);
   const [resetError, setResetError] = useState<{ id: string; message: string } | null>(null);
   const [partyQuery, setPartyQuery] = useState("");
+  // Filters the top-level event grid, and the ACCOUNTS and AGE REVIEW tabs -
+  // each is its own box since they search different rows for different words.
+  const [eventQuery, setEventQuery] = useState("");
+  const [accountQuery, setAccountQuery] = useState("");
+  const [reviewQuery, setReviewQuery] = useState("");
   // The one revoke in flight, keyed so only its own button says "working".
   const [revoking, setRevoking] = useState<string | null>(null);
   const [revokeError, setRevokeError] = useState<{ key: string; message: string } | null>(null);
@@ -536,6 +541,15 @@ export default function Admin() {
   // dates had passed.
   const upcomingEvents = runtimeEvents.upcoming;
   const pastEvents = runtimeEvents.past;
+
+  const eq = eventQuery.trim().toLowerCase();
+  const matchesEvent = (e: { title: string; dow: string; date: string }) =>
+    !eq ||
+    e.title.toLowerCase().includes(eq) ||
+    e.dow.toLowerCase().includes(eq) ||
+    e.date.toLowerCase().includes(eq);
+  const shownUpcoming = upcomingEvents.filter(matchesEvent);
+  const shownPast = pastEvents.filter(matchesEvent);
 
   // Orders for a slug the current event list does not recognise - a deleted
   // or renamed event, most likely. Folded out separately so the total below
@@ -715,6 +729,26 @@ export default function Admin() {
   // ------------------------------------------------------------- dashboard --
 
   const pending = queue.kind === "ready" ? queue.rows.length : null;
+
+  const aq = accountQuery.trim().toLowerCase();
+  const matchesAccount = (a: AccountRow) =>
+    !aq ||
+    a.name.toLowerCase().includes(aq) ||
+    (a.firstName ?? "").toLowerCase().includes(aq) ||
+    a.email.toLowerCase().includes(aq) ||
+    (a.instagram ?? "").toLowerCase().includes(aq) ||
+    (a.phone ?? "").toLowerCase().includes(aq);
+  const shownAccounts = accounts.kind === "ready" ? accounts.rows.filter(matchesAccount) : [];
+
+  const rq = reviewQuery.trim().toLowerCase();
+  const matchesReview = (v: VerificationRow) =>
+    !rq ||
+    (v.profile?.name ?? "").toLowerCase().includes(rq) ||
+    (v.profile?.firstName ?? "").toLowerCase().includes(rq) ||
+    (v.profile?.email ?? "").toLowerCase().includes(rq) ||
+    (v.profile?.instagram ?? "").toLowerCase().includes(rq) ||
+    v.userId.toLowerCase().includes(rq);
+  const shownQueue = queue.kind === "ready" ? queue.rows.filter(matchesReview) : [];
 
   /**
    * Revoke, then re-read every order rather than patching one row in place.
@@ -925,15 +959,34 @@ export default function Admin() {
                     )}
                   </Panel>
 
+                  {/* -------------------------------------------- search -- */}
+                  {(upcomingEvents.length > 0 || pastEvents.length > 0) && (
+                    <Panel>
+                      <PanelBody>
+                        <input
+                          value={eventQuery}
+                          onChange={(ev) => setEventQuery(ev.target.value)}
+                          placeholder="Find a party by name or date"
+                          aria-label="Search parties"
+                          className={`${field} w-full`}
+                        />
+                      </PanelBody>
+                    </Panel>
+                  )}
+
                   {/* ------------------------------------------ upcoming -- */}
                   <Panel>
-                    <PanelHead title="UPCOMING" count={upcomingEvents.length} />
+                    <PanelHead title="UPCOMING" count={shownUpcoming.length} />
                     <PanelBody>
-                      {upcomingEvents.length === 0 ? (
-                        <Empty>No upcoming dates on the list right now.</Empty>
+                      {shownUpcoming.length === 0 ? (
+                        <Empty>
+                          {eq
+                            ? "No upcoming date matches that."
+                            : "No upcoming dates on the list right now."}
+                        </Empty>
                       ) : (
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                          {upcomingEvents.map((e) => {
+                          {shownUpcoming.map((e) => {
                             const st = statsBySlug.get(e.slug) ?? emptyStats();
                             return (
                               <button
@@ -989,10 +1042,13 @@ export default function Admin() {
                   {/* ---------------------------------------------- past -- */}
                   {pastEvents.length > 0 && (
                     <Panel>
-                      <PanelHead title="PAST" count={pastEvents.length} />
+                      <PanelHead title="PAST" count={shownPast.length} />
                       <PanelBody>
+                        {shownPast.length === 0 ? (
+                          <Empty>No past date matches that.</Empty>
+                        ) : (
                         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 xl:grid-cols-6">
-                          {pastEvents.map((e) => {
+                          {shownPast.map((e) => {
                             const st = statsBySlug.get(e.slug) ?? emptyStats();
                             return (
                               <button
@@ -1028,6 +1084,7 @@ export default function Admin() {
                             );
                           })}
                         </div>
+                        )}
                       </PanelBody>
                     </Panel>
                   )}
@@ -1315,8 +1372,20 @@ export default function Admin() {
             <Panel>
               <PanelHead
                 title="ACCOUNTS"
-                count={accounts.kind === "ready" ? accounts.rows.length : "—"}
+                count={accounts.kind === "ready" ? shownAccounts.length : "—"}
               />
+
+              {accounts.kind === "ready" && accounts.rows.length > 0 && (
+                <div className="border-b border-line px-4 py-3">
+                  <input
+                    value={accountQuery}
+                    onChange={(ev) => setAccountQuery(ev.target.value)}
+                    placeholder="Find a name, handle, email or phone"
+                    aria-label="Search accounts"
+                    className={`${field} w-full`}
+                  />
+                </div>
+              )}
 
               {accounts.kind === "loading" && (
                 <PanelBody>
@@ -1336,6 +1405,10 @@ export default function Admin() {
                       account yet.
                     </Empty>
                   </PanelBody>
+                ) : shownAccounts.length === 0 ? (
+                  <PanelBody>
+                    <Empty>Nobody on the roster matches that.</Empty>
+                  </PanelBody>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[680px] border-collapse text-left">
@@ -1349,7 +1422,7 @@ export default function Admin() {
                         </tr>
                       </thead>
                       <tbody>
-                        {accounts.rows.map((a) => {
+                        {shownAccounts.map((a) => {
                           const open = openAccount === a.id;
                           const load = checks[a.id];
                           const pic = avatarUrl(a.avatarPath);
@@ -1599,6 +1672,18 @@ export default function Admin() {
                 </span>
               </div>
 
+              {queue.kind === "ready" && queue.rows.length > 0 && (
+                <div className="border-b border-line px-4 py-3">
+                  <input
+                    value={reviewQuery}
+                    onChange={(ev) => setReviewQuery(ev.target.value)}
+                    placeholder="Find a name, handle or email"
+                    aria-label="Search the age-check queue"
+                    className={`${field} w-full`}
+                  />
+                </div>
+              )}
+
               {queue.kind === "loading" && (
                 <PanelBody>
                   <Waiting what="READING THE QUEUE…" />
@@ -1617,9 +1702,13 @@ export default function Admin() {
                       age check.
                     </Empty>
                   </PanelBody>
+                ) : shownQueue.length === 0 ? (
+                  <PanelBody>
+                    <Empty>Nobody waiting matches that.</Empty>
+                  </PanelBody>
                 ) : (
                   <ul>
-                    {queue.rows.map((v) => {
+                    {shownQueue.map((v) => {
                       const doc = docs[v.id];
                       const working = busy?.id === v.id ? busy.status : null;
                       // Bound to a const so the handler below closes over a path
