@@ -390,12 +390,6 @@ button.label:not([class*="min-h-"]) {
   }
 }
 
-@keyframes raffle-shimmer {
-  to {
-    background-position: 200% 50%;
-  }
-}
-
 @keyframes raffle-pop {
   0% {
     opacity: 0;
@@ -410,22 +404,11 @@ button.label:not([class*="min-h-"]) {
   }
 }
 
-@keyframes raffle-ping {
-  0% {
-    box-shadow: 0 0 0 0 rgba(246, 226, 122, 0.45);
-  }
-  70%,
-  100% {
-    box-shadow: 0 0 0 16px rgba(246, 226, 122, 0);
-  }
-}
-
 .raffle-backdrop {
   animation: raffle-fade 0.25s ease-out;
 }
 
-.raffle-ring,
-.raffle-bubble {
+.raffle-ring {
   background: conic-gradient(
     from var(--raffle-angle),
     #f6e27a,
@@ -445,15 +428,6 @@ button.label:not([class*="min-h-"]) {
   box-shadow:
     0 40px 120px -40px rgba(246, 226, 122, 0.35),
     0 30px 80px -30px rgba(0, 0, 0, 0.9);
-}
-
-.raffle-glow {
-  background: radial-gradient(
-    closest-side,
-    rgba(246, 226, 122, 0.2),
-    rgba(255, 122, 184, 0.09) 55%,
-    transparent
-  );
 }
 
 .raffle-gold,
@@ -477,38 +451,103 @@ button.label:not([class*="min-h-"]) {
   background-image: linear-gradient(180deg, #ffe0c2 0%, #e0a36b 35%, #8c4a1f 58%, #f0b98a 80%, #9a5a2c 100%);
 }
 
-.raffle-cta {
-  background-image: linear-gradient(100deg, #f6e27a, #fff7d1 25%, #ffb8dc 50%, #bde9ff 75%, #f6e27a);
-  background-size: 200% 100%;
-  animation: raffle-shimmer 5s linear infinite;
-  color: var(--void);
-  box-shadow: 0 18px 50px -18px rgba(246, 226, 122, 0.6);
+/* The pop-up box and its bubble: flat candy colors, a thick outline and a hard
+   offset shadow, like a party-flyer sticker - nothing glows or gradients. Its
+   two fonts come from lib/raffle-fonts.ts as --font-bubble and --font-round. */
+
+.raffle-bubbly {
+  font-family: var(--font-bubble), "Arial Rounded MT Bold", system-ui, sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.01em;
 }
 
-.raffle-cta:hover:not(:disabled) {
+.raffle-round {
+  font-family: var(--font-round), ui-rounded, system-ui, sans-serif;
+}
+
+.raffle-sticker {
+  border: 3px solid #ffe45c;
+  border-radius: 22px;
+  background: #0c0d10;
+  box-shadow: 7px 7px 0 #ff5fa8;
+  animation: raffle-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* A bottom sheet on a phone: flat along the screen edges, shadow on top. */
+@media (max-width: 639px) {
+  .raffle-sticker {
+    border-width: 3px 0 0;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -5px 0 #ff5fa8;
+  }
+}
+
+.raffle-title {
+  color: #ffe45c;
+  text-shadow: 3px 3px 0 #ff5fa8;
+}
+
+.raffle-go {
+  border-radius: 999px;
+  background: #ff5fa8;
+  color: #050505;
+  box-shadow: 0 5px 0 #ffe45c;
+  transition:
+    transform 0.1s ease-out,
+    box-shadow 0.1s ease-out,
+    filter 0.15s;
+}
+
+.raffle-go:hover:not(:disabled) {
   filter: brightness(1.06);
 }
 
-.raffle-coin {
-  background: linear-gradient(135deg, #f6e27a, #fff5c7 45%, #b8860b);
+.raffle-go:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 #ffe45c;
 }
 
-.raffle-bubble {
+.raffle-scroll {
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent);
+  mask-image: linear-gradient(90deg, #000 82%, transparent);
+}
+
+.raffle-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes raffle-wiggle {
+  0%,
+  86%,
+  100% {
+    transform: rotate(0deg);
+  }
+  89% {
+    transform: rotate(-7deg);
+  }
+  92% {
+    transform: rotate(6deg);
+  }
+  95% {
+    transform: rotate(-3deg);
+  }
+}
+
+.raffle-pill {
+  border: 2.5px solid #050505;
   border-radius: 999px;
-  padding: 1.5px;
+  background: #ffe45c;
+  color: #050505;
+  box-shadow: 3px 3px 0 #ff5fa8;
   animation:
-    raffle-spin 4s linear infinite,
     raffle-pop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1),
-    raffle-ping 2.8s ease-out 1s infinite;
+    raffle-wiggle 6s ease-in-out 2s infinite;
   -webkit-tap-highlight-color: transparent;
 }
 
-.raffle-bubble:active {
-  transform: scale(0.96);
-}
-
-.raffle-entrants {
-  scrollbar-width: thin;
+.raffle-pill:active {
+  box-shadow: 1px 1px 0 #ff5fa8;
 }
 
 .raffle-wheel-glow {

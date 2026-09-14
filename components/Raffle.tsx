@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Editable } from "./Editable";
 import { org } from "@/lib/events";
 import { useOwnProfile } from "@/lib/profile-data";
+import { bubble, round } from "@/lib/raffle-fonts";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { enterRaffle, loadRaffle, type RaffleState } from "@/lib/raffle";
 
@@ -16,6 +17,10 @@ import { enterRaffle, loadRaffle, type RaffleState } from "@/lib/raffle";
  * dashboard; entry rules live in the database (0015/0016). The button here
  * only explains which rule a guest hasn't met yet and sends them to fix it.
  *
+ * Styled on purpose like a party-flyer sticker rather than the rest of the
+ * site's chrome: flat candy colors, hard shadows and its own two fonts (see
+ * lib/raffle-fonts.ts and the raffle-box block in globals.css).
+ *
  * Renders nothing until the raffle has loaded - whether the box has been
  * seen is in localStorage, which the static export can't know - and nothing
  * on the pages someone is sent to in order to become eligible, so it never
@@ -23,11 +28,12 @@ import { enterRaffle, loadRaffle, type RaffleState } from "@/lib/raffle";
  */
 
 const HIDDEN_ON = ["/admin", "/pass", "/signup", "/login", "/verify", "/checkout", "/raffle"];
-const TONES = ["gold", "silver", "bronze"];
+const TILES = ["bg-[#ffe45c]", "bg-[#ff8cc6]", "bg-[#8fdcff]"];
+const FONTS = `${bubble.variable} ${round.variable}`;
 const seenKey = (raffleId: string) => `wctp.raffle.${raffleId}.seen`;
 
 const CTA =
-  "raffle-cta font-display flex min-h-14 w-full items-center justify-center gap-2 px-5 text-[1.25rem] tracking-[0.1em] uppercase transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60";
+  "raffle-go raffle-bubbly flex min-h-12 w-full items-center justify-center gap-2 px-5 text-[1.125rem] uppercase disabled:cursor-not-allowed disabled:opacity-60";
 
 export function TicketIcon({ className = "" }: { className?: string }) {
   return (
@@ -57,17 +63,11 @@ function Status({
   win?: boolean;
 }) {
   return (
-    <div
-      className={`border px-4 py-3.5 ${
-        win ? "border-[rgba(246,226,122,0.55)] bg-[rgba(246,226,122,0.06)]" : "border-linehi bg-ink2"
-      }`}
-    >
-      <p
-        className={`font-display text-[1.625rem] leading-none uppercase ${win ? "raffle-gold" : "text-chalk"}`}
-      >
-        {title}
+    <div className={`rounded-2xl px-4 py-3 ${win ? "bg-[#ffe45c] text-void" : "bg-[#1a1c21] text-chalk"}`}>
+      <p className="raffle-bubbly text-[1.25rem] leading-none uppercase">{title}</p>
+      <p className={`mt-1.5 text-[0.8125rem] leading-snug ${win ? "text-[#3a3000]" : "text-silverdim"}`}>
+        {body}
       </p>
-      <p className="mt-2 text-[0.875rem] leading-relaxed text-silverdim">{body}</p>
     </div>
   );
 }
@@ -156,10 +156,6 @@ export default function Raffle() {
   const pending = !verified && profile?.latestCheck?.status === "pending";
   const count = data.entrants.length;
   const myHandle = profile?.instagram?.toLowerCase() ?? null;
-
-  const titleWords = raffle.title.trim().split(/\s+/);
-  const titleLead = titleWords.length > 1 ? titleWords.slice(0, -1).join(" ") : "";
-  const titleLast = titleWords[titleWords.length - 1] ?? "";
   const prizes = raffle.prizes.filter((p) => p.place || p.items.length > 0);
 
   const enter = async () => {
@@ -209,7 +205,7 @@ export default function Raffle() {
     );
   } else if (!signedIn) {
     cta = (
-      <div className="flex flex-col items-center gap-1">
+      <div className="flex flex-col items-center">
         <Link href="/signup" onClick={close} className={CTA}>
           <TicketIcon className="h-5 w-5" />
           Verify your ID to enter
@@ -217,9 +213,9 @@ export default function Raffle() {
         <Link
           href="/login"
           onClick={close}
-          className="label flex min-h-11 items-center text-silverdim transition-colors hover:text-chalk"
+          className="mt-1 flex min-h-11 items-center text-[0.8125rem] text-silverdim underline decoration-[#ff5fa8] decoration-2 underline-offset-4 transition-colors hover:text-chalk"
         >
-          ALREADY VERIFIED? SIGN IN
+          Already verified? Sign in
         </Link>
       </div>
     );
@@ -257,169 +253,153 @@ export default function Raffle() {
           type="button"
           onClick={reopen}
           aria-label={`Open the raffle - ${count} entered`}
-          className="raffle-bubble fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[8990] lg:right-6 lg:bottom-6"
+          className={`${FONTS} raffle-pill raffle-round fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[8990] flex min-h-12 items-center gap-2 py-1.5 pr-3.5 pl-1.5 lg:right-6 lg:bottom-6`}
         >
-          <span className="flex min-h-12 items-center gap-2.5 rounded-full bg-void py-1.5 pr-4 pl-1.5">
-            <span className="raffle-coin flex h-9 w-9 items-center justify-center rounded-full text-void">
-              <TicketIcon className="h-5 w-5" />
-            </span>
-            <span className="font-display text-[1.0625rem] leading-none tracking-[0.1em] text-chalk uppercase">
-              {data.entered ? "You're in" : "Raffle"}
-            </span>
-            {!data.error && (
-              <span className="font-mono text-[0.6875rem] text-silverdim">{count} IN</span>
-            )}
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-void text-[#ffe45c]">
+            <TicketIcon className="h-[1.125rem] w-[1.125rem]" />
           </span>
+          <span className="raffle-bubbly text-[1.125rem] leading-none uppercase">
+            {data.entered ? "You're in" : "Raffle"}
+          </span>
+          {!data.error && (
+            <span className="rounded-full bg-void px-2 py-0.5 text-[0.75rem] font-semibold leading-tight text-[#ffe45c]">
+              {count}
+            </span>
+          )}
         </button>
       )}
 
       {open && (
         <div
-          className="raffle-backdrop fixed inset-0 z-[9000] flex items-end justify-center bg-void/80 backdrop-blur-md sm:items-center sm:p-6"
+          className={`${FONTS} raffle-backdrop raffle-round fixed inset-0 z-[9000] flex items-end justify-center bg-void/75 backdrop-blur-sm sm:items-center sm:p-6`}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) close();
           }}
         >
-          <div className="raffle-ring flex max-h-[92dvh] w-full sm:max-w-[34rem]">
-            <div
-              ref={dialog}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="raffle-title"
-              tabIndex={-1}
-              className="w-full overflow-y-auto overscroll-contain bg-ink outline-none"
-            >
-              {/* ------------------------------------------------ header -- */}
-              <div className="relative overflow-hidden px-5 pt-6 pb-6 sm:px-7 sm:pt-7">
-                <div
-                  aria-hidden="true"
-                  className="raffle-glow pointer-events-none absolute -top-28 left-1/2 h-64 w-[150%] -translate-x-1/2"
-                />
-
-                <button
-                  type="button"
-                  onClick={close}
-                  aria-label="Close the raffle"
-                  className="absolute top-2 right-2 z-10 flex h-11 w-11 items-center justify-center text-silverdim transition-colors hover:text-chalk"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+          <div
+            ref={dialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="raffle-title"
+            tabIndex={-1}
+            className="raffle-sticker relative max-h-[90dvh] w-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] outline-none sm:max-w-[25rem] sm:px-5 sm:pt-5 sm:pb-5"
+          >
+            {/* --------------------------------------------------- top -- */}
+            <div className="flex items-start justify-between gap-3">
+              <span className="rounded-full bg-[#ff5fa8] px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-void uppercase">
+                <Editable k="raffle.eyebrow">Members only · Free entry</Editable>
+              </span>
+              <button
+                type="button"
+                onClick={close}
+                aria-label="Close the raffle"
+                className="-mt-2 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ffe45c] text-void transition-transform active:scale-90">
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                    strokeLinecap="round"
+                  >
                     <path d="M6 6l12 12M18 6 6 18" />
                   </svg>
-                </button>
+                </span>
+              </button>
+            </div>
 
-                <div className="relative flex items-center gap-2">
-                  <span className="dot shrink-0" />
-                  <span className="label text-bloodhi">
-                    <Editable k="raffle.eyebrow">VERIFIED MEMBERS ONLY · FREE ENTRY</Editable>
-                  </span>
-                </div>
+            <h2
+              id="raffle-title"
+              className="raffle-bubbly raffle-title mt-2 text-[clamp(2rem,9vw,2.5rem)] leading-[0.95] break-words"
+            >
+              {raffle.title}
+            </h2>
 
-                <h2
-                  id="raffle-title"
-                  className="font-display relative mt-4 text-[clamp(2.75rem,13vw,4.5rem)] leading-[0.82] tracking-[-0.02em] break-words"
-                >
-                  {titleLead && <span className="chrome block">{titleLead}</span>}
-                  <span className="raffle-gold block">{titleLast}</span>
-                </h2>
+            {raffle.blurb && (
+              <p className="mt-1.5 line-clamp-3 text-[0.875rem] leading-snug text-silverdim">
+                {raffle.blurb}
+              </p>
+            )}
 
-                {raffle.blurb && (
-                  <p className="relative mt-4 max-w-[36ch] text-[0.9375rem] leading-relaxed text-silverdim">
-                    {raffle.blurb}
-                  </p>
-                )}
-              </div>
-
-              {/* ------------------------------------------------ prizes -- */}
-              {prizes.length > 0 && (
-                <ol className="border-t border-line">
-                  {prizes.map((p, i) => (
-                    <li
-                      key={i}
-                      className={`flex items-center gap-4 border-b border-line px-5 py-4 sm:px-7 ${
-                        i === 0 ? "bg-[linear-gradient(90deg,rgba(246,226,122,0.08),transparent_70%)]" : ""
-                      }`}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`raffle-${TONES[i] ?? "silver"} font-display w-12 shrink-0 text-center text-[3.25rem] leading-[0.85]`}
-                      >
-                        {i + 1}
+            {/* ------------------------------------------------ prizes -- */}
+            {prizes.length > 0 && (
+              <ol className="mt-4 grid grid-cols-3 gap-2">
+                {prizes.map((p, i) => (
+                  <li
+                    key={i}
+                    className={`flex min-w-0 flex-col rounded-2xl p-2.5 text-void ${TILES[i] ?? "bg-[#c9f27a]"}`}
+                  >
+                    <span className="raffle-bubbly text-[1.75rem] leading-none">{i + 1}</span>
+                    {p.place && (
+                      <span className="mt-0.5 text-[0.625rem] font-semibold tracking-wide uppercase opacity-70">
+                        {p.place}
                       </span>
-                      <div className="min-w-0">
-                        {p.place && <p className="label text-silverfaint">{p.place}</p>}
-                        {p.items.length > 0 && (
-                          <ul className="mt-2 flex flex-wrap gap-1.5">
-                            {p.items.map((item, j) => (
-                              <li
-                                key={j}
-                                className={`border px-2.5 py-1 text-[0.875rem] leading-snug ${
-                                  i === 0
-                                    ? "border-[rgba(246,226,122,0.45)] text-chalk"
-                                    : "border-linehi text-silver"
-                                }`}
-                              >
-                                {item}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              )}
+                    )}
+                    {p.items.length > 0 && (
+                      <ul className="mt-1.5 flex flex-col gap-0.5 text-[0.75rem] leading-tight font-medium break-words">
+                        {p.items.map((item, j) => (
+                          <li key={j}>{item}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
 
-              {/* ---------------------------------------------- entrants -- */}
-              <div className="px-5 py-4 sm:px-7">
-                <div className="flex items-baseline justify-between gap-4">
-                  <p className="label text-silverfaint">
-                    <Editable k="raffle.entrants.title">WHO&rsquo;S IN</Editable>
-                  </p>
-                  <p className="font-display text-[1.75rem] leading-none text-chalk">
-                    {data.error ? "–" : count}
-                  </p>
-                </div>
-
-                {data.error ? (
-                  <p className="label mt-3 leading-loose text-bloodhi">{data.error.toUpperCase()}</p>
-                ) : count === 0 ? (
-                  <p className="mt-3 text-[0.9375rem] text-silverdim">
-                    <Editable k="raffle.entrants.empty">Nobody yet. Be the first name on the list.</Editable>
-                  </p>
-                ) : (
-                  <ul className="raffle-entrants mt-3 flex max-h-32 flex-wrap content-start gap-1.5 overflow-y-auto">
-                    {data.entrants.map((e, i) => {
-                      const me = myHandle !== null && e.handle.toLowerCase() === myHandle;
-                      return (
-                        <li
-                          key={`${e.handle}-${i}`}
-                          className={`border px-2 py-1 font-mono text-[0.75rem] ${
-                            me ? "border-[rgba(246,226,122,0.6)] text-chalk" : "border-line text-silverdim"
-                          }`}
-                        >
-                          {e.handle === "member" ? "member" : `@${e.handle}`}
-                          {me && <span className="text-[#f6e27a]"> · you</span>}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+            {/* ---------------------------------------------- entrants -- */}
+            <div className="mt-4">
+              <div className="flex items-center gap-2">
+                <span className="text-[0.75rem] font-semibold tracking-wide text-silver uppercase">
+                  <Editable k="raffle.entrants.title">Who&rsquo;s in</Editable>
+                </span>
+                <span className="raffle-bubbly rounded-full bg-[#1a1c21] px-2 py-1 text-[0.8125rem] leading-none text-[#ffe45c]">
+                  {data.error ? "–" : count}
+                </span>
               </div>
 
-              {/* --------------------------------------------------- cta -- */}
-              <div className="border-t border-line px-5 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-7 sm:pb-7">
-                {cta}
-                {problem && (
-                  <p role="alert" className="label mt-3 leading-loose text-bloodhi">
-                    {problem}
-                  </p>
-                )}
-                <p className="mt-4 text-[0.75rem] leading-relaxed text-silverfaint">
-                  <Editable k="raffle.rules">
-                    {`Free to enter, no purchase necessary. Open to members with a verified ID. One entry per person, and your Instagram handle shows on the list when you enter. Winners are drawn at random and announced on ${org.instagramHandle}.`}
-                  </Editable>
+              {data.error ? (
+                <p className="mt-2 text-[0.75rem] leading-snug text-bloodhi">{data.error}</p>
+              ) : count === 0 ? (
+                <p className="mt-2 text-[0.8125rem] text-silverdim">
+                  <Editable k="raffle.entrants.empty">Nobody yet. Be the first name on the list.</Editable>
                 </p>
-              </div>
+              ) : (
+                <ul className="raffle-scroll mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
+                  {data.entrants.map((e, i) => {
+                    const me = myHandle !== null && e.handle.toLowerCase() === myHandle;
+                    return (
+                      <li
+                        key={`${e.handle}-${i}`}
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-[0.75rem] whitespace-nowrap ${
+                          me ? "bg-[#ffe45c] font-semibold text-void" : "bg-[#1a1c21] text-silver"
+                        }`}
+                      >
+                        {e.handle === "member" ? "member" : `@${e.handle}`}
+                        {me && " · you"}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            {/* --------------------------------------------------- cta -- */}
+            <div className="mt-4">
+              {cta}
+              {problem && (
+                <p role="alert" className="mt-2 text-[0.75rem] leading-snug text-bloodhi">
+                  {problem}
+                </p>
+              )}
+              <p className="mt-3 text-[0.6875rem] leading-snug text-silverfaint">
+                <Editable k="raffle.rules">
+                  {`Free, no purchase needed. Verified members only, one entry each - your @ shows on the list. Winners announced on ${org.instagramHandle}.`}
+                </Editable>
+              </p>
             </div>
           </div>
         </div>
