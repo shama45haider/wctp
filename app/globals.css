@@ -219,3 +219,32 @@ button.label:not([class*="min-h-"]) {
   background-image: linear-gradient(45deg, transparent 47%, var(--line-hi) 47%, var(--line-hi) 53%, transparent 53%),
     linear-gradient(-45deg, transparent 47%, var(--line-hi) 47%, var(--line-hi) 53%, transparent 53%);
 }
+
+/* --- rainbow accent ---
+   One thin, slow-moving line of color on an otherwise black-and-silver site -
+   everything else stays monochrome so this reads as a deliberate accent
+   rather than a theme change. Slides rather than pulses so it never
+   competes with .dot for attention. Killed outright by the reduced-motion
+   block above, same as every other animation on the site; the gradient
+   still shows, just as a fixed slice of color rather than a moving one. */
+@keyframes rainbow-flow {
+  to {
+    background-position: 200% 50%;
+  }
+}
+
+.rainbow-edge {
+  background-image: linear-gradient(
+    90deg,
+    #ff5f6d,
+    #ffc371,
+    #f4f97a,
+    #6bffb8,
+    #5ec8ff,
+    #a78bfa,
+    #ff5f6d
+  );
+  background-size: 200% 100%;
+  animation: rainbow-flow 14s linear infinite;
+  opacity: 0.55;
+}

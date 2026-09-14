@@ -11,7 +11,7 @@ export const navLinks = [
 
 export default function Nav() {
   return (
-    <nav className="sticky top-0 z-50 border-b border-line bg-void/80 backdrop-blur-xl">
+    <nav className="sticky top-0 z-50 bg-void/80 backdrop-blur-xl">
       <div className="mx-auto flex w-[92vw] max-w-[1180px] items-center justify-between gap-8 py-4">
         <Link
           href="/"
@@ -54,6 +54,8 @@ export default function Nav() {
           </div>
         </div>
       </div>
+
+      <div className="rainbow-edge h-[2px] w-full" aria-hidden="true" />
     </nav>
   );
 }
