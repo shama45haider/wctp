@@ -106,6 +106,54 @@ body::before {
   }
 }
 
+/* Rainbow confetti. Component and rationale in components/Confetti.tsx. */
+.confetti {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.confetti span {
+  position: absolute;
+  top: -12px;
+  display: block;
+  background: hsl(var(--c-hue) 85% 65%);
+  /* Starts invisible: the keyframes fade it in once it is on screen. */
+  opacity: 0;
+  animation-name: confetti-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes confetti-fall {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  8%,
+  92% {
+    opacity: var(--c-opacity);
+  }
+  to {
+    transform: translate3d(var(--c-drift), 100vh, 0) rotate(var(--c-spin));
+    opacity: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .confetti span:nth-child(n + 13) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confetti {
+    display: none;
+  }
+}
+
 .font-display {
   font-family: var(--font-display), "Arial Narrow", sans-serif;
   font-weight: 900;

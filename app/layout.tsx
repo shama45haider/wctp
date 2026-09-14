@@ -4,6 +4,7 @@ import "./globals.css";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import Particles from "@/components/Particles";
+import Confetti from "@/components/Confetti";
 
 const display = Big_Shoulders({
   variable: "--font-display",
@@ -44,6 +45,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${display.variable} ${body.variable} ${mono.variable}`}>
         <Particles />
+        <Confetti />
         <Nav />
         {children}
         <Footer />
