@@ -5,7 +5,6 @@ import EventManifest from "./EventManifest";
 import Flyer from "./Flyer";
 import { org, monthOf, dayOf } from "@/lib/events";
 import { useRuntimeEvents } from "@/lib/events-runtime";
-import type { IgPost } from "@/lib/instagram";
 
 /**
  * Everything on the home page that depends on which night is next.
@@ -25,11 +24,6 @@ import type { IgPost } from "@/lib/instagram";
  * clock correction lands - so hydration has nothing to disagree with, and
  * this component only ever visibly changes after that first paint, the
  * moment the visitor's own browser says what day it actually is.
- *
- * `posts` comes in as a prop rather than being read here because getting
- * them is a build-time filesystem read (lib/instagram.ts uses node:fs) that
- * cannot run in the browser; app/page.tsx stays a server component for that
- * one reason and hands the finished list down.
  */
 
 function SectionHead({
@@ -56,7 +50,7 @@ function SectionHead({
   );
 }
 
-export default function HomeContent({ posts }: { posts: IgPost[] }) {
+export default function HomeContent() {
   const { upcoming, past } = useRuntimeEvents();
   const next = upcoming[0] as (typeof upcoming)[number] | undefined;
 
@@ -210,72 +204,6 @@ export default function HomeContent({ posts }: { posts: IgPost[] }) {
           >
             ALL DATES, PRICES AND TIERS &rarr;
           </Link>
-        </div>
-      </section>
-
-      <section id="instagram" className="py-[clamp(3.5rem,7vw,6rem)]">
-        <div className="mx-auto w-[92vw] max-w-[1180px]">
-          <SectionHead
-            title="Official Instagram"
-            blurb={`Every post from ${org.instagramHandle}, straight from the account.`}
-            aside={posts.length ? `${posts.length} POSTS` : undefined}
-          />
-
-          {posts.length > 0 ? (
-            <div className="grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-3 lg:grid-cols-4">
-              {posts.map((p) => (
-                <a
-                  key={p.id}
-                  href={p.permalink}
-                  target="_blank"
-                  rel="noopener"
-                  className="group relative aspect-square overflow-hidden bg-void"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={p.thumbnailUrl ?? p.mediaUrl}
-                    alt={p.caption?.slice(0, 120) ?? "Instagram post"}
-                    loading="lazy"
-                    decoding="async"
-                    className="absolute inset-0 h-full w-full object-cover grayscale-[0.35] transition-[filter,transform] duration-500 group-hover:scale-[1.03] group-hover:grayscale-0"
-                  />
-                  <span className="absolute inset-0 bg-gradient-to-t from-[rgba(5,5,5,0.9)] via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                  {p.caption && (
-                    <span className="label absolute right-3 bottom-3 left-3 line-clamp-3 text-silver opacity-0 transition-opacity group-hover:opacity-100">
-                      {p.caption}
-                    </span>
-                  )}
-                  {p.mediaType === "VIDEO" && (
-                    <span className="label absolute top-2 right-2 bg-void/80 px-1.5 py-0.5 text-bloodhi">
-                      REEL
-                    </span>
-                  )}
-                </a>
-              ))}
-            </div>
-          ) : (
-            <div className="border border-line">
-              <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 lg:grid-cols-4">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="hairline-x aspect-square bg-void opacity-30"
-                  />
-                ))}
-              </div>
-              <div className="label flex flex-wrap items-center justify-between gap-4 border-t border-line p-5 text-silverfaint">
-                <span>NEW POSTS DROP HERE</span>
-                <a
-                  href={org.instagram}
-                  target="_blank"
-                  rel="noopener"
-                  className="flex min-h-11 items-center border border-linehi px-3 text-silver transition-colors hover:border-bloodhi hover:text-bloodhi"
-                >
-                  FOLLOW {org.instagramHandle.toUpperCase()} &rarr;
-                </a>
-              </div>
-            </div>
-          )}
         </div>
       </section>
 
