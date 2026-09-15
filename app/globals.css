@@ -199,13 +199,22 @@ summary {
   }
 }
 
-.font-display {
-  font-family: var(--font-display), "Arial Narrow", sans-serif;
-  font-weight: 900;
-  line-height: 0.92;
-  letter-spacing: 0.01em;
-  text-wrap: balance;
-  color: var(--white);
+/* @layer components, not a bare rule: Tailwind's utilities always sit in a
+   later layer than anything unlayered, so a bare `.font-display` here would
+   beat a `text-*` utility on the same element no matter which class comes
+   first in the className string - which is exactly how the "Sign up" button
+   on /login ended up with white text nobody could read on its white
+   background, despite carrying text-void. In a layer, the cascade goes back
+   to normal: an explicit text-* utility wins, and this is only the default. */
+@layer components {
+  .font-display {
+    font-family: var(--font-display), "Arial Narrow", sans-serif;
+    font-weight: 900;
+    line-height: 0.92;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+    color: var(--white);
+  }
 }
 
 .chrome {

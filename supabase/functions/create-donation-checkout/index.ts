@@ -35,7 +35,9 @@ const ALLOWED_ORIGINS = new Set([
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
+  // supabase-js sends apikey and x-client-info on every invoke; a preflight
+  // that doesn't allow them makes the browser drop the call entirely.
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-region",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
