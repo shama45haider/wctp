@@ -9,8 +9,8 @@ import { useRuntimeEvents } from "@/lib/events-runtime";
 
 /**
  * Everything on /tickets: calls useRuntimeEvents once and hands the same
- * answer to TicketsHeader, TicketsBrowser and RuntimeEvents, so the facts
- * strip, the browsable grid and the "just announced" section can never
+ * answer to TicketsHeader, TicketsBrowser and RuntimeEvents, so the next-up
+ * line, the browsable grid and the "just announced" section can never
  * disagree with each other, and the dashboard's events table is read once
  * per visit rather than once per component that wants it.
  *
@@ -20,8 +20,9 @@ import { useRuntimeEvents } from "@/lib/events-runtime";
  * live here too rather than staying behind in app/tickets/page.tsx, which
  * keeps only the page metadata a client component cannot export.
  */
-export default function TicketsPageBody() {
-  const runtime = useRuntimeEvents();
+export default function TicketsPageBody({ pageSlugs }: { pageSlugs: string[] }) {
+  // Which dates have a page to link to - see lib/share-events.ts.
+  const runtime = useRuntimeEvents(pageSlugs);
 
   return (
     <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(2rem,5vw,4rem)]">

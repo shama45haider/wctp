@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase } from "./supabase";
-import { roster, type Artist, type Role } from "./artists";
+import { ROLES, roster, type Artist, type Role } from "./artists";
 
 /**
  * The two pages an admin edits in place: the team roster and the gallery.
@@ -173,7 +173,9 @@ type TeamRecord = {
   published: boolean | null;
 };
 
-const ROLES_SET = new Set<Role>(["ceo", "dj", "artist"]);
+// Read off ROLES rather than listed again, so a section added there is never
+// quietly filed back under "artist" when its cards load.
+const ROLES_SET = new Set<Role>(ROLES.map((r) => r.id));
 const asRole = (raw: string | null): Role =>
   raw && ROLES_SET.has(raw as Role) ? (raw as Role) : "artist";
 

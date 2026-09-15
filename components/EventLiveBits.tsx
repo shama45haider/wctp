@@ -49,9 +49,10 @@ export function EventFlyer({ event }: { event: Event }) {
 
 export function EventFromStat({ event }: { event: Event }) {
   const now = useNow();
-  if (saleState(event, now) !== "on-sale") return null;
-
-  const from = priceFrom(event) ?? 0;
+  const from = priceFrom(event);
+  // No price while on sale means the RSVP is on Posh, which owns the price -
+  // see poshRsvpFor() in lib/tickets.ts. "Free" would only be a guess.
+  if (saleState(event, now) !== "on-sale" || from === null) return null;
   // "FROM Free" reads like a typo when the cheapest tier costs nothing - see
   // the identical fix in TicketsBrowser.tsx. A floor of $0 is worth saying
   // plainly rather than as the start of a range.

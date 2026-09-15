@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import TicketsPageBody from "@/components/TicketsPageBody";
 import {
+  eventPageSlugs,
   eventShareMetadata,
   nextEventForSharing,
   nextUpDescription,
@@ -26,10 +27,10 @@ export function generateMetadata(): Metadata {
 
 /**
  * Stays a server component for the metadata export above, which a client
- * component cannot have. Everything else - the facts strip, the browsable
+ * component cannot have. Everything else - the next-up line, the browsable
  * grid, the door steps - lives in TicketsPageBody, which needs to be a
  * client component to ask the visitor's own clock what day it is.
  */
 export default function TicketsPage() {
-  return <TicketsPageBody />;
+  return <TicketsPageBody pageSlugs={eventPageSlugs()} />;
 }

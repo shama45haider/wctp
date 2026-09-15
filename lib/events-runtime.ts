@@ -41,6 +41,12 @@ export type RuntimeEventList = {
   past: Event[];
   /** What this was computed against - share it rather than call useNow() again. */
   now: Date;
+  /**
+   * Whether the static export has a page for this slug. False for a date
+   * published after the last build: app/events/[slug] has
+   * `dynamicParams = false`, so a link to it would 404. List it, unlinked.
+   */
+  hasPage: (slug: string) => boolean;
   error: string | null;
 };
 
@@ -124,8 +130,18 @@ function merge(rows: EventRow[], now: Date): Event[] {
   return merged.sort(bySiteOrder(now));
 }
 
-export function useRuntimeEvents(): RuntimeEventList {
+/**
+ * `pageSlugs` is every slug the static export built a page for, from
+ * eventPageSlugs() in the server page that renders the caller. Without it only
+ * the built-in events count as having one, which is always true of them.
+ */
+export function useRuntimeEvents(pageSlugs?: readonly string[]): RuntimeEventList {
   const now = useNow();
+
+  const hasPage = useMemo(() => {
+    const slugs = pageSlugs ? new Set(pageSlugs) : STATIC_SLUGS;
+    return (slug: string) => slugs.has(slug);
+  }, [pageSlugs]);
 
   // Null until the fetch answers, including with an error - not the same as
   // "zero rows", which is the ordinary night and still needs sorting against
@@ -170,6 +186,14 @@ export function useRuntimeEvents(): RuntimeEventList {
     const splitAt = events.findIndex((e) => isPastEvent(e, now));
     const upcoming = splitAt === -1 ? events : events.slice(0, splitAt);
     const past = splitAt === -1 ? [] : events.slice(splitAt);
-    return { ready: db !== null, events, upcoming, past, now, error: db?.error ?? null };
-  }, [db, now]);
+    return {
+      ready: db !== null,
+      events,
+      upcoming,
+      past,
+      now,
+      hasPage,
+      error: db?.error ?? null,
+    };
+  }, [db, now, hasPage]);
 }

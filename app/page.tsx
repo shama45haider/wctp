@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import HomeContent from "@/components/HomeContent";
 import {
+  eventPageSlugs,
   eventShareMetadata,
   nextEventForSharing,
   nextUpDescription,
@@ -23,5 +24,5 @@ export function generateMetadata(): Metadata {
 }
 
 export default function Home() {
-  return <HomeContent />;
+  return <HomeContent pageSlugs={eventPageSlugs()} />;
 }

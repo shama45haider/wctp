@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import EventLink from "./EventLink";
 import Flyer from "./Flyer";
 import { Editable } from "./Editable";
 import { monthOf, dayOf, type Event } from "@/lib/events";
 import type { RuntimeEventList } from "@/lib/events-runtime";
 import {
   money,
+  poshRsvpFor,
   priceFrom,
   saleState,
   ticketsLeft,
@@ -30,12 +32,14 @@ const LOW_STOCK = 25;
  * Returns null when there is nothing urgent to say - an empty badge is noise.
  */
 function stockNote(e: Event, now: Date) {
-  if (saleState(e, now) !== "on-sale") return null;
+  // Posh keeps the stock for a date that RSVPs there, so there is nothing to say.
+  if (saleState(e, now) !== "on-sale" || poshRsvpFor(e.slug)) return null;
   const left = ticketsLeft(e.slug);
   return left <= LOW_STOCK ? `${left} LEFT` : null;
 }
 
-function Card({ e, now }: { e: Event; now: Date }) {
+/** `linked` is false for a date the static export has no page for yet. */
+function Card({ e, now, linked }: { e: Event; now: Date; linked: boolean }) {
   // `now` matters here even though the tabs above have already sorted this
   // card into "upcoming" or "past": that sort is against the real clock, and
   // saleState defaults to the frozen build date if nothing is passed to it -
@@ -46,11 +50,19 @@ function Card({ e, now }: { e: Event; now: Date }) {
   const tiers = tiersFor(e.slug);
   const note = stockNote(e, now);
   const closed = state !== "on-sale";
+  // Open on Posh rather than here - see poshRsvpFor() in lib/tickets.ts.
+  const posh = closed ? null : poshRsvpFor(e.slug);
+  const button = `label flex min-h-11 items-center border px-3.5 transition-all ${
+    closed
+      ? "border-line text-silverfaint hover:border-linehi hover:text-silver"
+      : "border-[rgba(200,16,46,0.5)] text-chalk hover:border-bloodhi hover:bg-[rgba(200,16,46,0.08)]"
+  }`;
 
   return (
     <article className="group flex flex-col border border-line bg-ink transition-colors hover:border-linehi">
-      <Link
-        href={`/events/${e.slug}`}
+      <EventLink
+        slug={e.slug}
+        hasPage={linked}
         className="relative block aspect-[4/5] overflow-hidden sm:aspect-[3/4]"
       >
         {e.imageId ? (
@@ -97,7 +109,7 @@ function Card({ e, now }: { e: Event; now: Date }) {
             {e.title}
           </span>
         </span>
-      </Link>
+      </EventLink>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3.5">
         <div className="label">
@@ -118,7 +130,9 @@ function Card({ e, now }: { e: Event; now: Date }) {
                 </span>
               )}
               <span className="text-bloodhi">
-                {from === 0 ? (
+                {posh ? (
+                  <Editable k="tickets.card.posh">RSVP ON POSH</Editable>
+                ) : from === 0 ? (
                   <Editable k="tickets.card.free">FREE</Editable>
                 ) : (
                   money(from ?? 0)
@@ -129,16 +143,20 @@ function Card({ e, now }: { e: Event; now: Date }) {
           )}
         </div>
 
-        <Link
-          href={`/events/${e.slug}${closed ? "" : "#tickets"}`}
-          className={`label flex min-h-11 items-center border px-3.5 transition-all ${
-            closed
-              ? "border-line text-silverfaint hover:border-linehi hover:text-silver"
-              : "border-[rgba(200,16,46,0.5)] text-chalk hover:border-bloodhi hover:bg-[rgba(200,16,46,0.08)]"
-          }`}
-        >
-          {closed ? "DETAILS" : "GET TICKETS"} &rarr;
-        </Link>
+        {posh ? (
+          <a href={posh} className={button}>
+            GET TICKETS &rarr;
+          </a>
+        ) : (
+          linked && (
+            <Link
+              href={`/events/${e.slug}${closed ? "" : "#tickets"}`}
+              className={button}
+            >
+              {closed ? "DETAILS" : "GET TICKETS"} &rarr;
+            </Link>
+          )
+        )}
       </div>
     </article>
   );
@@ -156,7 +174,7 @@ function Card({ e, now }: { e: Event; now: Date }) {
  * happen.
  */
 export default function TicketsBrowser({ runtime }: { runtime: RuntimeEventList }) {
-  const { upcoming, past, now } = runtime;
+  const { upcoming, past, now, hasPage } = runtime;
   const [filter, setFilter] = useState<FilterId>("all");
   const [query, setQuery] = useState("");
 
@@ -230,7 +248,7 @@ export default function TicketsBrowser({ runtime }: { runtime: RuntimeEventList 
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {events.map((e) => (
-            <Card key={e.slug} e={e} now={now} />
+            <Card key={e.slug} e={e} now={now} linked={hasPage(e.slug)} />
           ))}
         </div>
       )}

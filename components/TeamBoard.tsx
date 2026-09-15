@@ -157,6 +157,24 @@ function EmptySlot({ a, onEdit }: { a: TeamMember; onEdit?: () => void }) {
   );
 }
 
+/**
+ * A section with nobody in it yet. One placeholder, so a heading is never
+ * sitting over nothing - the same "announcing soon" an empty slot says.
+ */
+function EmptySection({ role }: { role: Role }) {
+  return (
+    <article className="relative border border-dashed border-linehi bg-ink/40">
+      <div className="hairline-x relative flex aspect-[4/5] items-center justify-center opacity-25" />
+      <div className="border-t border-dashed border-linehi px-5 pt-4 pb-6">
+        <p className="label leading-loose text-silverfaint">
+          <Editable k={`team.role.${role}.label`}>{labelOf(role)}</Editable> &middot;{" "}
+          <Editable k="team.emptySlot.announcing">ANNOUNCING SOON</Editable>
+        </p>
+      </div>
+    </article>
+  );
+}
+
 /* ---------------------------------------------------------------- editor -- */
 
 type Draft = {
@@ -639,6 +657,7 @@ export default function TeamBoard() {
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {slots.length === 0 && <EmptySection role={r.id} />}
               {slots.map((a) =>
                 editing === a.slot ? (
                   <SlotEditor

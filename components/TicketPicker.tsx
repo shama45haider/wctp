@@ -11,6 +11,7 @@ import {
   isSoldOut,
   maxSelectable,
   money,
+  poshRsvpFor,
   remaining,
   saleState,
   tiersFor,
@@ -262,6 +263,32 @@ export default function TicketPicker({ event }: { event: Event }) {
 
   const tiers = tiersFor(event.slug);
   const state = saleState(event, now);
+
+  // Taken on Posh, not here - see poshRsvpFor() in lib/tickets.ts. No tiers,
+  // no cart: the button goes straight to the Posh event page.
+  const posh = poshRsvpFor(event.slug);
+  if (posh && state === "on-sale") {
+    return (
+      <div id="tickets" className="border border-line bg-ink p-4">
+        <p className="text-sm leading-relaxed text-silverdim">
+          <Editable k="event.picker.posh.blurb">
+            RSVPs for this date are taken on Posh.
+          </Editable>
+        </p>
+        <a href={posh} className={`${btnGo} mt-4 w-full`}>
+          Get tickets
+        </a>
+        <p className="label mt-3 text-center text-silverfaint">
+          <Link
+            href="/tickets"
+            className="-my-3 inline-block py-3 underline hover:text-chalk"
+          >
+            ALL DATES
+          </Link>
+        </p>
+      </div>
+    );
+  }
 
   if (state === "closed") {
     return (
