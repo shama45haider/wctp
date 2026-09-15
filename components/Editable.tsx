@@ -34,9 +34,22 @@ type Ctx = {
   copy: Map<string, string> | null;
   canEdit: boolean;
   open: (k: string, fallback: string) => void;
+  /** Puts a value already saved to site_copy on screen everywhere (null = back to default). */
+  apply: (k: string, next: string | null) => void;
 };
 
-const CopyContext = createContext<Ctx>({ copy: null, canEdit: false, open: () => {} });
+const CopyContext = createContext<Ctx>({
+  copy: null,
+  canEdit: false,
+  open: () => {},
+  apply: () => {},
+});
+
+/** For editors of values that aren't a single visible sentence - a link's URL, say. */
+export function useCopyEditing() {
+  const { copy, canEdit, apply } = useContext(CopyContext);
+  return { copy, canEdit, apply };
+}
 
 const TOGGLE_KEY = "wctp.editButtons";
 
@@ -78,16 +91,20 @@ export function CopyProvider({ children }: { children: React.ReactNode }) {
   };
 
   const open = useCallback((k: string, fallback: string) => setEditing({ k, fallback }), []);
-  const value = useMemo(() => ({ copy, canEdit, open }), [copy, canEdit, open]);
 
-  const applied = (k: string, next: string | null) => {
+  const applied = useCallback((k: string, next: string | null) => {
     setCopy((prev) => {
       const m = new Map(prev ?? []);
       if (next === null) m.delete(k);
       else m.set(k, next);
       return m;
     });
-  };
+  }, []);
+
+  const value = useMemo(
+    () => ({ copy, canEdit, open, apply: applied }),
+    [copy, canEdit, open, applied],
+  );
 
   return (
     <CopyContext.Provider value={value}>

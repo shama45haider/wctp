@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { navLinks } from "./Nav";
 
 /**
- * The phone's bottom tab bar - the same five pages as the desktop nav, below
+ * The phone's bottom tab bar - the same pages as the desktop nav, below
  * lg only. Replaces the sideways-scrolling link row the header used to carry
  * on a phone, so the header is just the logo and the account button.
  *
@@ -39,6 +39,13 @@ const ICONS: Record<string, React.ReactNode> = {
   ),
   "/donate": (
     <path d="M12 19.5s-7.25-4.4-8.75-8.9A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8.75 3.6C19.25 15.1 12 19.5 12 19.5z" />
+  ),
+  "/help": (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9.75 9.5a2.25 2.25 0 1 1 3.4 1.93c-.7.42-1.15.95-1.15 1.82v.5" />
+      <path d="M12 16.75h.01" />
+    </>
   ),
 };
 
@@ -84,7 +91,7 @@ export default function TabBar() {
         typing ? "translate-y-full" : ""
       }`}
     >
-      <ul className="mx-auto grid max-w-[560px] grid-cols-5">
+      <ul className="mx-auto grid max-w-[560px] grid-cols-6">
         {navLinks.map((l) => {
           const active = isActive(l.href);
           return (

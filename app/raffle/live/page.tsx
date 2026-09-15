@@ -63,15 +63,26 @@ function wheelFor(view: Live, draw: LiveDraw | null): LiveEntrant[] {
 
 function Avatar({ entrant, className }: { entrant: LiveEntrant | undefined; className: string }) {
   const url = avatarUrl(entrant?.avatarPath ?? null);
-  if (url) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt="" className={`${className} rounded-full border border-linehi object-cover`} />;
-  }
+  // Keyed by url: this spot shows a different winner after every spin.
+  const [load, setLoad] = useState<{ url: string; ok: boolean } | null>(null);
+  const status = url && load?.url === url ? (load.ok ? "loaded" : "broken") : "loading";
   return (
     <span
-      className={`${className} font-display flex items-center justify-center rounded-full border border-linehi bg-ink2 text-silver`}
+      className={`${className} font-display relative flex items-center justify-center overflow-hidden rounded-full border border-linehi bg-ink2 text-silver`}
     >
       {(entrant?.handle[0] ?? "?").toUpperCase()}
+      {url && status !== "broken" && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt=""
+          onLoad={() => setLoad({ url, ok: true })}
+          onError={() => setLoad({ url, ok: false })}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${
+            status === "loaded" ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      )}
     </span>
   );
 }

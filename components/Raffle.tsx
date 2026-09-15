@@ -75,16 +75,28 @@ function Status({
 /** An entrant's profile picture, or their first letter on a candy tile when they haven't set one. */
 function Face({ entrant, index, className }: { entrant: Entrant; index: number; className: string }) {
   const url = avatarUrl(entrant.avatarPath);
-  if (url) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt="" loading="lazy" className={`${className} shrink-0 rounded-full object-cover`} />;
-  }
+  // Keyed by url so a reused row doesn't keep the last person's loaded/broken state.
+  const [load, setLoad] = useState<{ url: string; ok: boolean } | null>(null);
+  const status = url && load?.url === url ? (load.ok ? "loaded" : "broken") : "loading";
   return (
     <span
       aria-hidden="true"
-      className={`${className} raffle-bubbly flex shrink-0 items-center justify-center rounded-full text-[0.875rem] leading-none text-void ${TILES[index % TILES.length]}`}
+      className={`${className} raffle-bubbly relative flex shrink-0 items-center justify-center overflow-hidden rounded-full text-[0.875rem] leading-none text-void ${TILES[index % TILES.length]}`}
     >
       {entrant.handle === "member" ? "?" : entrant.handle.charAt(0).toUpperCase()}
+      {url && status !== "broken" && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt=""
+          loading="lazy"
+          onLoad={() => setLoad({ url, ok: true })}
+          onError={() => setLoad({ url, ok: false })}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${
+            status === "loaded" ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      )}
     </span>
   );
 }

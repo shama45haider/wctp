@@ -106,6 +106,10 @@ npx supabase functions deploy donation-status --project-ref mkcuiglmsmxcchywruay
 
 Use a `sk_test_…` key first and pay with Stripe's [test card](https://stripe.com/docs/testing) `4242 4242 4242 4242`, any future expiry, any CVC, to prove the whole path end to end before switching to a live key. Nothing else to configure - both functions read the amount, name and email straight off the request, and the redirect back only ever lands on `wecametooparty.com` or `localhost:3000`, whichever the request came from.
 
+## Help page
+
+`/help` is a link-in-bio page (like Linktree) followed by the event policy. It has six link slots - Instagram, Posh, TikTok and three spares. Signed in as an admin, each has an **Edit** button for its name, subtitle, URL, icon and whether it shows; the values save to `public.site_copy` like any other page text, so there is nothing to deploy. A slot with no URL, or switched off, is hidden from guests, which is why TikTok and the spares don't appear until someone fills them in. Every line of the policy has the usual pencil.
+
 ## Password reset
 
 "Forgot password?" on `/login` goes to `/reset-password`, which sends Supabase Auth's own reset email and, when the link brings the guest back, asks for the new password. It uses the email Supabase Auth already sends (the same SMTP settings as the confirmation email above), so nothing extra to deploy. **Authentication → URL Configuration → Redirect URLs** must include `https://wecametooparty.com/**`, or the link lands on the site root instead. The link only works in the browser it was requested from; to make it work on any device, change the Reset Password email template's link to `{{ .SiteURL }}/reset-password/?token_hash={{ .TokenHash }}&type=recovery`, which the page also accepts.

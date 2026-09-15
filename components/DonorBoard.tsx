@@ -27,16 +27,28 @@ const title = (d: Donor) => (d.handle ? atHandle(d.handle) : d.displayName || "m
 
 function Face({ donor, className }: { donor: Donor; className: string }) {
   const url = avatarUrl(donor.avatarPath);
-  if (url) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt="" loading="lazy" className={`${className} shrink-0 rounded-full object-cover`} />;
-  }
+  // Keyed by url so a reused row doesn't keep the last donor's loaded/broken state.
+  const [load, setLoad] = useState<{ url: string; ok: boolean } | null>(null);
+  const status = url && load?.url === url ? (load.ok ? "loaded" : "broken") : "loading";
   return (
     <span
       aria-hidden="true"
-      className={`${className} font-display flex shrink-0 items-center justify-center rounded-full bg-ink2 text-silver`}
+      className={`${className} font-display relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-ink2 text-silver`}
     >
       {(donor.handle ?? donor.displayName ?? "?").charAt(0).toUpperCase()}
+      {url && status !== "broken" && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt=""
+          loading="lazy"
+          onLoad={() => setLoad({ url, ok: true })}
+          onError={() => setLoad({ url, ok: false })}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${
+            status === "loaded" ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      )}
     </span>
   );
 }
