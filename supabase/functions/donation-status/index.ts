@@ -1,14 +1,18 @@
 /**
- * Confirms one Stripe Checkout Session, for the page a guest lands back on
- * after paying.
+ * Confirms one Stripe Checkout Session for the page a guest lands back on
+ * after paying, and records the gift.
  *
  * The redirect back from Stripe carries a session id in the URL, and that id
  * is the only thing this reads - it is unguessable (Stripe generates it) and
  * good for one completed payment, so there is nothing else to check it
  * against. Reading Stripe directly here, rather than trusting the amount the
  * browser remembers from before the redirect, is what makes the thank-you
- * screen honest: the guest's own tab left this site entirely to pay, and
- * anything it "remembers" about what happened on Stripe's page is a guess.
+ * screen honest.
+ *
+ * The gift is written to public.donations here too, with the service role
+ * key - the table has no insert policy, so this is the only way in - and the
+ * donor board reads it from there. Upserted on the session id, so a reload or
+ * a second tab can't count one gift twice.
  *
  * Set the key with:
  *
@@ -16,8 +20,10 @@
  *
  * (the same secret create-donation-checkout uses) and deploy with:
  *
- *   npx supabase functions deploy donation-status --project-ref mkcuiglmsmxcchywruay
+ *   npx supabase functions deploy donation-status --use-api --project-ref mkcuiglmsmxcchywruay
  */
+
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -32,6 +38,8 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: { ...CORS, "Content-Type": "application/json" },
   });
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Payload = { sessionId?: string };
 
@@ -75,10 +83,35 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: "That payment did not go through." });
   }
 
+  // The user id is the one create-donation-checkout read off the donor's own
+  // session and stored on the Stripe session - never anything this caller sent.
+  const userId = UUID.test(result.metadata?.user_id ?? "") ? result.metadata.user_id : null;
+  const showOnBoard = result.metadata?.show_on_board !== "false";
+  const amountCents = Number(result.amount_total) || 0;
+
+  let recorded = false;
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (url && serviceKey && amountCents > 0) {
+    const write = await createClient(url, serviceKey)
+      .from("donations")
+      .upsert(
+        {
+          stripe_session_id: result.id,
+          user_id: userId,
+          amount_cents: amountCents,
+          show_on_board: showOnBoard,
+        },
+        { onConflict: "stripe_session_id", ignoreDuplicates: true },
+      );
+    recorded = !write.error;
+  }
+
   return json({
     ok: true,
-    amountCents: result.amount_total ?? 0,
+    amountCents,
     name: result.metadata?.name || result.customer_details?.name || "",
     email: result.customer_details?.email || result.customer_email || "",
+    onBoard: recorded && userId !== null && showOnBoard,
   });
 });

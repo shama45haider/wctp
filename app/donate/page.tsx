@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import DonateForm from "@/components/DonateForm";
+import DonorBoard from "@/components/DonorBoard";
 import { Editable } from "@/components/Editable";
 import { tag } from "@/lib/ui";
 
 export const metadata: Metadata = {
   title: "Donate · WECAMETOOPARTY",
   description:
-    "Chip in for sound, lights and the next date. Not a ticket - just a gift.",
+    "Chip in for sound, lights and the next date - and get your name on the donor board.",
 };
 
 const IMPACT_KEYS = [
@@ -16,10 +17,9 @@ const IMPACT_KEYS = [
 ];
 
 /**
- * Stays a server component for the metadata export above. The form itself
- * needs state (the amount, the Stripe redirect), so it lives in DonateForm,
- * a client component, the same split every other page on this site uses for
- * the same reason.
+ * Stays a server component for the metadata export above. The form and the
+ * board both need state, so they live in client components, the same split
+ * every other page on this site uses for the same reason.
  */
 export default function Donate() {
   return (
@@ -46,6 +46,8 @@ export default function Donate() {
       </ul>
 
       <DonateForm />
+
+      <DonorBoard />
     </main>
   );
 }

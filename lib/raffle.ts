@@ -29,7 +29,7 @@ export type Raffle = {
 
 export type RafflePatch = Partial<Pick<Raffle, "title" | "blurb" | "prizes" | "open" | "visible">>;
 
-export type Entrant = { handle: string; enteredAt: string };
+export type Entrant = { handle: string; avatarPath: string | null; enteredAt: string };
 
 export type RaffleState = {
   /** Nothing to show: no database, migrations not run, or no visible raffle. */
@@ -197,11 +197,12 @@ export async function loadRaffle(userId: string | undefined): Promise<RaffleStat
     return { missing: false, raffle, entrants: [], entered: false, error: explain(failure.message) };
   }
 
-  const rows = (list.data ?? []) as { handle: string; entered_at: string }[];
+  // avatar_path arrives with 0017; before it, the list still draws with initials.
+  const rows = (list.data ?? []) as { handle: string; avatar_path?: string | null; entered_at: string }[];
   return {
     missing: false,
     raffle,
-    entrants: rows.map((r) => ({ handle: r.handle, enteredAt: r.entered_at })),
+    entrants: rows.map((r) => ({ handle: r.handle, avatarPath: r.avatar_path ?? null, enteredAt: r.entered_at })),
     entered: Boolean(mine?.data),
     error: null,
   };

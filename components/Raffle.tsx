@@ -5,10 +5,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Editable } from "./Editable";
 import { org } from "@/lib/events";
-import { useOwnProfile } from "@/lib/profile-data";
+import { avatarUrl, useOwnProfile } from "@/lib/profile-data";
 import { bubble, round } from "@/lib/raffle-fonts";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
-import { enterRaffle, loadRaffle, type RaffleState } from "@/lib/raffle";
+import { enterRaffle, loadRaffle, type Entrant, type RaffleState } from "@/lib/raffle";
 
 /**
  * The members' raffle: a box that opens on the first visit, and a floating
@@ -27,7 +27,7 @@ import { enterRaffle, loadRaffle, type RaffleState } from "@/lib/raffle";
  * sits on top of the sign-up or ID upload it just asked for.
  */
 
-const HIDDEN_ON = ["/admin", "/pass", "/signup", "/login", "/verify", "/checkout", "/raffle"];
+const HIDDEN_ON = ["/admin", "/pass", "/signup", "/login", "/reset-password", "/verify", "/checkout", "/raffle"];
 const TILES = ["bg-[#ffe45c]", "bg-[#ff8cc6]", "bg-[#8fdcff]"];
 const FONTS = `${bubble.variable} ${round.variable}`;
 const seenKey = (raffleId: string) => `wctp.raffle.${raffleId}.seen`;
@@ -72,6 +72,23 @@ function Status({
   );
 }
 
+/** An entrant's profile picture, or their first letter on a candy tile when they haven't set one. */
+function Face({ entrant, index, className }: { entrant: Entrant; index: number; className: string }) {
+  const url = avatarUrl(entrant.avatarPath);
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={url} alt="" loading="lazy" className={`${className} shrink-0 rounded-full object-cover`} />;
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className={`${className} raffle-bubbly flex shrink-0 items-center justify-center rounded-full text-[0.875rem] leading-none text-void ${TILES[index % TILES.length]}`}
+    >
+      {entrant.handle === "member" ? "?" : entrant.handle.charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
 export default function Raffle() {
   const pathname = usePathname() ?? "/";
   const { ready, user } = useSupabaseAuth();
@@ -82,6 +99,7 @@ export default function Raffle() {
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [listOpen, setListOpen] = useState(false);
   const dialog = useRef<HTMLDivElement>(null);
 
   const userId = user?.id;
@@ -352,13 +370,46 @@ export default function Raffle() {
 
             {/* ---------------------------------------------- entrants -- */}
             <div className="mt-4">
-              <div className="flex items-center gap-2">
+              <div className="flex min-h-11 items-center gap-2">
                 <span className="text-[0.75rem] font-semibold tracking-wide text-silver uppercase">
                   <Editable k="raffle.entrants.title">Who&rsquo;s in</Editable>
                 </span>
                 <span className="raffle-bubbly rounded-full bg-[#1a1c21] px-2 py-1 text-[0.8125rem] leading-none text-[#ffe45c]">
                   {data.error ? "–" : count}
                 </span>
+                {!data.error && count > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setListOpen((v) => !v)}
+                    aria-expanded={listOpen}
+                    aria-controls="raffle-entrants"
+                    className="ml-auto flex min-h-11 items-center gap-2 rounded-full bg-[#1a1c21] py-1 pr-3 pl-1.5 text-[0.8125rem] font-semibold text-chalk transition-colors hover:bg-[#23262d]"
+                  >
+                    <span className="flex -space-x-2" aria-hidden="true">
+                      {data.entrants.slice(0, 3).map((e, i) => (
+                        <Face
+                          key={`${e.handle}-${i}`}
+                          entrant={e}
+                          index={i}
+                          className="h-7 w-7 ring-2 ring-[#1a1c21]"
+                        />
+                      ))}
+                    </span>
+                    {listOpen ? "Hide" : "See all"}
+                    <svg
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      className={`h-4 w-4 transition-transform ${listOpen ? "rotate-180" : ""}`}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </button>
+                )}
               </div>
 
               {data.error ? (
@@ -368,22 +419,34 @@ export default function Raffle() {
                   <Editable k="raffle.entrants.empty">Nobody yet. Be the first name on the list.</Editable>
                 </p>
               ) : (
-                <ul className="raffle-scroll mt-2 flex gap-1.5 overflow-x-auto pb-0.5">
-                  {data.entrants.map((e, i) => {
-                    const me = myHandle !== null && e.handle.toLowerCase() === myHandle;
-                    return (
-                      <li
-                        key={`${e.handle}-${i}`}
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-[0.75rem] whitespace-nowrap ${
-                          me ? "bg-[#ffe45c] font-semibold text-void" : "bg-[#1a1c21] text-silver"
-                        }`}
-                      >
-                        {e.handle === "member" ? "member" : `@${e.handle}`}
-                        {me && " · you"}
-                      </li>
-                    );
-                  })}
-                </ul>
+                listOpen && (
+                  <ul
+                    id="raffle-entrants"
+                    className="raffle-list mt-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto overscroll-contain rounded-2xl bg-[#1a1c21] p-1.5"
+                  >
+                    {data.entrants.map((e, i) => {
+                      const me = myHandle !== null && e.handle.toLowerCase() === myHandle;
+                      return (
+                        <li
+                          key={`${e.handle}-${i}`}
+                          className={`flex min-h-11 items-center gap-2.5 rounded-xl px-2 py-1.5 ${
+                            me ? "bg-[#ffe45c] text-void" : "text-silver"
+                          }`}
+                        >
+                          <Face entrant={e} index={i} className="h-8 w-8" />
+                          <span className="min-w-0 flex-1 truncate text-[0.875rem] font-semibold">
+                            {e.handle === "member" ? "member" : `@${e.handle}`}
+                          </span>
+                          {me && (
+                            <span className="rounded-full bg-void px-2 py-0.5 text-[0.6875rem] font-semibold text-[#ffe45c]">
+                              you
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )
               )}
             </div>
 

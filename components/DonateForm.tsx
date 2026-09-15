@@ -2,9 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { atHandle } from "@/lib/handle";
+import { useOwnProfile } from "@/lib/profile-data";
+import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { usd } from "@/lib/tickets";
 import { btn, btnGo, field } from "@/lib/ui";
-import { confirmDonation, startDonationCheckout } from "@/lib/donate";
+import {
+  confirmDonation,
+  DONOR_BOARD_CHANGED,
+  startDonationCheckout,
+} from "@/lib/donate";
 import { Editable } from "./Editable";
 
 /**
@@ -15,6 +22,9 @@ import { Editable } from "./Editable";
  * `cancel_url`, both this same page, so the phase after a redirect is read
  * from the URL on mount rather than kept in memory - a full navigation away
  * and back would have lost anything kept in state.
+ *
+ * A signed-in donor can go on the donor board. The choice rides to Stripe with
+ * the checkout and comes back through donation-status, which records the gift.
  */
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -43,6 +53,8 @@ function Spinner() {
 }
 
 export default function DonateForm() {
+  const { ready, user } = useSupabaseAuth();
+  const { profile } = useOwnProfile(user?.id);
   const [amount, setAmount] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -50,13 +62,14 @@ export default function DonateForm() {
   const [problem, setProblem] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [given, setGiven] = useState(0);
+  const [onBoard, setOnBoard] = useState(false);
+  const [showOnBoard, setShowOnBoard] = useState(true);
 
   // Reads the redirect Stripe sent back, once, on the way in. The server-
   // rendered pass always shows the plain form - this only runs after mount,
   // so there is nothing here for hydration to disagree with. Every state
   // update below runs from inside a timer or a promise callback rather than
-  // directly in the effect body, the same way the payment-simulation effects
-  // further down only ever set state that way.
+  // directly in the effect body.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const sessionId = p.get("session_id");
@@ -75,7 +88,9 @@ export default function DonateForm() {
       void confirmDonation(sessionId!).then((res) => {
         if (res.ok) {
           setGiven(res.amountCents);
+          setOnBoard(res.onBoard);
           setPhase("done");
+          window.dispatchEvent(new Event(DONOR_BOARD_CHANGED));
         } else {
           setProblem(res.error);
           setPhase("form");
@@ -106,6 +121,7 @@ export default function DonateForm() {
       amountCents: cents,
       name: name.trim(),
       email: email.trim(),
+      showOnBoard: Boolean(user) && showOnBoard,
     });
     if (!res.ok) {
       setProblem(res.error);
@@ -128,7 +144,7 @@ export default function DonateForm() {
 
   if (phase === "done") {
     return (
-      <div className="relative overflow-hidden border border-line bg-ink p-6">
+      <div className="relative mt-8 overflow-hidden border border-line bg-ink p-6">
         <div
           aria-hidden
           className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-transparent via-bloodhi to-transparent"
@@ -144,6 +160,11 @@ export default function DonateForm() {
             It goes straight into the next date. See you there.
           </Editable>
         </p>
+        {onBoard && (
+          <p className="label mt-3 text-bloodhi">
+            <Editable k="donate.done.onBoard">YOU&rsquo;RE ON THE DONOR BOARD BELOW</Editable>
+          </p>
+        )}
         <div className="mt-6 flex flex-col gap-3">
           <Link href="/tickets" className={btnGo}>
             Browse tickets
@@ -263,6 +284,51 @@ export default function DonateForm() {
           </Editable>
         </p>
       </div>
+
+      {ready &&
+        (user ? (
+          <div className="flex flex-col gap-1.5 border border-line px-3 py-3">
+            <label htmlFor="donate-board" className="flex min-h-6 cursor-pointer items-start gap-3">
+              <input
+                id="donate-board"
+                type="checkbox"
+                checked={showOnBoard}
+                onChange={(e) => setShowOnBoard(e.target.checked)}
+                disabled={redirecting}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#e8213f]"
+              />
+              <span className="text-sm leading-snug text-chalk">
+                {profile?.instagram
+                  ? `Put me on the donor board as ${atHandle(profile.instagram)}`
+                  : "Put me on the donor board"}
+              </span>
+            </label>
+            <p className="pl-7 text-[0.8125rem] leading-snug text-silverdim">
+              {profile?.instagram ? (
+                <Editable k="donate.form.boardNote">
+                  Your picture and Instagram go up so people can follow you.
+                </Editable>
+              ) : (
+                <>
+                  <Editable k="donate.form.boardNoHandle">Add your Instagram on</Editable>{" "}
+                  <Link href="/profile" className="underline hover:text-chalk">
+                    your profile
+                  </Link>{" "}
+                  <Editable k="donate.form.boardNoHandleEnd">so people can follow you.</Editable>
+                </>
+              )}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm leading-snug text-silverdim">
+            <Link href="/login" className="underline hover:text-chalk">
+              Sign in
+            </Link>{" "}
+            <Editable k="donate.form.boardSignIn">
+              first to get on the donor board with your picture and Instagram.
+            </Editable>
+          </p>
+        ))}
 
       <div className="label flex items-center gap-2 border border-line px-3 py-2.5 text-silverdim">
         <svg

@@ -334,6 +334,32 @@ export function useSupabaseAuth() {
     setAdminFor(null);
   }, []);
 
+  /**
+   * Emails a password reset link that comes back to /reset-password.
+   *
+   * Supabase answers the same whether or not an account exists for the
+   * address, so this can't be used to find out who has one. The link carries
+   * a PKCE code, which only this browser holds the other half of - opened on
+   * a different device it can't be exchanged, and the reset page says so.
+   */
+  const sendPasswordReset = useCallback(
+    async (email: string): Promise<Outcome> => {
+      const supabase = safeClient();
+      if (!supabase) return { ok: false, error: NOT_CONNECTED };
+      const redirectTo =
+        typeof window === "undefined" ? undefined : `${window.location.origin}/reset-password/`;
+      return attempt(supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo }));
+    },
+    [],
+  );
+
+  /** Sets a new password for whoever is signed in - after a reset link, that's the person who opened it. */
+  const setNewPassword = useCallback(async (password: string): Promise<Outcome> => {
+    const supabase = safeClient();
+    if (!supabase) return { ok: false, error: NOT_CONNECTED };
+    return attempt(supabase.auth.updateUser({ password }));
+  }, []);
+
   const isAdmin = Boolean(
     user && adminFor && adminFor.id === user.id && adminFor.admin,
   );
@@ -355,5 +381,7 @@ export function useSupabaseAuth() {
     signInWithPassword,
     signUpWithPassword,
     signOut,
+    sendPasswordReset,
+    setNewPassword,
   };
 }

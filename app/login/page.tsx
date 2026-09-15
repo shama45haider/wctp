@@ -164,11 +164,19 @@ export default function Login() {
             className={`${field} mt-2 w-full`}
           />
 
-          {password.length > 0 && !passwordOk && (
-            <p className="label mt-2 text-silverfaint">
-              AT LEAST {MIN_PASSWORD} CHARACTERS
+          <div className="mt-2 flex items-start justify-between gap-3">
+            <p className="label text-silverfaint">
+              {password.length > 0 && !passwordOk
+                ? `AT LEAST ${MIN_PASSWORD} CHARACTERS`
+                : ""}
             </p>
-          )}
+            <Link
+              href="/reset-password"
+              className="label -my-3 shrink-0 py-3 text-silverdim underline decoration-line underline-offset-4 transition-colors hover:text-chalk hover:decoration-silverdim"
+            >
+              FORGOT PASSWORD?
+            </Link>
+          </div>
 
           {message && (
             <p className="label mt-3 text-bloodhi" role="alert">

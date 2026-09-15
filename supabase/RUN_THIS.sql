@@ -1178,3 +1178,76 @@ grant execute on function public.raffle_draw(text, int) to authenticated;
 
 revoke all on function public.raffle_admin_entries(text) from public;
 grant execute on function public.raffle_admin_entries(text) to authenticated;
+
+-- ---------- 0017_raffle_avatars_and_donor_board.sql ----------
+
+-- Profile pictures on the raffle list, and a donor board fed by Stripe.
+-- See supabase/migrations/0017_raffle_avatars_and_donor_board.sql for the why.
+
+drop function if exists public.raffle_entrants(text);
+
+create function public.raffle_entrants(p_raffle text)
+returns table (handle text, avatar_path text, entered_at timestamptz)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(nullif(btrim(p.instagram), ''), 'member'),
+         p.avatar_path,
+         e.created_at
+  from public.raffle_entries e
+  join public.profiles p on p.id = e.user_id
+  where e.raffle_id = p_raffle
+  order by e.created_at desc
+  limit 1000;
+$$;
+
+revoke all on function public.raffle_entrants(text) from public;
+grant execute on function public.raffle_entrants(text) to anon, authenticated;
+
+create table if not exists public.donations (
+  id                uuid        primary key default gen_random_uuid(),
+  stripe_session_id text        not null unique,
+  user_id           uuid        references auth.users on delete set null,
+  amount_cents      int         not null check (amount_cents > 0),
+  show_on_board     boolean     not null default true,
+  created_at        timestamptz not null default now()
+);
+
+create index if not exists donations_user_idx on public.donations (user_id);
+
+alter table public.donations enable row level security;
+
+drop policy if exists "admins read donations" on public.donations;
+create policy "admins read donations" on public.donations for select
+  using (public.is_admin());
+
+create or replace function public.donor_board()
+returns table (
+  handle       text,
+  display_name text,
+  avatar_path  text,
+  total_cents  bigint,
+  gifts        bigint
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select nullif(btrim(p.instagram), ''),
+         nullif(btrim(p.nickname), ''),
+         p.avatar_path,
+         sum(d.amount_cents)::bigint,
+         count(*)::bigint
+  from public.donations d
+  join public.profiles p on p.id = d.user_id
+  where d.show_on_board
+  group by p.id, p.instagram, p.nickname, p.avatar_path
+  order by sum(d.amount_cents) desc, min(d.created_at) asc
+  limit 100;
+$$;
+
+revoke all on function public.donor_board() from public;
+grant execute on function public.donor_board() to anon, authenticated;

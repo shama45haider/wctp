@@ -96,7 +96,7 @@ Once this is live, turn off Supabase's own "Confirm email" (**Authentication →
 
 `/donate` takes a real payment through Stripe Checkout - a guest never types a card number into this site. `components/DonateForm.tsx` asks `supabase/functions/create-donation-checkout` to start a session and sends the browser to the URL it returns; Stripe sends it back to `/donate` with `?success=1&session_id=…` or `?canceled=1`, and `donation-status` reads the session back from Stripe itself so the thank-you screen shows what was actually paid, not what the browser remembers typing before it left the site.
 
-No sign-in and no database row: a gift here isn't attached to an account, same as it always wasn't. Stripe's own dashboard is the ledger - every payment, receipt and refund lives there.
+Anyone can give. `donation-status` also records each paid gift in `public.donations` (migration `0017`, in `RUN_THIS.sql`), keyed on the Stripe session so a reload can't count it twice. A donor who was signed in and left "Put me on the donor board" on shows up on the **Donor board** under the form - picture, @handle, nickname, total given and a Follow button to their Instagram, biggest total first. Guests' gifts are recorded but not shown, and emails, first names and ages never reach the board. Stripe's own dashboard is still the ledger for receipts and refunds.
 
 ```bash
 npx supabase secrets set STRIPE_SECRET_KEY=sk_live_your_real_key
@@ -105,3 +105,7 @@ npx supabase functions deploy donation-status --project-ref mkcuiglmsmxcchywruay
 ```
 
 Use a `sk_test_…` key first and pay with Stripe's [test card](https://stripe.com/docs/testing) `4242 4242 4242 4242`, any future expiry, any CVC, to prove the whole path end to end before switching to a live key. Nothing else to configure - both functions read the amount, name and email straight off the request, and the redirect back only ever lands on `wecametooparty.com` or `localhost:3000`, whichever the request came from.
+
+## Password reset
+
+"Forgot password?" on `/login` goes to `/reset-password`, which sends Supabase Auth's own reset email and, when the link brings the guest back, asks for the new password. It uses the email Supabase Auth already sends (the same SMTP settings as the confirmation email above), so nothing extra to deploy. **Authentication → URL Configuration → Redirect URLs** must include `https://wecametooparty.com/**`, or the link lands on the site root instead. The link only works in the browser it was requested from; to make it work on any device, change the Reset Password email template's link to `{{ .SiteURL }}/reset-password/?token_hash={{ .TokenHash }}&type=recovery`, which the page also accepts.
