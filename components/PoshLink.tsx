@@ -11,7 +11,7 @@ import { bubble, round } from "@/lib/raffle-fonts";
  * lib/tickets.ts), with a stop on the way out for the sponsor.
  *
  * A plain tap opens a short "taking you to Posh" box that shows East Village
- * Buyers and counts down five seconds before going. The link stays a real
+ * Buyers and counts down seven seconds before going. The link stays a real
  * link underneath: a Ctrl/Cmd-click or middle-click opens Posh in a new tab
  * the normal way, and nothing about it depends on the box ever showing.
  *
@@ -20,7 +20,7 @@ import { bubble, round } from "@/lib/raffle-fonts";
  * and closing it keeps them on the page.
  */
 
-const SECONDS = 5;
+const SECONDS = 7;
 const FONTS = `${bubble.variable} ${round.variable}`;
 const DIRECTIONS =
   "https://www.google.com/maps/search/?api=1&query=East+Village+Buyers%2C+39+Avenue+A%2C+New+York%2C+NY";

@@ -598,7 +598,7 @@ button.label:not([class*="min-h-"]) {
 }
 
 /* --- sponsor redirect (components/PoshLink.tsx) ---
-   The five seconds between GET TICKETS and Posh. Built like the raffle
+   The seven seconds between GET TICKETS and Posh. Built like the raffle
    sticker, in East Village Buyers' sign colours: marigold on black with a red
    neon edge. With reduced motion the bar stays full; the number still counts. */
 
