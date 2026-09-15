@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editable } from "./Editable";
 import { asset } from "@/lib/asset";
-import { bubble, round } from "@/lib/raffle-fonts";
+import { btnGo } from "@/lib/ui";
 
 /**
  * A GET TICKETS link for a date whose RSVP is on Posh (see poshRsvpFor() in
@@ -18,10 +18,12 @@ import { bubble, round } from "@/lib/raffle-fonts";
  * Tapping anything inside the box pauses the countdown - someone reading it,
  * opening directions or editing its text should not be whisked off mid-way -
  * and closing it keeps them on the page.
+ *
+ * Drawn like the site's other dialogs (HelpLinks, Editable): a plain panel
+ * with a hairline border, a sheet along the bottom on a phone.
  */
 
 const SECONDS = 7;
-const FONTS = `${bubble.variable} ${round.variable}`;
 const DIRECTIONS =
   "https://www.google.com/maps/search/?api=1&query=East+Village+Buyers%2C+39+Avenue+A%2C+New+York%2C+NY";
 
@@ -77,7 +79,7 @@ function SponsorRedirect({ href, onClose }: { href: string; onClose: () => void 
 
   return (
     <div
-      className={`${FONTS} raffle-round raffle-backdrop fixed inset-0 z-[9100] flex items-end justify-center bg-void/80 backdrop-blur-sm sm:items-center sm:p-6`}
+      className="sponsor-backdrop fixed inset-0 z-[9100] flex items-end justify-center bg-void/80 backdrop-blur-sm sm:items-center sm:p-6"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -93,44 +95,30 @@ function SponsorRedirect({ href, onClose }: { href: string; onClose: () => void 
         onKeyDown={(e) => {
           if (e.key === "Tab") setPaused(true);
         }}
-        className="sponsor-sticker relative max-h-[92dvh] w-full overflow-y-auto overscroll-contain px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] outline-none sm:max-w-[26rem] sm:px-5 sm:pt-5 sm:pb-5"
+        className="sponsor-box max-h-[92dvh] w-full overflow-y-auto overscroll-contain border-t border-linehi bg-ink p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] outline-none sm:max-w-md sm:border sm:pb-5"
       >
-        <div className="flex items-start justify-between gap-3">
-          <span className="rounded-full bg-[#ff3b30] px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-void uppercase">
+        <div className="flex items-center justify-between gap-4">
+          <p className="label text-silverfaint">
             <Editable k="sponsor.evb.eyebrow">Our sponsor</Editable>
-          </span>
+          </p>
           <button
             type="button"
             onClick={onClose}
             aria-label="Stay on this page"
-            className="-mt-2 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center"
+            className="label -my-3 -mr-2 min-h-11 px-2 text-silverfaint transition-colors hover:text-chalk"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ffc21a] text-void transition-transform active:scale-90">
-              <svg
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={3}
-                strokeLinecap="round"
-              >
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </span>
+            CLOSE
           </button>
         </div>
 
-        {/* The storefront carries the name and the address; the racks, tilted
-            over its corner, show what is inside. */}
-        <div className="relative mt-3 mb-7">
+        <div className="mt-4 grid grid-cols-2 gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={asset("/sponsors/east-village-buyers-storefront.jpg")}
             alt="The East Village Buyers shop front on Avenue A"
             width={960}
             height={540}
-            className="aspect-[16/9] w-full rounded-2xl border-2 border-[#ffc21a] object-cover"
+            className="aspect-[4/3] w-full border border-line object-cover"
           />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -138,17 +126,14 @@ function SponsorRedirect({ href, onClose }: { href: string; onClose: () => void 
             alt="Racks of hoodies and jackets inside the shop"
             width={640}
             height={360}
-            className="absolute right-2 -bottom-6 aspect-[16/9] w-[44%] rotate-[4deg] rounded-xl border-2 border-void object-cover shadow-[4px_4px_0_#ff3b30]"
+            className="aspect-[4/3] w-full border border-line object-cover"
           />
         </div>
 
-        <h2
-          id="sponsor-title"
-          className="raffle-bubbly sponsor-title text-[clamp(1.75rem,8vw,2.25rem)] leading-[0.95]"
-        >
+        <h2 id="sponsor-title" className="font-display mt-5 text-[1.75rem] leading-tight text-chalk">
           <Editable k="sponsor.evb.title">Need a fit for the party?</Editable>
         </h2>
-        <p id="sponsor-body" className="mt-2 text-[0.9375rem] leading-snug text-silver">
+        <p id="sponsor-body" className="mt-2 leading-relaxed text-silverdim">
           <Editable k="sponsor.evb.body">
             Check out East Village Buyers on 39 Avenue A. They&apos;ve got sneakers,
             streetwear and a whole lot more.
@@ -158,13 +143,13 @@ function SponsorRedirect({ href, onClose }: { href: string; onClose: () => void 
           href={DIRECTIONS}
           target="_blank"
           rel="noopener"
-          className="inline-flex min-h-11 items-center text-[0.875rem] font-semibold text-[#ffc21a] underline decoration-[#ff3b30] decoration-2 underline-offset-4 transition-colors hover:text-chalk"
+          className="label inline-block py-3 text-silver underline decoration-linehi underline-offset-4 transition-colors hover:text-chalk"
         >
-          Get directions &rarr;
+          GET DIRECTIONS &rarr;
         </a>
 
-        <div className="mt-2 rounded-2xl bg-[#1a1c21] px-4 py-3">
-          <p className="text-[0.8125rem] font-semibold text-chalk">
+        <div className="mt-2">
+          <p className="label text-silverfaint">
             {leaving ? (
               "Opening Posh…"
             ) : paused ? (
@@ -175,9 +160,9 @@ function SponsorRedirect({ href, onClose }: { href: string; onClose: () => void 
               </>
             )}
           </p>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#2a2d34]">
+          <div className="mt-2 h-0.5 bg-line">
             <div
-              className="sponsor-bar h-full rounded-full bg-[#ffc21a]"
+              className="sponsor-bar h-full bg-bloodhi"
               style={{
                 animationDuration: `${SECONDS}s`,
                 animationPlayState: paused ? "paused" : "running",
@@ -186,12 +171,7 @@ function SponsorRedirect({ href, onClose }: { href: string; onClose: () => void 
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={go}
-          disabled={leaving}
-          className="sponsor-go raffle-bubbly mt-4 flex min-h-12 w-full items-center justify-center px-5 text-[1.125rem] uppercase disabled:opacity-60"
-        >
+        <button type="button" onClick={go} disabled={leaving} className={`${btnGo} mt-5 w-full`}>
           Take me to Posh
         </button>
       </div>

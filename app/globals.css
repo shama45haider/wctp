@@ -598,9 +598,9 @@ button.label:not([class*="min-h-"]) {
 }
 
 /* --- sponsor redirect (components/PoshLink.tsx) ---
-   The seven seconds between GET TICKETS and Posh. Built like the raffle
-   sticker, in East Village Buyers' sign colours: marigold on black with a red
-   neon edge. With reduced motion the bar stays full; the number still counts. */
+   The seven seconds between GET TICKETS and Posh: a plain panel that eases in
+   and a hairline bar that runs down. With reduced motion the bar stays full;
+   the number still counts. */
 
 @keyframes sponsor-countdown {
   from {
@@ -611,45 +611,19 @@ button.label:not([class*="min-h-"]) {
   }
 }
 
-.sponsor-sticker {
-  border: 3px solid #ffc21a;
-  border-radius: 22px;
-  background: #0c0d10;
-  box-shadow: 7px 7px 0 #ff3b30;
-  animation: raffle-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+.sponsor-backdrop {
+  animation: raffle-fade 0.2s ease-out;
 }
 
-@media (max-width: 639px) {
-  .sponsor-sticker {
-    border-width: 3px 0 0;
-    border-radius: 22px 22px 0 0;
-    box-shadow: 0 -5px 0 #ff3b30;
-  }
+.sponsor-box {
+  animation: raffle-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.sponsor-title {
-  color: #ffc21a;
-  text-shadow: 3px 3px 0 #ff3b30;
-}
-
-.sponsor-go {
-  border-radius: 999px;
-  background: #ffc21a;
-  color: #050505;
-  box-shadow: 0 5px 0 #ff3b30;
-  transition:
-    transform 0.1s ease-out,
-    box-shadow 0.1s ease-out,
-    filter 0.15s;
-}
-
-.sponsor-go:hover:not(:disabled) {
-  filter: brightness(1.06);
-}
-
-.sponsor-go:active:not(:disabled) {
-  transform: translateY(4px);
-  box-shadow: 0 1px 0 #ff3b30;
+/* The panel takes focus when it opens so Escape and Tab land inside it, but it
+   is not a control - a ring round the whole box is noise. Its links and
+   buttons keep theirs. */
+.sponsor-box:focus-visible {
+  outline: none;
 }
 
 .sponsor-bar {
