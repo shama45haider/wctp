@@ -12,6 +12,8 @@
   --white: #f2f4f7;
   --blood: #c8102e;
   --blood-hi: #e8213f;
+  /* East Village Buyers' sign orange - the sponsor popup's accent only. */
+  --sponsor: #ff8f1f;
 }
 
 @theme inline {
@@ -26,6 +28,7 @@
   --color-chalk: var(--white);
   --color-blood: var(--blood);
   --color-bloodhi: var(--blood-hi);
+  --color-sponsor: var(--sponsor);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
   --font-mono: var(--font-mono);

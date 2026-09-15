@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Editable } from "./Editable";
 import { asset } from "@/lib/asset";
-import { btnGo } from "@/lib/ui";
+import { btnBase } from "@/lib/ui";
 
 /**
  * A GET TICKETS link for a date whose RSVP is on Posh (see poshRsvpFor() in
@@ -19,13 +19,17 @@ import { btnGo } from "@/lib/ui";
  * opening directions or editing its text should not be whisked off mid-way -
  * and closing it keeps them on the page.
  *
- * Drawn like the site's other dialogs (HelpLinks, Editable): a plain panel
- * with a hairline border, a sheet along the bottom on a phone.
+ * Drawn like the site's other dialogs (HelpLinks, Editable): a plain panel,
+ * a sheet along the bottom on a phone. The accents are the orange off East
+ * Village Buyers' sign (--sponsor in globals.css) rather than the site's red.
  */
 
 const SECONDS = 7;
 const DIRECTIONS =
   "https://www.google.com/maps/search/?api=1&query=East+Village+Buyers%2C+39+Avenue+A%2C+New+York%2C+NY";
+
+/** btnGo's shape, in the sponsor's orange. */
+const GO = `${btnBase} border border-sponsor/60 bg-gradient-to-b from-ink2 to-[#0a0b0e] text-chalk hover:border-sponsor hover:shadow-[0_10px_34px_-12px_rgba(255,143,31,0.55)]`;
 
 function SponsorRedirect({ href, onClose }: { href: string; onClose: () => void }) {
   const dialog = useRef<HTMLDivElement>(null);
@@ -95,17 +99,17 @@ function SponsorRedirect({ href, onClose }: { href: string; onClose: () => void 
         onKeyDown={(e) => {
           if (e.key === "Tab") setPaused(true);
         }}
-        className="sponsor-box max-h-[92dvh] w-full overflow-y-auto overscroll-contain border-t border-linehi bg-ink p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] outline-none sm:max-w-md sm:border sm:pb-5"
+        className="sponsor-box max-h-[92dvh] w-full overflow-y-auto overscroll-contain border-t border-sponsor/50 bg-ink p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] outline-none sm:max-w-md sm:border sm:pb-5"
       >
         <div className="flex items-center justify-between gap-4">
-          <p className="label text-silverfaint">
+          <p className="label text-sponsor">
             <Editable k="sponsor.evb.eyebrow">Our sponsor</Editable>
           </p>
           <button
             type="button"
             onClick={onClose}
             aria-label="Stay on this page"
-            className="label -my-3 -mr-2 min-h-11 px-2 text-silverfaint transition-colors hover:text-chalk"
+            className="label -my-3 -mr-2 min-h-11 px-2 text-silverfaint transition-colors hover:text-sponsor"
           >
             CLOSE
           </button>
@@ -143,7 +147,7 @@ function SponsorRedirect({ href, onClose }: { href: string; onClose: () => void 
           href={DIRECTIONS}
           target="_blank"
           rel="noopener"
-          className="label inline-block py-3 text-silver underline decoration-linehi underline-offset-4 transition-colors hover:text-chalk"
+          className="label inline-block py-3 text-silver underline decoration-sponsor underline-offset-4 transition-colors hover:text-sponsor"
         >
           GET DIRECTIONS &rarr;
         </a>
@@ -162,7 +166,7 @@ function SponsorRedirect({ href, onClose }: { href: string; onClose: () => void 
           </p>
           <div className="mt-2 h-0.5 bg-line">
             <div
-              className="sponsor-bar h-full bg-bloodhi"
+              className="sponsor-bar h-full bg-sponsor"
               style={{
                 animationDuration: `${SECONDS}s`,
                 animationPlayState: paused ? "paused" : "running",
@@ -171,7 +175,7 @@ function SponsorRedirect({ href, onClose }: { href: string; onClose: () => void 
           </div>
         </div>
 
-        <button type="button" onClick={go} disabled={leaving} className={`${btnGo} mt-5 w-full`}>
+        <button type="button" onClick={go} disabled={leaving} className={`${GO} mt-5 w-full`}>
           Take me to Posh
         </button>
       </div>
