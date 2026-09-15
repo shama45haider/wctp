@@ -601,37 +601,52 @@ button.label:not([class*="min-h-"]) {
 }
 
 /* --- sponsor redirect (components/PoshLink.tsx) ---
-   The seven seconds between GET TICKETS and Posh: a plain panel that eases in
-   and a hairline bar that runs down. With reduced motion the bar stays full;
-   the number still counts. */
+   The seven seconds between GET TICKETS and Posh, as a full-screen takeover:
+   the shop front behind a dark fade, drifting slightly closer, and an orange
+   ring that runs down around the number. With reduced motion nothing moves -
+   the ring stays full and the number still counts. */
 
-@keyframes sponsor-countdown {
+@keyframes sponsor-ring {
   from {
-    transform: scaleX(1);
+    stroke-dashoffset: 0;
   }
   to {
-    transform: scaleX(0);
+    stroke-dashoffset: 100;
   }
 }
 
-.sponsor-backdrop {
-  animation: raffle-fade 0.2s ease-out;
+@keyframes sponsor-drift {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+  }
 }
 
-.sponsor-box {
-  animation: raffle-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+.sponsor-takeover {
+  animation: raffle-fade 0.25s ease-out;
 }
 
-/* The panel takes focus when it opens so Escape and Tab land inside it, but it
-   is not a control - a ring round the whole box is noise. Its links and
+/* The takeover takes focus when it opens so Escape and Tab land inside it, but
+   it is not a control - a ring round the whole screen is noise. Its links and
    buttons keep theirs. */
-.sponsor-box:focus-visible {
+.sponsor-takeover:focus-visible {
   outline: none;
 }
 
-.sponsor-bar {
-  transform-origin: left;
-  animation-name: sponsor-countdown;
+.sponsor-rise {
+  animation: raffle-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.sponsor-drift {
+  animation: sponsor-drift 8s ease-out forwards;
+}
+
+/* The circle is drawn with pathLength="100", so 100 is its whole length. */
+.sponsor-ring {
+  stroke-dasharray: 100;
+  animation-name: sponsor-ring;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
 }
