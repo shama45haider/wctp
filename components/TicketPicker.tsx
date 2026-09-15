@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Editable } from "./Editable";
+import PoshLink from "./PoshLink";
 import type { Event } from "@/lib/events";
 import { useState } from "react";
 import {
@@ -275,9 +276,9 @@ export default function TicketPicker({ event }: { event: Event }) {
             RSVPs for this date are taken on Posh.
           </Editable>
         </p>
-        <a href={posh} className={`${btnGo} mt-4 w-full`}>
+        <PoshLink href={posh} className={`${btnGo} mt-4 w-full`}>
           Get tickets
-        </a>
+        </PoshLink>
         <p className="label mt-3 text-center text-silverfaint">
           <Link
             href="/tickets"

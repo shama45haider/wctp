@@ -596,3 +596,65 @@ button.label:not([class*="min-h-"]) {
     transparent
   );
 }
+
+/* --- sponsor redirect (components/PoshLink.tsx) ---
+   The five seconds between GET TICKETS and Posh. Built like the raffle
+   sticker, in East Village Buyers' sign colours: marigold on black with a red
+   neon edge. With reduced motion the bar stays full; the number still counts. */
+
+@keyframes sponsor-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.sponsor-sticker {
+  border: 3px solid #ffc21a;
+  border-radius: 22px;
+  background: #0c0d10;
+  box-shadow: 7px 7px 0 #ff3b30;
+  animation: raffle-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (max-width: 639px) {
+  .sponsor-sticker {
+    border-width: 3px 0 0;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -5px 0 #ff3b30;
+  }
+}
+
+.sponsor-title {
+  color: #ffc21a;
+  text-shadow: 3px 3px 0 #ff3b30;
+}
+
+.sponsor-go {
+  border-radius: 999px;
+  background: #ffc21a;
+  color: #050505;
+  box-shadow: 0 5px 0 #ff3b30;
+  transition:
+    transform 0.1s ease-out,
+    box-shadow 0.1s ease-out,
+    filter 0.15s;
+}
+
+.sponsor-go:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.sponsor-go:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 #ff3b30;
+}
+
+.sponsor-bar {
+  transform-origin: left;
+  animation-name: sponsor-countdown;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}

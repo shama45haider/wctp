@@ -3,6 +3,7 @@ import { monthOf, dayOf, type Event } from "@/lib/events";
 import { money, poshRsvpFor, priceFrom, saleState, ticketsLeft } from "@/lib/tickets";
 import EventLink from "./EventLink";
 import Flyer from "./Flyer";
+import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
 
 const LOW_STOCK = 25;
@@ -120,9 +121,9 @@ function Row({ e, linked }: { e: Event; linked: boolean }) {
       {/* Straight to Posh for a date that RSVPs there. Otherwise no button at
           all without a page: one that goes nowhere is worse. */}
       {posh ? (
-        <a href={posh} className={button}>
+        <PoshLink href={posh} className={button}>
           Tickets
-        </a>
+        </PoshLink>
       ) : (
         linked && (
           <Link

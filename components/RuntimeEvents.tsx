@@ -1,6 +1,7 @@
 "use client";
 
 import Flyer from "./Flyer";
+import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
 import { allEvents, monthOf, dayOf, type Event } from "@/lib/events";
 import type { RuntimeEventList } from "@/lib/events-runtime";
@@ -85,12 +86,12 @@ function Card({ e, now }: { e: Event; now: Date }) {
             nothing to sell here yet. Saying so beats a button that cannot check
             out - unless its RSVP is on Posh, in which case that is the button. */}
         {!past && posh ? (
-          <a
+          <PoshLink
             href={posh}
             className="-my-3 inline-block py-3 text-bloodhi hover:text-chalk"
           >
             GET TICKETS &rarr;
-          </a>
+          </PoshLink>
         ) : (
           <span className={past ? "text-silverfaint" : "text-bloodhi"}>
             {past ? (

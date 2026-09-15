@@ -4,6 +4,7 @@ import Link from "next/link";
 import EventLink from "./EventLink";
 import EventManifest from "./EventManifest";
 import Flyer from "./Flyer";
+import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
 import { org, monthOf, dayOf } from "@/lib/events";
 import { useRuntimeEvents } from "@/lib/events-runtime";
@@ -132,9 +133,9 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
                   <Editable k="home.next.address">ADDRESS BY EMAIL</Editable>
                 </span>
                 {nextPosh ? (
-                  <a href={nextPosh} className={GET_TICKETS}>
+                  <PoshLink href={nextPosh} className={GET_TICKETS}>
                     GET TICKETS &rarr;
-                  </a>
+                  </PoshLink>
                 ) : (
                   nextHasPage && (
                     <Link

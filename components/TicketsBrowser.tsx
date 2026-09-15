@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import EventLink from "./EventLink";
 import Flyer from "./Flyer";
+import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
 import { monthOf, dayOf, type Event } from "@/lib/events";
 import type { RuntimeEventList } from "@/lib/events-runtime";
@@ -144,9 +145,9 @@ function Card({ e, now, linked }: { e: Event; now: Date; linked: boolean }) {
         </div>
 
         {posh ? (
-          <a href={posh} className={button}>
+          <PoshLink href={posh} className={button}>
             GET TICKETS &rarr;
-          </a>
+          </PoshLink>
         ) : (
           linked && (
             <Link
