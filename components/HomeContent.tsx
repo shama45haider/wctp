@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import EventLink from "./EventLink";
 import EventManifest from "./EventManifest";
 import Flyer from "./Flyer";
+import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
 import { org, monthOf, dayOf } from "@/lib/events";
 import { useRuntimeEvents } from "@/lib/events-runtime";
+import { poshRsvpFor } from "@/lib/tickets";
 
 /**
  * Everything on the home page that depends on which night is next.
@@ -51,9 +54,17 @@ function SectionHead({
   );
 }
 
-export default function HomeContent() {
-  const { upcoming, past } = useRuntimeEvents();
+const GET_TICKETS =
+  "label flex min-h-11 w-full shrink-0 items-center justify-center border border-[rgba(200,16,46,0.5)] px-4 text-chalk transition-all hover:border-bloodhi hover:bg-[rgba(200,16,46,0.08)] sm:ml-auto sm:w-auto";
+
+export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
+  // hasPage: a date published since the last build is listed, but has no page
+  // to link to yet - see components/EventLink.tsx.
+  const { upcoming, past, hasPage } = useRuntimeEvents(pageSlugs);
   const next = upcoming[0] as (typeof upcoming)[number] | undefined;
+  const nextHasPage = next ? hasPage(next.slug) : false;
+  // A date whose RSVP is on Posh sends GET TICKETS there - see lib/tickets.ts.
+  const nextPosh = next ? poshRsvpFor(next.slug) : null;
 
   return (
     <main>
@@ -109,23 +120,32 @@ export default function HomeContent() {
                 {/* Padded to a thumb and pulled back with a matching negative
                     margin, so the strip keeps its spacing while the headline
                     stops being a 26px tap target on the busiest link here. */}
-                <Link
-                  href={`/events/${next.slug}`}
+                <EventLink
+                  slug={next.slug}
+                  hasPage={nextHasPage}
                   className="font-display -my-2.5 inline-block py-2.5 text-[1.75rem] leading-none transition-colors hover:text-bloodhi"
                 >
                   {next.title}
-                </Link>
+                </EventLink>
                 <span className="label text-silverdim">
                   {next.dow} {dayOf(next.date)} {monthOf(next.date)}
                   &nbsp;/&nbsp;{next.time}&nbsp;/&nbsp;
                   <Editable k="home.next.address">ADDRESS BY EMAIL</Editable>
                 </span>
-                <Link
-                  href={`/events/${next.slug}#tickets`}
-                  className="label flex min-h-11 w-full shrink-0 items-center justify-center border border-[rgba(200,16,46,0.5)] px-4 text-chalk transition-all hover:border-bloodhi hover:bg-[rgba(200,16,46,0.08)] sm:ml-auto sm:w-auto"
-                >
-                  GET TICKETS &rarr;
-                </Link>
+                {nextPosh ? (
+                  <PoshLink href={nextPosh} className={GET_TICKETS}>
+                    GET TICKETS &rarr;
+                  </PoshLink>
+                ) : (
+                  nextHasPage && (
+                    <Link
+                      href={`/events/${next.slug}#tickets`}
+                      className={GET_TICKETS}
+                    >
+                      GET TICKETS &rarr;
+                    </Link>
+                  )
+                )}
               </div>
             ) : (
               <div className="mt-6 border-t border-line pt-4 text-center sm:text-left">
@@ -148,8 +168,10 @@ export default function HomeContent() {
           {next && (
             <div className="relative hidden shrink-0 md:block md:w-[clamp(190px,22vw,270px)]">
               <div className="absolute -top-3 -right-3 aspect-[4/5] w-full rotate-[5deg] border border-line bg-ink" />
-              <Link
-                href={`/events/${next.slug}#tickets`}
+              <EventLink
+                slug={next.slug}
+                hash="tickets"
+                hasPage={nextHasPage}
                 className="scanlines group relative block aspect-[4/5] w-full -rotate-[2deg] overflow-hidden border border-linehi shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] transition-transform hover:rotate-0"
               >
                 {next.imageId ? (
@@ -169,7 +191,7 @@ export default function HomeContent() {
                 <span className="label absolute bottom-0 left-0 bg-void/85 px-2 py-1 text-bloodhi">
                   ON SALE
                 </span>
-              </Link>
+              </EventLink>
             </div>
           )}
         </div>
@@ -211,7 +233,7 @@ export default function HomeContent() {
             }
           />
           {upcoming.length > 0 ? (
-            <EventManifest events={upcoming} />
+            <EventManifest events={upcoming} hasPage={hasPage} />
           ) : (
             <div className="border border-dashed border-linehi p-10 text-center">
               <p className="font-display text-2xl">
@@ -262,9 +284,10 @@ export default function HomeContent() {
               an archive. Paired columns show each flyer whole. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(230px,1fr))] sm:gap-5">
             {past.map((e) => (
-              <Link
+              <EventLink
                 key={e.slug}
-                href={`/events/${e.slug}`}
+                slug={e.slug}
+                hasPage={hasPage(e.slug)}
                 className="group border border-line bg-ink transition-colors hover:border-linehi"
               >
                 <div className="relative aspect-[4/5] overflow-hidden sm:aspect-auto sm:h-[180px]">
@@ -291,7 +314,7 @@ export default function HomeContent() {
                     {e.dow} {dayOf(e.date)} {monthOf(e.date)} &middot; {e.time}
                   </span>
                 </div>
-              </Link>
+              </EventLink>
             ))}
           </div>
         </div>

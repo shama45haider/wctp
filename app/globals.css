@@ -12,6 +12,8 @@
   --white: #f2f4f7;
   --blood: #c8102e;
   --blood-hi: #e8213f;
+  /* East Village Buyers' sign orange - the sponsor popup's accent only. */
+  --sponsor: #ff8f1f;
 }
 
 @theme inline {
@@ -26,6 +28,7 @@
   --color-chalk: var(--white);
   --color-blood: var(--blood);
   --color-bloodhi: var(--blood-hi);
+  --color-sponsor: var(--sponsor);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
   --font-mono: var(--font-mono);
@@ -595,4 +598,55 @@ button.label:not([class*="min-h-"]) {
     rgba(167, 139, 250, 0.08) 62%,
     transparent
   );
+}
+
+/* --- sponsor redirect (components/PoshLink.tsx) ---
+   The seven seconds between GET TICKETS and Posh, as a full-screen takeover:
+   the shop front behind a dark fade, drifting slightly closer, and an orange
+   ring that runs down around the number. With reduced motion nothing moves -
+   the ring stays full and the number still counts. */
+
+@keyframes sponsor-ring {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 100;
+  }
+}
+
+@keyframes sponsor-drift {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.sponsor-takeover {
+  animation: raffle-fade 0.25s ease-out;
+}
+
+/* The takeover takes focus when it opens so Escape and Tab land inside it, but
+   it is not a control - a ring round the whole screen is noise. Its links and
+   buttons keep theirs. */
+.sponsor-takeover:focus-visible {
+  outline: none;
+}
+
+.sponsor-rise {
+  animation: raffle-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.sponsor-drift {
+  animation: sponsor-drift 8s ease-out forwards;
+}
+
+/* The circle is drawn with pathLength="100", so 100 is its whole length. */
+.sponsor-ring {
+  stroke-dasharray: 100;
+  animation-name: sponsor-ring;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
 }

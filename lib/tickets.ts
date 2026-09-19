@@ -183,6 +183,18 @@ const TIERS: Record<string, Tier[]> = {
 export const tiersFor = (slug: string): Tier[] => TIERS[slug] ?? [];
 
 /**
+ * Dates whose RSVP is taken on Posh instead of through this site's checkout,
+ * keyed by slug the same way TIERS is. GET TICKETS on one of these goes to its
+ * Posh event page, and it counts as on sale while the date is ahead even with
+ * no tiers above. Posh owns its price and stock, so the site shows neither.
+ */
+const POSH_RSVP: Record<string, string> = {
+  "wctp-swag-redo": "https://posh.vip/e/wecametooswagredo",
+};
+
+export const poshRsvpFor = (slug: string): string | null => POSH_RSVP[slug] ?? null;
+
+/**
  * Tiers that actually get someone through a door.
  *
  * Stock counts, "from" prices and the on-sale/sold-out decision all run off
@@ -229,7 +241,8 @@ export type SaleState = "on-sale" | "sold-out" | "closed";
 export function saleState(e: Event, now: Date = TODAY): SaleState {
   if (isPastEvent(e, now)) return "closed";
   const tiers = admissionTiers(e.slug);
-  if (tiers.length === 0) return "closed";
+  // A Posh RSVP has no tiers here, but it stays open until the night.
+  if (tiers.length === 0) return poshRsvpFor(e.slug) ? "on-sale" : "closed";
   return tiers.every(isSoldOut) ? "sold-out" : "on-sale";
 }
 

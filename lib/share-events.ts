@@ -6,7 +6,8 @@ import { isPastEvent } from "./tickets";
 import { dowOf, poshImageId } from "./posh";
 
 /**
- * The event list as link previews should see it, computed at build time.
+ * The event list as link previews should see it, computed at build time. It is
+ * also the list app/events/[slug] prerenders a page for.
  *
  * Crawlers that build a link preview (Instagram, iMessage, Slack...) run no
  * JavaScript, so the browser-side merge in lib/events-runtime.ts never reaches
@@ -86,6 +87,15 @@ export function eventsForSharing(): Event[] {
 /** One event by slug, with any published dashboard edit applied. */
 export function findEventForSharing(slug: string): Event | undefined {
   return eventsForSharing().find((e) => e.slug === slug);
+}
+
+/**
+ * Every slug app/events/[slug] prerenders. The client-side lists are handed
+ * this so a date published after the build is listed without a link rather
+ * than linking to a page that does not exist - see components/EventLink.tsx.
+ */
+export function eventPageSlugs(): string[] {
+  return eventsForSharing().map((e) => e.slug);
 }
 
 /** The soonest event that has not happened yet as of the build day, if any. */

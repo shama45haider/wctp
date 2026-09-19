@@ -1,16 +1,27 @@
 import Link from "next/link";
 import { monthOf, dayOf, type Event } from "@/lib/events";
-import { money, priceFrom, saleState, ticketsLeft } from "@/lib/tickets";
+import { money, poshRsvpFor, priceFrom, saleState, ticketsLeft } from "@/lib/tickets";
+import EventLink from "./EventLink";
 import Flyer from "./Flyer";
+import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
 
 const LOW_STOCK = 25;
 
-function Row({ e }: { e: Event }) {
+/** `linked` is false for a date the static export has no page for yet. */
+function Row({ e, linked }: { e: Event; linked: boolean }) {
   const state = saleState(e);
   const from = priceFrom(e);
   const left = ticketsLeft(e.slug);
   const closed = state !== "on-sale";
+  // Open on Posh rather than here: no price or stock to show, and the button
+  // goes to Posh - see poshRsvpFor() in lib/tickets.ts.
+  const posh = closed ? null : poshRsvpFor(e.slug);
+  const button = `font-display col-start-2 flex min-h-11 items-center justify-center border px-[1.15rem] py-[0.7rem] tracking-[0.12em] uppercase transition-all md:col-start-auto md:justify-self-start ${
+    closed
+      ? "border-linehi text-silverdim hover:border-silverdim hover:text-chalk"
+      : "border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] text-chalk hover:border-bloodhi hover:shadow-[0_10px_34px_-12px_rgba(200,16,46,0.6)]"
+  }`;
 
   return (
     <article className="group relative grid grid-cols-[7rem_minmax(0,1fr)] items-start gap-x-4 gap-y-3 border-b border-line px-4 py-5 transition-colors hover:bg-white/[0.022] md:grid-cols-[5rem_6rem_minmax(0,1fr)_7rem_auto] md:items-center md:gap-6 md:py-6">
@@ -59,12 +70,13 @@ function Row({ e }: { e: Event }) {
               margin globals.css uses on a bare .label link: the title is one
               of only two ways into an event from this row, and at its natural
               23px it was half the height a tap wants. */}
-          <Link
-            href={`/events/${e.slug}`}
+          <EventLink
+            slug={e.slug}
+            hasPage={linked}
             className="-my-3 inline-block py-3 hover:text-bloodhi"
           >
             {e.title}
-          </Link>
+          </EventLink>
         </h3>
         <div className="label mt-0.5 text-silverfaint">
           <Editable k="manifest.row.host">WECAMETOOPARTY</Editable>
@@ -75,7 +87,7 @@ function Row({ e }: { e: Event }) {
               {e.going} <Editable k="manifest.row.going">GOING</Editable>
             </span>
           )}
-          {state === "on-sale" && left <= LOW_STOCK && (
+          {state === "on-sale" && !posh && left <= LOW_STOCK && (
             <span className="label inline-block border border-line px-2.5 py-1 text-silverdim">
               {left} <Editable k="manifest.row.left">LEFT</Editable>
             </span>
@@ -92,7 +104,7 @@ function Row({ e }: { e: Event }) {
           night and is never printed on a listing - see lib/events.ts. */}
       <div className="label col-start-2 text-chalk md:col-start-auto">
         <span className="text-bloodhi">
-          {closed ? "—" : money(from ?? e.priceCents ?? 0)}
+          {closed ? "—" : posh ? "RSVP" : money(from ?? e.priceCents ?? 0)}
         </span>
         <br />
         {e.time}
@@ -106,16 +118,22 @@ function Row({ e }: { e: Event }) {
         )}
       </div>
 
-      <Link
-        href={`/events/${e.slug}${closed ? "" : "#tickets"}`}
-        className={`font-display col-start-2 flex min-h-11 items-center justify-center border px-[1.15rem] py-[0.7rem] tracking-[0.12em] uppercase transition-all md:col-start-auto md:justify-self-start ${
-          closed
-            ? "border-linehi text-silverdim hover:border-silverdim hover:text-chalk"
-            : "border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] text-chalk hover:border-bloodhi hover:shadow-[0_10px_34px_-12px_rgba(200,16,46,0.6)]"
-        }`}
-      >
-        {closed ? "Details" : "Tickets"}
-      </Link>
+      {/* Straight to Posh for a date that RSVPs there. Otherwise no button at
+          all without a page: one that goes nowhere is worse. */}
+      {posh ? (
+        <PoshLink href={posh} className={button}>
+          Tickets
+        </PoshLink>
+      ) : (
+        linked && (
+          <Link
+            href={`/events/${e.slug}${closed ? "" : "#tickets"}`}
+            className={button}
+          >
+            {closed ? "Details" : "Tickets"}
+          </Link>
+        )
+      )}
     </article>
   );
 }
@@ -128,11 +146,18 @@ function Row({ e }: { e: Event }) {
  * visual thing this site has. Below md the layout folds to flyer-plus-stack
  * and the date moves onto the artwork.
  */
-export default function EventManifest({ events }: { events: Event[] }) {
+export default function EventManifest({
+  events,
+  hasPage,
+}: {
+  events: Event[];
+  /** From useRuntimeEvents - whether the static export built a page for a slug. */
+  hasPage: (slug: string) => boolean;
+}) {
   return (
     <div className="border-t border-line">
       {events.map((e) => (
-        <Row key={e.slug} e={e} />
+        <Row key={e.slug} e={e} linked={hasPage(e.slug)} />
       ))}
     </div>
   );

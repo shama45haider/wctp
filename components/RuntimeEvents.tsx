@@ -1,10 +1,11 @@
 "use client";
 
 import Flyer from "./Flyer";
+import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
 import { allEvents, monthOf, dayOf, type Event } from "@/lib/events";
 import type { RuntimeEventList } from "@/lib/events-runtime";
-import { isPastEvent } from "@/lib/tickets";
+import { isPastEvent, poshRsvpFor } from "@/lib/tickets";
 
 /**
  * Dates announced from the dashboard since the site was last built.
@@ -29,11 +30,13 @@ const BUILT_IN = new Set(allEvents.map((e) => e.slug));
 
 function Card({ e, now }: { e: Event; now: Date }) {
   const past = isPastEvent(e, now);
+  const posh = poshRsvpFor(e.slug);
 
   return (
     <article className="flex flex-col border border-line bg-ink">
-      {/* Not a link. Event pages are generated at build time from lib/events.ts
-          with `dynamicParams = false`, so a date added after the last deploy has
+      {/* Not a link. TicketsBrowser above lists the same date and links it
+          once it has a page; event pages are generated at build time with
+          `dynamicParams = false`, so a date added after the last deploy has
           no page to open and a card promising one would land on a 404. */}
       <div className="relative aspect-[4/5] overflow-hidden sm:aspect-[3/4]">
         {e.imageId ? (
@@ -80,14 +83,24 @@ function Card({ e, now }: { e: Event; now: Date }) {
           {past ? <Editable k="tickets.announced.pastDate">PAST DATE</Editable> : e.time}
         </span>
         {/* Tiers live in lib/tickets.ts, so a date posted from the dashboard has
-            nothing to sell yet. Saying so beats a button that cannot check out. */}
-        <span className={past ? "text-silverfaint" : "text-bloodhi"}>
-          {past ? (
-            <Editable k="tickets.announced.archive">ARCHIVE</Editable>
-          ) : (
-            <Editable k="tickets.announced.ticketsSoon">TICKETS SOON</Editable>
-          )}
-        </span>
+            nothing to sell here yet. Saying so beats a button that cannot check
+            out - unless its RSVP is on Posh, in which case that is the button. */}
+        {!past && posh ? (
+          <PoshLink
+            href={posh}
+            className="-my-3 inline-block py-3 text-bloodhi hover:text-chalk"
+          >
+            GET TICKETS &rarr;
+          </PoshLink>
+        ) : (
+          <span className={past ? "text-silverfaint" : "text-bloodhi"}>
+            {past ? (
+              <Editable k="tickets.announced.archive">ARCHIVE</Editable>
+            ) : (
+              <Editable k="tickets.announced.ticketsSoon">TICKETS SOON</Editable>
+            )}
+          </span>
+        )}
       </div>
     </article>
   );

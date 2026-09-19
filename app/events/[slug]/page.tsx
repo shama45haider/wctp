@@ -3,14 +3,21 @@ import { notFound } from "next/navigation";
 import TicketPicker from "@/components/TicketPicker";
 import { EventFlyer, EventFromStat } from "@/components/EventLiveBits";
 import { Editable } from "@/components/Editable";
-import { allEvents, findEvent, monthOf, dayOf, org } from "@/lib/events";
+import { monthOf, dayOf, org } from "@/lib/events";
 import { money, priceFrom } from "@/lib/tickets";
-import { eventShareMetadata, findEventForSharing } from "@/lib/share-events";
+import {
+  eventPageSlugs,
+  eventShareMetadata,
+  findEventForSharing,
+} from "@/lib/share-events";
 
 export const dynamicParams = false;
 
+// Every event the site can list: the built-in ones plus whatever the dashboard
+// had published when the build ran (see lib/share-events.ts). The built-in list
+// alone left dashboard-only dates linked from the home page with no page here.
 export function generateStaticParams() {
-  return allEvents.map((e) => ({ slug: e.slug }));
+  return eventPageSlugs().map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({
@@ -19,7 +26,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const event = findEvent(slug);
+  const event = findEventForSharing(slug);
   if (!event) return {};
   const from = priceFrom(event);
   const title = `${event.title} · WECAMETOOPARTY`;
@@ -38,7 +45,7 @@ export async function generateMetadata({
     // The preview uses this event's own flyer, including one swapped in from
     // the dashboard since the last push.
     ...eventShareMetadata({
-      event: findEventForSharing(slug) ?? event,
+      event,
       url: `/events/${event.slug}/`,
       title,
       description,
@@ -52,7 +59,8 @@ export default async function EventPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const event = findEvent(slug);
+  // With any published dashboard edit applied, the same as the listings.
+  const event = findEventForSharing(slug);
   if (!event) notFound();
 
   return (

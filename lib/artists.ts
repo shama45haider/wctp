@@ -10,7 +10,7 @@
  * Photos go in /public/roster and are referenced by path.
  */
 
-export type Role = "ceo" | "dj" | "artist";
+export type Role = "ceo" | "dj" | "artist" | "photographer" | "designer" | "promoter";
 
 export type Artist = {
   slot: number;
@@ -44,6 +44,24 @@ export const ROLES: { id: Role; heading: string; label: string; blurb: string }[
     heading: "The Artists",
     label: "ARTIST",
     blurb: "The rest of the family.",
+  },
+  {
+    id: "photographer",
+    heading: "The Photographers",
+    label: "PHOTOGRAPHER",
+    blurb: "Behind the camera on the night.",
+  },
+  {
+    id: "designer",
+    heading: "The Graphic Designers",
+    label: "GRAPHIC DESIGNER",
+    blurb: "The flyers, and the look of it all.",
+  },
+  {
+    id: "promoter",
+    heading: "The Promoters",
+    label: "PROMOTER",
+    blurb: "Getting the word out.",
   },
 ];
 
