@@ -53,6 +53,7 @@ type Draft = {
   time: string;
   flyerUrl: string;
   blurb: string;
+  ticketRedirectUrl: string;
   published: boolean;
 };
 
@@ -63,6 +64,7 @@ const EMPTY: Draft = {
   time: "",
   flyerUrl: "",
   blurb: "",
+  ticketRedirectUrl: "",
   published: false,
 };
 
@@ -163,6 +165,7 @@ export default function AdminEvents() {
       time: row.time,
       flyerUrl: row.flyerUrl ?? "",
       blurb: row.blurb ?? "",
+      ticketRedirectUrl: row.ticketRedirectUrl ?? "",
       published: row.published,
     });
     setEditing(row.slug);
@@ -185,6 +188,8 @@ export default function AdminEvents() {
     const blurb = draft.blurb.trim();
     const time = draft.time.trim();
 
+    const ticketRedirectUrl = draft.ticketRedirectUrl.trim();
+
     const payload: Parameters<typeof upsertEvent>[0] = {
       slug,
       title,
@@ -193,6 +198,7 @@ export default function AdminEvents() {
       // Nullable columns, so an emptied field means "clear this".
       flyerUrl: flyerUrl || null,
       blurb: blurb || null,
+      ticketRedirectUrl: ticketRedirectUrl || null,
       published: draft.published,
     };
     // The time cannot hold an empty string - it is NOT NULL with a default in
@@ -401,6 +407,23 @@ export default function AdminEvents() {
                 placeholder="https://…"
                 className={`${field} mt-2 w-full`}
               />
+            </div>
+
+            <div>
+              <label htmlFor="ticketRedirectUrl" className="label text-silverfaint">
+                TICKET REDIRECT URL
+              </label>
+              <input
+                id="ticketRedirectUrl"
+                value={draft.ticketRedirectUrl}
+                onChange={(e) => set("ticketRedirectUrl", e.target.value)}
+                inputMode="url"
+                placeholder="https://example.com/tickets"
+                className={`${field} mt-2 w-full`}
+              />
+              <p className="label mt-2 text-silverfaint">
+                Leave empty to show normal ticket picker. Set a URL to redirect to external ticketing.
+              </p>
             </div>
 
             <div>

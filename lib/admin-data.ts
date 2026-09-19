@@ -82,6 +82,7 @@ export type EventRow = {
   dow: string;
   flyerUrl: string | null;
   blurb: string | null;
+  ticketRedirectUrl: string | null;
   published: boolean;
   createdAt: string;
 };
@@ -127,7 +128,7 @@ const VERIFICATION_COLUMNS =
 // No venue: the column is still there (see 0011) but the site never shows an
 // address, so it is neither read nor written from here.
 const EVENT_COLUMNS =
-  "slug,title,date,time,dow,flyer_url,blurb,published,created_at";
+  "slug,title,date,time,dow,flyer_url,blurb,ticket_redirect_url,published,created_at";
 
 type Attempt<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -200,6 +201,7 @@ type EventRecord = {
   dow: string;
   flyer_url: string | null;
   blurb: string | null;
+  ticket_redirect_url: string | null;
   published: boolean;
   created_at: string;
 };
@@ -239,6 +241,7 @@ const toEvent = (r: EventRecord): EventRow => ({
   dow: r.dow,
   flyerUrl: r.flyer_url,
   blurb: r.blurb,
+  ticketRedirectUrl: r.ticket_redirect_url,
   published: r.published,
   createdAt: r.created_at,
 });
@@ -456,6 +459,7 @@ export async function upsertEvent(
   if (e.dow !== undefined) row.dow = e.dow;
   if (e.flyerUrl !== undefined) row.flyer_url = e.flyerUrl;
   if (e.blurb !== undefined) row.blurb = e.blurb;
+  if (e.ticketRedirectUrl !== undefined) row.ticket_redirect_url = e.ticketRedirectUrl;
   if (e.published !== undefined) row.published = e.published;
 
   // created_by is left alone. An upsert cannot tell an insert from an update,

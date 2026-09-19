@@ -72,6 +72,7 @@ function toEvent(row: EventRow, base?: Event): Event | null {
 
   const imageId = poshImageId(row.flyerUrl) ?? base?.imageId;
   const note = row.blurb?.trim() || base?.note;
+  const ticketRedirectUrl = row.ticketRedirectUrl?.trim();
 
   return {
     ...base,
@@ -82,6 +83,7 @@ function toEvent(row: EventRow, base?: Event): Event | null {
     time: row.time?.trim() || base?.time || "9:00 PM",
     ...(imageId ? { imageId } : {}),
     ...(note ? { note } : {}),
+    ...(ticketRedirectUrl ? { ticketRedirectUrl } : {}),
   };
 }
 

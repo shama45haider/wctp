@@ -14,6 +14,8 @@ export type Event = {
    * PLACEHOLDERS — replace them with real door prices before launch.
    */
   priceCents?: number;
+  /** External URL to redirect to for ticketing. If set, TicketPicker redirects instead of showing inline picker. */
+  ticketRedirectUrl?: string;
 };
 
 /*

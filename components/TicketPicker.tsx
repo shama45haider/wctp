@@ -260,6 +260,30 @@ export default function TicketPicker({ event }: { event: Event }) {
   // itself has not been rebuilt since.
   const now = useNow();
 
+  // If event has a ticket redirect URL, show a button to redirect there instead
+  if (event.ticketRedirectUrl) {
+    return (
+      <div className="border border-line bg-ink p-6">
+        <p className="font-display text-2xl mb-4">
+          <Editable k="event.picker.externalTickets">Get tickets</Editable>
+        </p>
+        <p className="text-sm text-silverdim mb-6">
+          <Editable k="event.picker.externalTicketsDesc">
+            Tickets for this event are available on an external platform.
+          </Editable>
+        </p>
+        <a
+          href={event.ticketRedirectUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${btnGo} w-full text-center block`}
+        >
+          <Editable k="event.picker.externalTicketsButton">Get tickets →</Editable>
+        </a>
+      </div>
+    );
+  }
+
   const tiers = tiersFor(event.slug);
   const state = saleState(event, now);
 
