@@ -64,6 +64,7 @@ function Card({ e, now, linked }: { e: Event; now: Date; linked: boolean }) {
       <EventLink
         slug={e.slug}
         hasPage={linked}
+        externalHref={e.ticketRedirectUrl}
         className="relative block aspect-[4/5] overflow-hidden sm:aspect-[3/4]"
       >
         {heroPhoto(e) || e.imageId ? (

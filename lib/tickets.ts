@@ -241,8 +241,15 @@ export type SaleState = "on-sale" | "sold-out" | "closed";
 export function saleState(e: Event, now: Date = TODAY): SaleState {
   if (isPastEvent(e, now)) return "closed";
   const tiers = admissionTiers(e.slug);
-  // A Posh RSVP has no tiers here, but it stays open until the night.
-  if (tiers.length === 0) return poshRsvpFor(e.slug) ? "on-sale" : "closed";
+  // Neither a Posh RSVP nor a date sold off-site has tiers here, and both stay
+  // open until the night. Without the second of those, every event posted from
+  // the dashboard with a ticket link read as "closed" - which is exactly the
+  // shape of event that has no tiers, because not selling here is the whole
+  // reason it carries a link somewhere else. The listing called it SALES
+  // CLOSED and the picker offered nothing.
+  if (tiers.length === 0) {
+    return poshRsvpFor(e.slug) || e.ticketRedirectUrl ? "on-sale" : "closed";
+  }
   return tiers.every(isSoldOut) ? "sold-out" : "on-sale";
 }
 

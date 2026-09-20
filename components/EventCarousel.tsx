@@ -37,6 +37,7 @@ function Poster({ e, linked, now }: { e: Event; linked: boolean; now: Date }) {
     <EventLink
       slug={e.slug}
       hasPage={linked}
+      externalHref={e.ticketRedirectUrl}
       // A date published since the last build has no static page yet, and
       // EventLink renders it as plain text rather than a link to a 404.
       className="wall-poster relative block w-[76vw] shrink-0 p-2.5 sm:w-[43vw] lg:w-[306px]"
