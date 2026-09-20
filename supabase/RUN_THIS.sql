@@ -837,7 +837,14 @@ create policy "admins remove raffle entries" on public.raffle_entries for delete
 
 -- The public entry list. Instagram handles and entry times only - no names,
 -- emails or ages leave profiles through this.
-create or replace function public.raffle_entrants(p_raffle text)
+--
+-- Dropped first, and not merely "or replace"d. 0017 further down this file
+-- redefines this function with avatar_path added to its return table, and
+-- CREATE OR REPLACE cannot change a function's return type - so on any project
+-- where 0017 has already been applied, this statement failed with 42P13 and
+-- took every statement after it down with it, including 0018 at the end.
+drop function if exists public.raffle_entrants(text);
+create function public.raffle_entrants(p_raffle text)
 returns table (handle text, entered_at timestamptz)
 language sql
 stable
