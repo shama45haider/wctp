@@ -53,6 +53,7 @@ export default function ChatRoom() {
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   const [card, setCard] = useState<string | null>(null);
+  const [live, setLive] = useState(false);
 
   const alive = useRef(true);
   const foot = useRef<HTMLDivElement>(null);
@@ -77,10 +78,37 @@ export default function ChatRoom() {
   useEffect(() => {
     if (!ready || !user) return;
     void read();
-    channel.current = watchRoom(() => void read());
+    channel.current = watchRoom(
+      () => void read(),
+      (ok) => setLive(ok),
+    );
+
+    /**
+     * A slow backstop, running whether or not realtime says it is connected.
+     *
+     * Gating this on the subscription status would not have caught the fault
+     * that made it necessary: with the table missing from the publication the
+     * channel reported SUBSCRIBED and delivered nothing, so a status-gated
+     * poll would have stayed asleep while the room sat frozen. Twenty-five
+     * seconds is cheap enough to run always and short enough that a silently
+     * dead socket is an annoyance rather than a broken page.
+     *
+     * Slowed right down when the tab is hidden, the way the raffle page does -
+     * nobody is reading a chat they cannot see.
+     */
+    const tick = window.setInterval(
+      () => {
+        if (document.hidden) return;
+        void read();
+      },
+      25_000,
+    );
+
     return () => {
+      window.clearInterval(tick);
       stopWatching(channel.current);
       channel.current = null;
+      setLive(false);
     };
   }, [ready, user, read]);
 
@@ -151,6 +179,18 @@ export default function ChatRoom() {
 
   return (
     <div className="border border-line bg-ink">
+      <div className="label flex items-center justify-between border-b border-linesoft px-4 py-2 text-silverfaint">
+        <span className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className={`inline-block h-1.5 w-1.5 rounded-full ${
+              live ? "bg-bloodhi" : "bg-linehi"
+            }`}
+          />
+          {live ? "LIVE" : "CATCHING UP"}
+        </span>
+      </div>
+
       {/* ----------------------------------------------------- transcript -- */}
       <div className="h-[clamp(20rem,58vh,34rem)] overflow-y-auto px-4 py-4">
         {load.kind === "loading" && (

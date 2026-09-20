@@ -239,24 +239,36 @@ export async function uploadChatImage(
 /**
  * Watch the lounge.
  *
- * postgres_changes gives an insert the moment it lands, but only the raw row -
- * no handle, no picture, because the payload is the table and not the function.
- * Rather than join per message, `onInsert` is handed the id and the caller
- * re-reads; at chat volumes that is one small round trip and it keeps one
- * code path building a message instead of two that have to agree.
+ * postgres_changes fires the moment a row lands, but hands over only the raw
+ * row - no handle, no picture, because the payload is the table and not the
+ * function. So the caller re-reads rather than splicing it in: at chat volumes
+ * that is one small round trip, and it keeps one code path building a message
+ * instead of two that have to agree.
+ *
+ * `onStatus` exists because of how this broke the first time. The table was
+ * not in the supabase_realtime publication, so Postgres published nothing -
+ * and the channel still reported SUBSCRIBED and sat there silently. Every
+ * visible sign said it was working. Reporting the status is not enough to
+ * catch that particular fault on its own, which is why ChatRoom also keeps a
+ * slow backstop poll running regardless.
  */
-export function watchRoom(onInsert: () => void): RealtimeChannel | null {
+export function watchRoom(
+  onChange: () => void,
+  onStatus?: (live: boolean) => void,
+): RealtimeChannel | null {
   const supabase = safeClient();
   if (!supabase) return null;
 
   return supabase
-    .channel("room")
+    .channel("lounge")
     .on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "chat_messages" },
-      () => onInsert(),
+      // Updates as well as inserts: hiding a message is an update, and without
+      // it a removal stays on everybody else's screen until they reload.
+      { event: "*", schema: "public", table: "chat_messages" },
+      () => onChange(),
     )
-    .subscribe();
+    .subscribe((status) => onStatus?.(status === "SUBSCRIBED"));
 }
 
 export function stopWatching(channel: RealtimeChannel | null) {
