@@ -4,6 +4,10 @@
   --void: #050505;
   --ink: #0c0d10;
   --ink-2: #131519;
+  /* Structural edges (panel outlines) vs. internal row dividers. Rows inside
+     a panel used the same --line as the panel's own edge, so a long table read
+     as a stack of equally-weighted boxes. --line-soft recedes behind the edge. */
+  --line-soft: #191c21;
   --line: #24272d;
   --line-hi: #3a3f47;
   --silver: #c9cdd4;
@@ -20,6 +24,7 @@
   --color-void: var(--void);
   --color-ink: var(--ink);
   --color-ink2: var(--ink-2);
+  --color-linesoft: var(--line-soft);
   --color-line: var(--line);
   --color-linehi: var(--line-hi);
   --color-silver: var(--silver);

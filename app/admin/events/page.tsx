@@ -78,18 +78,41 @@ const rowBtn =
 const rowBtnDanger =
   "label min-h-11 border border-[rgba(200,16,46,0.5)] px-3 text-bloodhi transition-colors hover:border-bloodhi disabled:cursor-not-allowed disabled:opacity-50";
 
-/** The head of a panel: what it holds on the left, one piece of state on the right. */
+/**
+ * The head of a panel. Deliberately the same shape, padding and type as the
+ * one in app/admin/page.tsx - a page file may only export its page, so the two
+ * cannot share an import, but moving between the dashboard and this editor
+ * should not feel like moving between two different tools.
+ */
 function PanelHead({
   title,
+  sub,
+  count,
   right,
 }: {
   title: string;
+  sub?: string;
+  count?: ReactNode;
   right?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-      <p className="label text-silverfaint">{title}</p>
-      {right}
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-line px-5 py-3.5">
+      <div className="min-w-0">
+        <p className="label flex items-center gap-2 tracking-[0.11em] text-silverdim uppercase">
+          {title}
+          {count !== undefined && (
+            <span className="rounded-full bg-ink2 px-2 py-0.5 text-silver tabular-nums">
+              {count}
+            </span>
+          )}
+        </p>
+        {sub && (
+          <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-silverfaint">
+            {sub}
+          </p>
+        )}
+      </div>
+      {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
     </div>
   );
 }
@@ -279,34 +302,42 @@ export default function AdminEvents() {
   }
 
   return (
-    <main className="mx-auto w-[92vw] max-w-[1100px] py-[clamp(1.5rem,5vw,3rem)]">
-      {/* ------------------------------------------------------- header -- */}
-      <header className="flex flex-wrap items-end justify-between gap-4 border border-line bg-ink px-4 py-4 sm:px-5">
-        <div className="min-w-0">
-          <p className="label text-silverfaint">CONTROL PANEL</p>
-          <h1 className="font-display chrome mt-1.5 text-[clamp(1.75rem,7vw,2.75rem)] leading-[0.85]">
-            Events
-          </h1>
-          <p className="mt-3 max-w-[46ch] text-[0.9375rem] leading-relaxed text-silverdim">
-            Drafts stay invisible to guests until published. The dates built
-            into the site are separate and are not listed here. The address is
-            never posted here - it goes out by email to the list.
-          </p>
+    <main className="mx-auto w-[92vw] max-w-[1320px] pb-[clamp(2rem,6vw,3.5rem)]">
+      {/* ------------------------------------------------------- app bar -- */}
+      {/* The same sticky bar the dashboard uses, so the two read as one tool
+          rather than two pages that happen to share a palette. */}
+      <header className="sticky top-0 z-30 -mx-[4vw] mb-4 border-b border-line bg-void/90 px-[4vw] py-3 backdrop-blur-md">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link
+              href="/admin"
+              className="label flex min-h-9 shrink-0 items-center gap-1.5 tracking-[0.11em] text-silverfaint uppercase transition-colors hover:text-chalk"
+            >
+              <span aria-hidden>&larr;</span> Admin
+            </Link>
+            <span className="hidden h-4 w-px shrink-0 bg-line sm:block" />
+            <span className="font-display truncate text-[1.0625rem] leading-none tracking-[0.06em] text-chalk uppercase">
+              Events
+            </span>
+          </div>
         </div>
-        <Link
-          href="/admin"
-          className="label flex min-h-11 items-center border border-line px-4 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk"
-        >
-          &larr; Back to admin
-        </Link>
       </header>
 
-      <div className="mt-4 flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-4">
+      <p className="mb-4 max-w-[68ch] text-[0.875rem] leading-relaxed text-silverdim">
+        Drafts stay invisible to guests until published. The dates built into
+        the site are separate and are not listed here. The address is never
+        posted here - it goes out by email to the list.
+      </p>
+
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)] lg:items-start lg:gap-5">
         {/* --------------------------------------------------------- form -- */}
         <section className="border border-line bg-ink">
-          <PanelHead title={editing ? `EDITING ${editing}` : "NEW EVENT"} />
+          <PanelHead
+            title={editing ? "Editing" : "New event"}
+            sub={editing ?? "Posts to the site the moment Published is ticked."}
+          />
 
-          <form ref={formRef} onSubmit={save} className="flex flex-col gap-5 p-4">
+          <form ref={formRef} onSubmit={save} className="flex flex-col gap-5 px-5 py-5">
             <div>
               <label htmlFor="slug" className="label text-silverfaint">
                 SLUG

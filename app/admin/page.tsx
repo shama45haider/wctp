@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { btn, btnGo, field } from "@/lib/ui";
+import { btn, btnGo, field, num, tableEl, tableWrap, td, th } from "@/lib/ui";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import {
   listAccounts,
@@ -72,9 +72,9 @@ type DocState =
 // prose wants to, and sets its own.
 const shell = "mx-auto w-[92vw] py-[clamp(2.5rem,8vw,5rem)]";
 
-/** The quiet controls in the header band, which are chrome rather than actions. */
+/** The quiet controls in the app bar, which are chrome rather than actions. */
 const headBtn =
-  "label flex min-h-11 items-center border border-line px-4 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-linehi hover:text-chalk";
+  "label flex min-h-9 items-center border border-line px-3 tracking-[0.11em] text-silverdim uppercase transition-colors hover:border-linehi hover:bg-ink2 hover:text-chalk";
 
 function when(iso: string) {
   const d = new Date(iso);
@@ -112,8 +112,17 @@ function quietly(work: () => void) {
 }
 
 /**
- * A framed block. Every section of every tab is one of these, so the eye lands
- * in the same place whichever tab it arrives on.
+ * The panel system.
+ *
+ * Everything on every tab is a Panel. The problem this rewrite fixes is that
+ * the panel edge, the dividers between its rows and the outline of every tag
+ * inside it were all the same --line, so a screen of six panels read as forty
+ * equally-loud boxes and the eye had nowhere to land. Three weights now:
+ * --line for the edge of a panel, --line-soft for dividers between rows inside
+ * one, and --line-hi reserved for something deliberately raised.
+ *
+ * Padding is on a two-step scale - 0.875rem across a head, 1.25rem through a
+ * body - rather than a uniform p-4, so a head reads as trim and a body as room.
  */
 function Panel({
   children,
@@ -129,23 +138,42 @@ function Panel({
   );
 }
 
-/** The bar across the top of a panel: what it holds, how much of it, and one control. */
+/**
+ * The bar across the top of a panel.
+ *
+ * `right` takes a control - a search box, an export button - so a filter no
+ * longer needs a whole bordered panel of its own just to hold one input, which
+ * is what made the parties tab read as a stack of empty frames.
+ */
 function PanelHead({
   title,
+  sub,
   count,
   right,
 }: {
   title: string;
+  sub?: string;
   count?: React.ReactNode;
   right?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-      <p className="label text-silverfaint">
-        {title}
-        {count !== undefined && <span className="ml-2 text-chalk">{count}</span>}
-      </p>
-      {right}
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-line px-5 py-3.5">
+      <div className="min-w-0">
+        <p className="label flex items-center gap-2 tracking-[0.11em] text-silverdim uppercase">
+          {title}
+          {count !== undefined && (
+            <span className="rounded-full bg-ink2 px-2 py-0.5 text-silver tabular-nums">
+              {count}
+            </span>
+          )}
+        </p>
+        {sub && (
+          <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-silverfaint">
+            {sub}
+          </p>
+        )}
+      </div>
+      {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
     </div>
   );
 }
@@ -157,7 +185,7 @@ function PanelBody({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={`p-4 ${className}`}>{children}</div>;
+  return <div className={`px-5 py-5 ${className}`}>{children}</div>;
 }
 
 /**
@@ -167,8 +195,8 @@ function PanelBody({
  */
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <div className="border border-dashed border-line px-4 py-5">
-      <p className="text-[0.9375rem] leading-relaxed text-silverdim">
+    <div className="border border-dashed border-line px-4 py-6 text-center">
+      <p className="mx-auto max-w-[46ch] text-[0.9375rem] leading-relaxed text-silverdim">
         {children}
       </p>
     </div>
@@ -178,7 +206,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 /** Still going: a pulse, which neither of the other two states has. */
 function Waiting({ what }: { what: string }) {
   return (
-    <p className="label flex animate-pulse items-center gap-2 text-silverfaint">
+    <p className="label flex animate-pulse items-center gap-2 tracking-[0.11em] text-silverfaint uppercase">
       <span className="inline-block h-1.5 w-1.5 rounded-full bg-silverfaint" />
       {what}
     </p>
@@ -195,10 +223,12 @@ function Failed({
 }) {
   return (
     <div
-      className="border border-[rgba(200,16,46,0.5)] bg-[rgba(200,16,46,0.06)] p-4"
+      className="border border-[rgba(200,16,46,0.45)] bg-[rgba(200,16,46,0.06)] p-4"
       role="alert"
     >
-      <p className="label text-bloodhi">NOTHING LOADED - THIS IS AN ERROR</p>
+      <p className="label tracking-[0.11em] text-bloodhi uppercase">
+        Nothing loaded - this is an error
+      </p>
       <p className="mt-2 text-[0.9375rem] leading-relaxed text-bloodhi">
         {message}
       </p>
@@ -212,35 +242,63 @@ function Failed({
   );
 }
 
-function Badge<T>({ state }: { state: Load<T> }) {
+/**
+ * The count beside a section in the nav.
+ *
+ * `alert` turns it red and solid rather than quiet - used for the age-review
+ * queue, which is the one number on this dashboard that is a job rather than a
+ * fact. A zero is drawn as a dash: "0 waiting" and "nothing waiting" are the
+ * same news, and a bright 0 reads as a badge worth tapping.
+ */
+function Badge<T>({ state, alert = false }: { state: Load<T>; alert?: boolean }) {
   if (state.kind === "loading")
-    return <span className="animate-pulse text-silverfaint">…</span>;
+    return <span className="animate-pulse text-silverfaint">··</span>;
   if (state.kind === "error") return <span className="text-bloodhi">!</span>;
-  return <span className="text-silver">{state.rows.length}</span>;
+
+  const n = state.rows.length;
+  if (n === 0) return <span className="text-silverfaint">—</span>;
+  return (
+    <span
+      className={`rounded-full px-1.5 py-0.5 text-[0.6875rem] tabular-nums ${
+        alert ? "bg-blood text-chalk" : "bg-ink2 text-silver"
+      }`}
+    >
+      {n}
+    </span>
+  );
 }
 
 /**
- * One number off the top of a tab. Label above, figure below, footnote pinned
- * to the bottom edge, so a row of them lines up whether or not each has
- * something to footnote.
+ * One number, given room to be the thing that is read.
+ *
+ * The old version set the value at about 1.6rem, the same size as a heading
+ * two lines above it, so a grid of four read as four paragraphs. The number is
+ * now the largest thing in its cell by a clear margin and the label above it
+ * has stepped back to let it be.
  */
 function Kpi({
   label,
   value,
   sub,
+  tone = "plain",
 }: {
   label: string;
   value: string;
   sub?: string;
+  tone?: "plain" | "money";
 }) {
   return (
-    <div className="flex flex-col bg-ink p-4">
-      <p className="label text-silverfaint">{label}</p>
-      <p className="font-display mt-2 text-[clamp(1.5rem,5vw,1.875rem)] leading-none text-chalk">
+    <div className="flex flex-col bg-ink px-5 py-4">
+      <p className="label tracking-[0.11em] text-silverfaint uppercase">{label}</p>
+      <p
+        className={`font-display mt-2.5 text-[clamp(1.75rem,5.5vw,2.375rem)] leading-none tabular-nums ${
+          tone === "money" ? "text-chalk" : "text-chalk"
+        }`}
+      >
         {value}
       </p>
       {sub && (
-        <p className="label mt-auto pt-2 leading-relaxed text-silverfaint">
+        <p className="label mt-auto pt-2.5 leading-relaxed text-silverfaint uppercase">
           {sub}
         </p>
       )}
@@ -813,108 +871,179 @@ export default function Admin() {
 
   // The four sections in one list, so the rail on a desk and the grid on a
   // phone can never drift apart or disagree about a count.
-  const sections: { id: Tab; label: string; badge: React.ReactNode }[] = [
-    { id: "parties", label: "PARTIES", badge: <Badge state={orders} /> },
-    { id: "accounts", label: "ACCOUNTS", badge: <Badge state={accounts} /> },
-    { id: "review", label: "AGE REVIEW", badge: <Badge state={queue} /> },
+  /**
+   * The five sections, once, so the rail on a desk and the strip on a phone
+   * can never drift apart or disagree about a count. The hint under each label
+   * is what turns a rail of five nouns into something readable cold - "DOOR"
+   * alone does not say it means this handset's own scan history.
+   */
+  const sections: {
+    id: Tab;
+    label: string;
+    hint: string;
+    badge: React.ReactNode;
+  }[] = [
+    {
+      id: "parties",
+      label: "Parties",
+      hint: "Sales and guest lists",
+      badge: <Badge state={orders} />,
+    },
+    {
+      id: "accounts",
+      label: "Accounts",
+      hint: "Everyone who signed up",
+      badge: <Badge state={accounts} />,
+    },
+    {
+      id: "review",
+      label: "Age review",
+      // The one count on this dashboard that is a job rather than a fact.
+      hint: "Checks waiting on you",
+      badge: <Badge state={queue} alert />,
+    },
     {
       id: "door",
-      label: "DOOR",
-      badge: <span className="text-silver">{scans.length}</span>,
+      label: "Door",
+      hint: "Scanned on this device",
+      badge:
+        scans.length === 0 ? (
+          <span className="text-silverfaint">—</span>
+        ) : (
+          <span className="rounded-full bg-ink2 px-1.5 py-0.5 text-[0.6875rem] text-silver tabular-nums">
+            {scans.length}
+          </span>
+        ),
     },
-    { id: "raffle", label: "RAFFLE", badge: null },
+    {
+      id: "raffle",
+      label: "Raffle",
+      hint: "Draws and the live link",
+      badge: null,
+    },
   ];
 
+  const here = sections.find((s) => s.id === tab);
+
   return (
-    <main className="mx-auto w-[92vw] max-w-[1280px] py-[clamp(1.5rem,5vw,3rem)]">
-      {/* ------------------------------------------------------- header -- */}
-      <header className="flex flex-wrap items-end justify-between gap-4 border border-line bg-ink px-4 py-4 sm:px-5">
-        <div className="min-w-0">
-          <p className="label text-silverfaint">CONTROL PANEL</p>
-          <h1 className="font-display chrome mt-1.5 text-[clamp(1.75rem,7vw,2.75rem)] leading-[0.85]">
-            Admin
-          </h1>
-          <p className="label mt-3 text-silverfaint">
-            SIGNED IN AS <span className="break-all text-silver">{auth.user.email}</span>
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/admin/events" className={headBtn}>
-            Events
-          </Link>
-          <button onClick={() => void auth.signOut()} className={headBtn}>
-            Sign out
-          </button>
+    <main className="mx-auto w-[92vw] max-w-[1320px] pb-[clamp(2rem,6vw,3.5rem)]">
+      {/* ----------------------------------------------------- app bar -- */}
+      {/* A bar, not a banner. The old header spent about 140px of every screen
+          on the word "Admin" set in display type over an eyebrow that said
+          "CONTROL PANEL" - on a handset at a door that is a third of the
+          viewport gone before the first real number. It sticks, so signing out
+          and the jump to the event editor stay reachable from the bottom of a
+          long roster. */}
+      <header className="sticky top-0 z-30 -mx-[4vw] mb-4 border-b border-line bg-void/90 px-[4vw] py-3 backdrop-blur-md">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="font-display text-[1.0625rem] leading-none tracking-[0.06em] text-chalk uppercase">
+              Admin
+            </span>
+            <span className="hidden h-4 w-px shrink-0 bg-line sm:block" />
+            <span className="label hidden min-w-0 truncate text-silverfaint sm:block">
+              {auth.user.email}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link href="/admin/events" className={headBtn}>
+              Events
+            </Link>
+            <button onClick={() => void auth.signOut()} className={headBtn}>
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 
       {auth.error && (
         <p
-          className="label mt-4 border border-[rgba(200,16,46,0.5)] bg-[rgba(200,16,46,0.06)] p-3 leading-loose text-bloodhi"
+          className="mb-4 border border-[rgba(200,16,46,0.45)] bg-[rgba(200,16,46,0.06)] p-3 text-[0.9375rem] leading-relaxed text-bloodhi"
           role="alert"
         >
           {auth.error}
         </p>
       )}
 
-      <div className="mt-4 flex flex-col gap-4 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start lg:gap-4">
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-5">
         {/* A rail on a desk. It stays put while a long roster scrolls past. */}
         <nav
           aria-label="Dashboard sections"
-          className="sticky top-4 hidden border border-line bg-ink lg:block"
+          className="sticky top-[4.5rem] hidden border border-line bg-ink lg:block"
         >
-          <p className="label border-b border-line px-3 py-3 text-silverfaint">
-            SECTIONS
-          </p>
           {sections.map((s) => (
             <button
               key={s.id}
               onClick={() => setTab(s.id)}
               aria-current={tab === s.id ? "page" : undefined}
-              className={`label flex min-h-11 w-full items-center justify-between gap-3 border-b border-l-2 border-b-line px-3 text-left uppercase transition-colors last:border-b-0 ${
+              className={`flex w-full items-start gap-3 border-b border-l-2 border-b-linesoft px-4 py-3 text-left transition-colors last:border-b-0 ${
                 tab === s.id
-                  ? "border-l-bloodhi bg-ink2 text-chalk"
-                  : "border-l-transparent text-silverdim hover:bg-ink2 hover:text-chalk"
+                  ? "border-l-blood bg-ink2"
+                  : "border-l-transparent hover:bg-ink2/60"
               }`}
             >
-              {s.label}
-              <span className="shrink-0">{s.badge}</span>
+              <span className="min-w-0 flex-1">
+                <span
+                  className={`block text-[0.9375rem] leading-tight ${
+                    tab === s.id ? "text-chalk" : "text-silverdim"
+                  }`}
+                >
+                  {s.label}
+                </span>
+                <span className="label mt-1 block leading-snug text-silverfaint">
+                  {s.hint}
+                </span>
+              </span>
+              {s.badge && <span className="mt-0.5 shrink-0">{s.badge}</span>}
             </button>
           ))}
         </nav>
 
         <div className="flex min-w-0 flex-col gap-4">
-          {/* Two across rather than four: at 375px a four-across strip leaves
-              each section about sixty pixels, which is narrower than the word
-              printed in it. */}
+          {/* One scrolling row rather than a three-row grid. Five sections in a
+              two-across grid cost three rows of vertical space on a phone and
+              left the last one stretched across the full width, which read as
+              more important than the four above it. */}
           <nav
             aria-label="Dashboard sections"
-            className="grid grid-cols-2 gap-px border border-line bg-line lg:hidden [&>:last-child:nth-child(odd)]:col-span-2"
+            className="-mx-[4vw] flex snap-x gap-2 overflow-x-auto px-[4vw] pb-1 lg:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {sections.map((s) => (
               <button
                 key={s.id}
                 onClick={() => setTab(s.id)}
                 aria-current={tab === s.id ? "page" : undefined}
-                className={`label flex min-h-11 items-center justify-between gap-2 px-3 py-3 uppercase transition-colors ${
+                className={`flex min-h-11 shrink-0 snap-start items-center gap-2 border px-3.5 whitespace-nowrap transition-colors ${
                   tab === s.id
-                    ? "bg-ink2 text-chalk"
-                    : "bg-ink text-silverfaint hover:text-silverdim"
+                    ? "border-linehi bg-ink2 text-chalk"
+                    : "border-line bg-ink text-silverdim"
                 }`}
               >
-                {s.label}
+                <span className="text-[0.9375rem]">{s.label}</span>
                 {s.badge}
               </button>
             ))}
           </nav>
+
+          {/* Where you are and what this section is for, on every tab. The rail
+              says it too, but the rail is not on screen on a phone. */}
+          {here && (
+            <div className="lg:hidden">
+              <p className="label tracking-[0.11em] text-silverfaint uppercase">
+                {here.hint}
+              </p>
+            </div>
+          )}
 
           {tab === "parties" && (
             <>
               {runtimeEvents.error && (
                 <Panel>
                   <PanelBody>
-                    <p className="label leading-loose text-silverfaint">
-                      THE EVENT LIST FELL BACK TO THE BUILT-IN DATES - {runtimeEvents.error.toUpperCase()}. ANYTHING POSTED FROM /ADMIN/EVENTS SINCE MAY NOT SHOW UP YET.
+                    <p className="text-[0.875rem] leading-relaxed text-silverdim">
+                      The event list fell back to the dates built into this
+                      build - <span className="text-bloodhi">{runtimeEvents.error}</span>.
+                      Anything posted from the event editor since may not show up yet.
                     </p>
                   </PanelBody>
                 </Panel>
@@ -935,50 +1064,65 @@ export default function Admin() {
                 <>
                   {/* -------------------------------------------- totals -- */}
                   <Panel>
-                    <PanelHead title="UPCOMING TOTALS" />
-                    <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
-                      <Kpi label="UPCOMING RSVPS" value={String(upcomingTotal.admitCount)} />
+                    <PanelHead
+                      title="Upcoming totals"
+                      sub="Every date still to come, added up. Cancelled orders count for nothing here."
+                    />
+                    {/* gap-px over --line-soft: the hairlines between four
+                        numbers are not structure and should not weigh the same
+                        as the edge of the panel holding them. */}
+                    <div className="grid grid-cols-2 gap-px bg-linesoft sm:grid-cols-4">
+                      <Kpi label="RSVPs" value={String(upcomingTotal.admitCount)} sub="People expected" />
                       <Kpi
-                        label="TICKET REVENUE"
+                        label="Ticket revenue"
                         value={usd(upcomingTotal.ticketNetCents)}
-                        sub="AFTER PROMOS, BEFORE FEES"
+                        sub="After promos, before fees"
+                        tone="money"
                       />
                       <Kpi
-                        label="COLLECTED"
+                        label="Collected"
                         value={usd(upcomingTotal.grossCents)}
-                        sub="WHAT GUESTS PAID, FEES INCLUDED"
+                        sub="What guests paid, fees in"
+                        tone="money"
                       />
                       <Kpi
-                        label="CHECKED IN"
+                        label="Checked in"
                         value={`${upcomingTotal.checkedIn} / ${upcomingTotal.passCount}`}
-                        sub="ACROSS ALL DOORS"
+                        sub="Across all doors"
                       />
                     </div>
                     {upcomingTotal.donationCents > 0 && (
-                      <p className="label border-t border-line px-4 py-3 text-silverfaint">
-                        PLUS {usd(upcomingTotal.donationCents)} IN GIFTS ACROSS UPCOMING DATES
+                      <p className="border-t border-linesoft px-5 py-3 text-[0.875rem] text-silverdim">
+                        Plus{" "}
+                        <span className="text-chalk tabular-nums">
+                          {usd(upcomingTotal.donationCents)}
+                        </span>{" "}
+                        in gifts across upcoming dates.
                       </p>
                     )}
                   </Panel>
 
-                  {/* -------------------------------------------- search -- */}
-                  {(upcomingEvents.length > 0 || pastEvents.length > 0) && (
-                    <Panel>
-                      <PanelBody>
-                        <input
-                          value={eventQuery}
-                          onChange={(ev) => setEventQuery(ev.target.value)}
-                          placeholder="Find a party by name or date"
-                          aria-label="Search parties"
-                          className={`${field} w-full`}
-                        />
-                      </PanelBody>
-                    </Panel>
-                  )}
-
                   {/* ------------------------------------------ upcoming -- */}
+                  {/* The search box used to be a panel of its own - a full
+                      bordered frame wrapped around one input, sitting between
+                      the numbers and the thing it filtered. It belongs in the
+                      head of the list it searches. */}
                   <Panel>
-                    <PanelHead title="UPCOMING" count={shownUpcoming.length} />
+                    <PanelHead
+                      title="Upcoming"
+                      count={shownUpcoming.length}
+                      right={
+                        upcomingEvents.length > 0 || pastEvents.length > 0 ? (
+                          <input
+                            value={eventQuery}
+                            onChange={(ev) => setEventQuery(ev.target.value)}
+                            placeholder="Find a party…"
+                            aria-label="Search parties"
+                            className={`${field} w-full min-w-0 sm:w-64`}
+                          />
+                        ) : undefined
+                      }
+                    />
                     <PanelBody>
                       {shownUpcoming.length === 0 ? (
                         <Empty>
@@ -1044,7 +1188,11 @@ export default function Admin() {
                   {/* ---------------------------------------------- past -- */}
                   {pastEvents.length > 0 && (
                     <Panel>
-                      <PanelHead title="PAST" count={shownPast.length} />
+                      <PanelHead
+                        title="Past"
+                        count={shownPast.length}
+                        sub="The archive. Dimmed, and smaller on the grid, so it never competes with what is still to come."
+                      />
                       <PanelBody>
                         {shownPast.length === 0 ? (
                           <Empty>No past date matches that.</Empty>
@@ -1094,11 +1242,15 @@ export default function Admin() {
                   {orphanSlugs.length > 0 && (
                     <Panel>
                       <PanelBody>
-                        <p className="label leading-loose text-silverfaint">
-                          {orphanStats.orderCount} ORDER{orphanStats.orderCount === 1 ? "" : "S"} (
-                          {usd(orphanStats.ticketNetCents)}) AGAINST {orphanSlugs.length} EVENT SLUG
-                          {orphanSlugs.length === 1 ? "" : "S"} NOT ON THE CURRENT LIST -{" "}
-                          {orphanSlugs.join(", ")}. INCLUDED IN NOTHING ABOVE.
+                        <p className="text-[0.875rem] leading-relaxed text-silverdim">
+                          <span className="text-chalk tabular-nums">
+                            {orphanStats.orderCount} order{orphanStats.orderCount === 1 ? "" : "s"}
+                          </span>{" "}
+                          ({usd(orphanStats.ticketNetCents)}) sit against{" "}
+                          {orphanSlugs.length} event slug
+                          {orphanSlugs.length === 1 ? "" : "s"} that are not on the current
+                          list - <span className="text-silver">{orphanSlugs.join(", ")}</span>.
+                          Deleted or renamed, most likely. Counted in nothing above.
                         </p>
                       </PanelBody>
                     </Panel>
@@ -1126,17 +1278,21 @@ export default function Admin() {
                 return (
                   <>
                     {/* ------------------------------ header and numbers -- */}
+                    {/* A breadcrumb rather than a back button boxed into the
+                        card. Drilling into a party swaps the whole tab out with
+                        no change of address, so this line is the only thing
+                        saying where you are - it belongs above the panel, where
+                        a breadcrumb goes. */}
+                    <button
+                      type="button"
+                      onClick={() => setParty(null)}
+                      className="label -my-1 flex min-h-9 items-center gap-1.5 self-start py-1 tracking-[0.11em] text-silverfaint uppercase transition-colors hover:text-chalk"
+                    >
+                      <span aria-hidden>&larr;</span> All parties
+                    </button>
+
                     <Panel>
-                      <div className="border-b border-line px-4">
-                        <button
-                          type="button"
-                          onClick={() => setParty(null)}
-                          className="label flex min-h-11 items-center text-silverfaint transition-colors hover:text-chalk"
-                        >
-                          &larr; ALL PARTIES
-                        </button>
-                      </div>
-                      <PanelBody className="flex gap-4">
+                      <PanelBody className="flex gap-4 sm:gap-5">
                         <div className="relative w-24 shrink-0 overflow-hidden border border-line sm:w-32">
                           <div className="aspect-[3/4]">
                             {e?.imageId ? (
@@ -1146,33 +1302,66 @@ export default function Admin() {
                             )}
                           </div>
                         </div>
-                        <div className="min-w-0">
-                          <h2 className="font-display text-[clamp(1.5rem,5vw,2.25rem)] leading-[0.9] break-words">
+                        <div className="min-w-0 flex-1">
+                          <h2 className="font-display text-[clamp(1.5rem,5vw,2.25rem)] leading-[0.9] break-words text-chalk">
                             {e?.title ?? party}
                           </h2>
-                          <p className="label mt-2 text-silverfaint">
-                            {e ? `${e.dow} ${e.date} · ${e.time}` : "NOT ON THE CURRENT EVENT LIST"}
+                          <p className="mt-2.5 text-[0.9375rem] text-silverdim">
+                            {e ? (
+                              <>
+                                {e.dow} {e.date}
+                                <span className="text-silverfaint"> · </span>
+                                {e.time}
+                              </>
+                            ) : (
+                              "Not on the current event list"
+                            )}
                           </p>
-                          {e && isPastEvent(e, runtimeEvents.now) && (
-                            <span className="label mt-3 inline-block border border-line px-2 py-1 text-silverfaint">
-                              PAST
-                            </span>
-                          )}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {e && isPastEvent(e, runtimeEvents.now) && (
+                              <span className="label inline-flex items-center border border-line px-2 py-1 tracking-[0.11em] text-silverfaint uppercase">
+                                Past
+                              </span>
+                            )}
+                            {st.cancelledCount > 0 && (
+                              <span className="label inline-flex items-center border border-[rgba(200,16,46,0.45)] px-2 py-1 tracking-[0.11em] text-bloodhi uppercase">
+                                {st.cancelledCount} cancelled
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </PanelBody>
-                      <div className="grid grid-cols-2 gap-px border-t border-line bg-line sm:grid-cols-4">
-                        <Kpi label="RSVPS" value={String(st.admitCount)} sub={`${st.orderCount} ORDERS`} />
-                        <Kpi label="TICKET REVENUE" value={usd(st.ticketNetCents)} sub="AFTER PROMOS, BEFORE FEES" />
-                        <Kpi label="COLLECTED" value={usd(st.grossCents)} sub="FEES INCLUDED" />
+                      <div className="grid grid-cols-2 gap-px border-t border-line bg-linesoft sm:grid-cols-4">
                         <Kpi
-                          label="CHECKED IN"
+                          label="RSVPs"
+                          value={String(st.admitCount)}
+                          sub={`${st.orderCount} order${st.orderCount === 1 ? "" : "s"}`}
+                        />
+                        <Kpi
+                          label="Ticket revenue"
+                          value={usd(st.ticketNetCents)}
+                          sub="After promos, before fees"
+                          tone="money"
+                        />
+                        <Kpi
+                          label="Collected"
+                          value={usd(st.grossCents)}
+                          sub="Fees included"
+                          tone="money"
+                        />
+                        <Kpi
+                          label="Checked in"
                           value={`${st.checkedIn} / ${st.passCount}`}
-                          sub={revokedCount > 0 ? `${revokedCount} CANCELLED` : "AT THE DOOR"}
+                          sub={revokedCount > 0 ? `${revokedCount} revoked` : "At the door"}
                         />
                       </div>
                       {st.donationCents > 0 && (
-                        <p className="label border-t border-line px-4 py-3 text-silverfaint">
-                          PLUS {usd(st.donationCents)} IN GIFTS
+                        <p className="border-t border-linesoft px-5 py-3 text-[0.875rem] text-silverdim">
+                          Plus{" "}
+                          <span className="text-chalk tabular-nums">
+                            {usd(st.donationCents)}
+                          </span>{" "}
+                          in gifts.
                         </p>
                       )}
                     </Panel>
@@ -1180,24 +1369,24 @@ export default function Admin() {
                     {/* --------------------------------------------- tiers -- */}
                     {st.tiers.size > 0 && (
                       <Panel>
-                        <PanelHead title="TIERS" count={st.tiers.size} />
-                        <div className="overflow-x-auto">
-                          <table className="w-full min-w-[420px] border-collapse text-left">
+                        <PanelHead title="Tiers" count={st.tiers.size} />
+                        <div className={tableWrap}>
+                          <table className={`${tableEl} min-w-[420px]`}>
                             <thead>
-                              <tr className="label border-b border-line text-silverfaint">
-                                <th className="py-2.5 pr-4 pl-4 font-normal">TIER</th>
-                                <th className="py-2.5 pr-4 font-normal">SOLD</th>
-                                <th className="py-2.5 pr-4 font-normal">ADMITS</th>
-                                <th className="py-2.5 pr-4 font-normal">REVENUE</th>
+                              <tr>
+                                <th className={th}>Tier</th>
+                                <th className={`${th} ${num}`}>Sold</th>
+                                <th className={`${th} ${num}`}>Admits</th>
+                                <th className={`${th} ${num}`}>Revenue</th>
                               </tr>
                             </thead>
                             <tbody>
                               {[...st.tiers.entries()].map(([tierId, t]) => (
-                                <tr key={tierId} className="border-b border-line last:border-b-0">
-                                  <td className="py-2.5 pr-4 pl-4 text-[0.9375rem] text-chalk">{t.tierName}</td>
-                                  <td className="label py-2.5 pr-4 text-silverdim">{t.qty}</td>
-                                  <td className="label py-2.5 pr-4 text-silverdim">{t.admits}</td>
-                                  <td className="label py-2.5 pr-4 text-silverdim">{usd(t.revenueCents)}</td>
+                                <tr key={tierId} className="transition-colors hover:bg-ink2/50">
+                                  <td className={`${td} text-[0.9375rem] text-chalk`}>{t.tierName}</td>
+                                  <td className={`${td} ${num} text-silverdim`}>{t.qty}</td>
+                                  <td className={`${td} ${num} text-silverdim`}>{t.admits}</td>
+                                  <td className={`${td} ${num} text-silver`}>{usd(t.revenueCents)}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -1209,16 +1398,16 @@ export default function Admin() {
                     {/* ---------------------------------------- guest list -- */}
                     <Panel>
                       <PanelHead
-                        title="WHO’S COMING"
+                        title="Who’s coming"
                         count={st.rows.length}
                         right={
                           st.rows.length + st.cancelledRows.length > 0 ? (
                             <button
                               type="button"
                               onClick={() => exportCsv(party, e?.title ?? party, [...st.rows, ...st.cancelledRows])}
-                              className="label flex min-h-11 items-center border border-line px-3 text-silverdim transition-colors hover:border-linehi hover:text-chalk"
+                              className="label flex min-h-9 items-center border border-line px-3 tracking-[0.11em] text-silverdim uppercase transition-colors hover:border-linehi hover:bg-ink2 hover:text-chalk"
                             >
-                              DOWNLOAD CSV
+                              Download CSV
                             </button>
                           ) : undefined
                         }
@@ -1230,11 +1419,11 @@ export default function Admin() {
                         </PanelBody>
                       ) : (
                         <>
-                          <div className="border-b border-line px-4 py-3">
+                          <div className="border-b border-linesoft px-5 py-3">
                             <input
                               value={partyQuery}
                               onChange={(ev) => setPartyQuery(ev.target.value)}
-                              placeholder="Find a name, email or ticket code"
+                              placeholder="Find a name, email or ticket code…"
                               aria-label="Search the guest list"
                               className={`${field} w-full`}
                             />
@@ -1373,21 +1562,21 @@ export default function Admin() {
           {tab === "accounts" && (
             <Panel>
               <PanelHead
-                title="ACCOUNTS"
+                title="Accounts"
                 count={accounts.kind === "ready" ? shownAccounts.length : "—"}
+                sub="Everyone who has signed up. Tap a row for their age checks."
+                right={
+                  accounts.kind === "ready" && accounts.rows.length > 0 ? (
+                    <input
+                      value={accountQuery}
+                      onChange={(ev) => setAccountQuery(ev.target.value)}
+                      placeholder="Name, handle, email…"
+                      aria-label="Search accounts"
+                      className={`${field} w-full min-w-0 sm:w-72`}
+                    />
+                  ) : undefined
+                }
               />
-
-              {accounts.kind === "ready" && accounts.rows.length > 0 && (
-                <div className="border-b border-line px-4 py-3">
-                  <input
-                    value={accountQuery}
-                    onChange={(ev) => setAccountQuery(ev.target.value)}
-                    placeholder="Find a name, handle, email or phone"
-                    aria-label="Search accounts"
-                    className={`${field} w-full`}
-                  />
-                </div>
-              )}
 
               {accounts.kind === "loading" && (
                 <PanelBody>
@@ -1413,14 +1602,14 @@ export default function Admin() {
                   </PanelBody>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[680px] border-collapse text-left">
+                    <table className={`${tableEl} min-w-[680px]`}>
                       <thead>
-                        <tr className="label border-b border-line text-silverfaint">
-                          <th className="py-3 pr-4 pl-4 font-normal">NAME</th>
-                          <th className="py-3 pr-4 font-normal">EMAIL</th>
-                          <th className="py-3 pr-4 font-normal">AGE</th>
-                          <th className="py-3 pr-4 font-normal">JOINED</th>
-                          <th className="py-3 pr-4 font-normal">AGE CHECK</th>
+                        <tr>
+                          <th className={th}>Name</th>
+                          <th className={th}>Email</th>
+                          <th className={`${th} ${num}`}>Age</th>
+                          <th className={th}>Joined</th>
+                          <th className={th}>Age check</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1434,11 +1623,11 @@ export default function Admin() {
                               <tr
                                 onClick={() => void openRow(a.id)}
                                 aria-expanded={open}
-                                className={`cursor-pointer border-b border-line align-middle transition-colors hover:bg-ink2 ${
+                                className={`cursor-pointer align-middle transition-colors hover:bg-ink2 ${
                                   open ? "bg-ink2" : ""
                                 }`}
                               >
-                                <td className="py-3 pr-4 pl-4 text-[0.9375rem] text-chalk">
+                                <td className={`${td} text-[0.9375rem] text-chalk`}>
                                   <span className="flex items-center gap-2.5">
                                     {pic ? (
                                       // eslint-disable-next-line @next/next/no-img-element
@@ -1456,16 +1645,16 @@ export default function Admin() {
                                     </span>
                                   </span>
                                 </td>
-                                <td className="label py-3 pr-4 break-all text-silverdim">
+                                <td className={`${td} text-[0.875rem] break-all text-silverdim`}>
                                   {a.email}
                                 </td>
-                                <td className="label py-3 pr-4 whitespace-nowrap text-silverdim">
+                                <td className={`${td} ${num} text-[0.875rem] whitespace-nowrap text-silverdim`}>
                                   {a.age ?? "—"}
                                 </td>
-                                <td className="label py-3 pr-4 whitespace-nowrap text-silverfaint">
+                                <td className={`${td} text-[0.875rem] whitespace-nowrap text-silverfaint`}>
                                   {when(a.createdAt)}
                                 </td>
-                                <td className="py-3 pr-4">
+                                <td className={td}>
                                   <span
                                     className={`label inline-flex whitespace-nowrap border px-2 py-1 ${
                                       a.verified
@@ -1479,8 +1668,8 @@ export default function Admin() {
                               </tr>
 
                               {open && (
-                                <tr className="border-b border-line bg-void">
-                                  <td colSpan={5} className="p-4 sm:p-5">
+                                <tr className="bg-void">
+                                  <td colSpan={5} className="border-t border-linesoft p-4 sm:p-5">
                                     <div className="flex flex-col gap-6 lg:flex-row">
                                       {/* ------------------------ the person -- */}
                                       <div className="flex shrink-0 gap-4 sm:flex-col lg:w-64">
@@ -1658,16 +1847,25 @@ export default function Admin() {
 
           {tab === "review" && (
             <Panel>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+              {/* The count is the headline of this tab - it is a job, not a
+                  fact - so it keeps its display-sized number rather than being
+                  folded into a PanelHead pill like the other counts. */}
+              <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-3 border-b border-line px-5 py-4">
                 <div className="min-w-0">
-                  <p className="label text-silverfaint">WAITING ON YOU</p>
-                  <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-silverdim">
-                    Every check is read here. Nothing is approved automatically.
+                  <p className="label tracking-[0.11em] text-silverdim uppercase">
+                    Waiting on you
+                  </p>
+                  <p className="mt-1.5 text-[0.875rem] leading-relaxed text-silverfaint">
+                    Every check is read by a person. Nothing is approved automatically.
                   </p>
                 </div>
                 <span
-                  className={`font-display text-[2.5rem] leading-none ${
-                    queue.kind === "error" ? "text-bloodhi" : "text-chalk"
+                  className={`font-display shrink-0 text-[2.75rem] leading-none tabular-nums ${
+                    queue.kind === "error"
+                      ? "text-bloodhi"
+                      : pending
+                        ? "text-chalk"
+                        : "text-silverfaint"
                   }`}
                 >
                   {queue.kind === "ready" ? pending : queue.kind === "error" ? "?" : "…"}
@@ -1675,11 +1873,11 @@ export default function Admin() {
               </div>
 
               {queue.kind === "ready" && queue.rows.length > 0 && (
-                <div className="border-b border-line px-4 py-3">
+                <div className="border-b border-linesoft px-5 py-3">
                   <input
                     value={reviewQuery}
                     onChange={(ev) => setReviewQuery(ev.target.value)}
-                    placeholder="Find a name, handle or email"
+                    placeholder="Find a name, handle or email…"
                     aria-label="Search the age-check queue"
                     className={`${field} w-full`}
                   />
@@ -1862,32 +2060,40 @@ export default function Admin() {
           {/* ---------------------------------------------------------- door -- */}
           {tab === "door" && (
             <Panel>
-              <PanelHead title="SCANNED ON THIS DEVICE" count={scans.length} />
-              <PanelBody>
-                <p className="text-[0.9375rem] leading-relaxed text-silverdim">
-                  Point any phone camera at a ticket QR. It opens the ticket,
-                  shows whose name is on it, and offers to mark it used.
-                </p>
-              </PanelBody>
+              <PanelHead
+                title="Scanned on this device"
+                count={scans.length}
+                sub="Point any phone camera at a ticket QR. It opens the ticket, shows whose name is on it, and offers to mark it used."
+                right={
+                  scans.length > 0 ? (
+                    <button
+                      onClick={clearScans}
+                      className="label flex min-h-9 items-center border border-line px-3 tracking-[0.11em] text-silverdim uppercase transition-colors hover:border-[rgba(200,16,46,0.45)] hover:text-bloodhi"
+                    >
+                      Clear
+                    </button>
+                  ) : undefined
+                }
+              />
 
               {scans.length === 0 ? (
-                <PanelBody className="pt-0">
+                <PanelBody>
                   <Empty>
-                    Nothing scanned on this device yet. Point any phone camera
-                    at a ticket QR - it opens the ticket, shows whose name is on
-                    it, and offers to mark it used.
+                    Nothing scanned on this device yet. This list is local to
+                    this handset - it is not the guest list, and clearing it
+                    changes nothing at the door.
                   </Empty>
                 </PanelBody>
               ) : (
                 <>
-                  <ul className="border-t border-line">
+                  <ul>
                     {scans.map(([code, at]) => (
                       <li
                         key={code}
-                        className="label flex items-baseline justify-between gap-4 border-b border-line px-4 py-3 last:border-b-0"
+                        className="label flex items-baseline justify-between gap-4 border-t border-linesoft px-5 py-3 transition-colors hover:bg-ink2/50"
                       >
                         <span className="break-all text-chalk">{code}</span>
-                        <span className="whitespace-nowrap text-silverfaint">
+                        <span className="shrink-0 whitespace-nowrap text-silverfaint">
                           {new Date(at).toLocaleString(undefined, {
                             hour: "2-digit",
                             minute: "2-digit",
@@ -1898,14 +2104,6 @@ export default function Admin() {
                       </li>
                     ))}
                   </ul>
-                  <div className="border-t border-line p-4">
-                    <button
-                      onClick={clearScans}
-                      className="font-display min-h-11 w-full border border-line py-3 tracking-[0.12em] text-silverdim uppercase transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi"
-                    >
-                      Clear scan list
-                    </button>
-                  </div>
                 </>
               )}
             </Panel>
@@ -1915,9 +2113,9 @@ export default function Admin() {
 
           <Link
             href="/"
-            className="label block py-2 text-center text-silverfaint transition-colors hover:text-chalk lg:text-left"
+            className="label block py-2 text-center tracking-[0.11em] text-silverfaint uppercase transition-colors hover:text-chalk lg:text-left"
           >
-            &larr; BACK HOME
+            &larr; Back to the site
           </Link>
         </div>
       </div>
