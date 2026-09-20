@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import TicketPicker from "@/components/TicketPicker";
+import SongRequestBox from "@/components/SongRequestBox";
 import { EventFlyer, EventFromStat } from "@/components/EventLiveBits";
 import { Editable } from "@/components/Editable";
 import { monthOf, dayOf, org } from "@/lib/events";
@@ -136,6 +137,13 @@ export default async function EventPage({
 
           <div className="mt-8">
             <TicketPicker event={event} />
+          </div>
+
+          {/* One quiet line under the picker. Anyone here has already decided
+              whether they are coming; the request is the afterthought, and it
+              is sized like one until it is tapped. */}
+          <div className="mt-5">
+            <SongRequestBox eventSlug={event.slug} eventTitle={event.title} />
           </div>
         </div>
       </div>

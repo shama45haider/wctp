@@ -7,6 +7,8 @@ import { atHandle } from "@/lib/handle";
 import { useNow } from "@/lib/now";
 import { isPastEvent, usd } from "@/lib/tickets";
 import TicketPass from "@/components/TicketPass";
+import AttendedEvents from "@/components/AttendedEvents";
+import SongRequests from "@/components/SongRequests";
 import { Editable } from "@/components/Editable";
 import { btn, btnGo } from "@/lib/ui";
 
@@ -219,7 +221,11 @@ export default function Account() {
         </div>
       )}
 
-      <Link href="/tickets" className={`${btn} mt-6`}>
+      <AttendedEvents orders={orders} now={now} />
+
+      <SongRequests />
+
+      <Link href="/tickets" className={`${btn} mt-12`}>
         Back to tickets
       </Link>
     </main>

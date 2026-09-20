@@ -128,6 +128,8 @@ type OrderRow = {
     tier_name: string;
     admits: number;
     price_cents: number;
+    /** Null until a door scans it. Absent on a project older than 0008. */
+    used_at?: string | null;
   }[];
 };
 
@@ -151,6 +153,7 @@ function toOrder(row: OrderRow): Order {
     tierName: p.tier_name,
     admits: p.admits,
     priceCents: p.price_cents,
+    usedAt: p.used_at ?? null,
   }));
 
   return {

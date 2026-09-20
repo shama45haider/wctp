@@ -47,6 +47,12 @@ export type Pass = {
   admits: number;
   /** Face value of this ticket, before fees. */
   priceCents: number;
+  /**
+   * When a door scanned this in, or null. The only evidence the site has that
+   * somebody actually turned up, as opposed to having bought a ticket - which
+   * is the difference between "went to" and "meant to go to".
+   */
+  usedAt?: string | null;
 };
 
 export type Buyer = {
