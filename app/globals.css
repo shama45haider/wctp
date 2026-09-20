@@ -655,120 +655,143 @@ button.label:not([class*="min-h-"]) {
   animation-timing-function: linear;
   animation-fill-mode: forwards;
 }
-/* --- upcoming carousel (components/EventCarousel.tsx) ---
-   The same party-flyer sticker language as the raffle box above: flat candy
-   colors, a thick outline and a hard offset shadow, nothing glowing or
-   gradiented. Reused rather than reinvented so the two bubbly things on the
-   site read as one idea. */
 
-.pop-track {
+/* --- upcoming wall (components/EventCarousel.tsx) ---
+   Flyers taped to a wall outside a venue, not cards in a UI. Every poster sits
+   a degree or two off square, throws the soft shadow paper throws, and carries
+   the same grain the page already has over the artwork. Nothing is rounded and
+   nothing glows - the only colour that is not the site's own comes from the
+   flyers themselves. */
+
+.wall-track {
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
-  /* The shadows below hang 6px right and down; without room the track clips
-     them off at its own edges. */
-  padding-bottom: 12px;
+  /* The posters lean out of their boxes and drop a long shadow; without room
+     the track clips both against its own edges.
+     padding-block, never the `padding` shorthand: this rule is unlayered and
+     Tailwind's utilities are not, so a shorthand here silently beats the
+     px-[4vw] on the element and the first poster hangs off the left of the
+     screen. Same trap as the note on .font-display above. */
+  padding-block: 14px 26px;
 }
 
-.pop-track::-webkit-scrollbar {
+.wall-track::-webkit-scrollbar {
   display: none;
 }
 
-.pop-card {
+.wall-poster {
   scroll-snap-align: center;
-  border: 3px solid #ffe45c;
-  border-radius: 22px;
-  background: #0c0d10;
-  box-shadow: 6px 6px 0 #ff5fa8;
+  background: var(--ink);
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.6),
+    0 20px 38px -16px rgba(0, 0, 0, 0.95);
   transition:
-    transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
-    box-shadow 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* Pinned by hand, so no two hang at the same angle. Cycling on nth-child
+   rather than a random value per render keeps the wall identical between the
+   server's HTML and the browser's first paint. */
+.wall-poster:nth-child(4n + 1) { transform: rotate(-1.6deg); }
+.wall-poster:nth-child(4n + 2) { transform: rotate(1.1deg); }
+.wall-poster:nth-child(4n + 3) { transform: rotate(-0.7deg); }
+.wall-poster:nth-child(4n + 4) { transform: rotate(2deg); }
+
+/* Straightening under the cursor reads as picking the poster off the wall. */
 @media (hover: hover) and (pointer: fine) {
-  .pop-card:hover {
-    transform: translate(-3px, -3px);
-    box-shadow: 10px 10px 0 #ff5fa8;
+  .wall-poster:hover {
+    transform: rotate(0deg) translateY(-6px) scale(1.015);
+    box-shadow:
+      0 2px 0 rgba(0, 0, 0, 0.6),
+      0 34px 54px -18px rgba(0, 0, 0, 1);
+    z-index: 2;
   }
 }
 
-.pop-card:active {
-  transform: translate(3px, 3px);
-  box-shadow: 2px 2px 0 #ff5fa8;
+/* A torn strip of tape over the top edge. Two stops rather than a flat fill so
+   it reads as something with thickness stuck on top, not a painted rectangle. */
+.wall-poster::before {
+  content: "";
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  width: 84px;
+  height: 24px;
+  transform: translateX(-50%) rotate(-2.5deg);
+  background: linear-gradient(
+    100deg,
+    rgba(242, 244, 247, 0.06) 0%,
+    rgba(242, 244, 247, 0.17) 22%,
+    rgba(242, 244, 247, 0.13) 78%,
+    rgba(242, 244, 247, 0.05) 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(242, 244, 247, 0.07);
+  pointer-events: none;
+  z-index: 3;
 }
 
-/* A past date keeps the shape and loses the sugar. */
-.pop-card-past {
-  border-color: #3a3f47;
-  box-shadow: 6px 6px 0 #24272d;
+.wall-poster:nth-child(even)::before {
+  transform: translateX(-50%) rotate(3deg);
+  width: 72px;
 }
 
-.pop-title {
-  font-family: var(--font-bubble), "Arial Rounded MT Bold", system-ui, sans-serif;
-  font-weight: 400;
-  color: #ffe45c;
-  text-shadow: 2px 2px 0 #ff5fa8;
-  letter-spacing: 0.01em;
+/* The same fractal noise the page wears, laid over the artwork so a flyer
+   looks printed rather than screenshotted. */
+.wall-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23g)'/%3E%3C/svg%3E");
+  opacity: 0.11;
+  mix-blend-mode: overlay;
+  pointer-events: none;
 }
 
-.pop-round {
-  font-family: var(--font-round), ui-rounded, system-ui, sans-serif;
+/* A past night goes up on the wall too, just faded the way paper fades. */
+.wall-past {
+  filter: grayscale(1) contrast(0.92) brightness(0.8);
 }
 
-.pop-pill {
-  border: 2.5px solid #050505;
-  border-radius: 999px;
-  background: #ffe45c;
-  color: #050505;
-  box-shadow: 2px 2px 0 #ff5fa8;
-}
-
-.pop-arrow {
-  border: 2.5px solid #050505;
-  border-radius: 999px;
-  background: #ff5fa8;
-  color: #050505;
-  box-shadow: 0 4px 0 #ffe45c;
+.wall-arrow {
+  border: 1px solid var(--line-hi);
+  background: var(--ink);
+  color: var(--silver-dim);
   transition:
-    transform 0.1s ease-out,
-    box-shadow 0.1s ease-out,
-    filter 0.15s;
+    color 0.15s,
+    border-color 0.15s,
+    background-color 0.15s;
 }
 
-.pop-arrow:hover:not(:disabled) {
-  filter: brightness(1.07);
+.wall-arrow:hover:not(:disabled) {
+  border-color: var(--white);
+  background: var(--ink-2);
+  color: var(--white);
 }
 
-.pop-arrow:active:not(:disabled) {
-  transform: translateY(3px);
-  box-shadow: 0 1px 0 #ffe45c;
+.wall-arrow:disabled {
+  opacity: 0.3;
 }
 
-.pop-arrow:disabled {
-  background: #24272d;
-  color: #4c515a;
-  border-color: #24272d;
-  box-shadow: 0 4px 0 #191c21;
-}
-
-.pop-dot {
-  border-radius: 999px;
-  background: #3a3f47;
+.wall-dot {
+  background: var(--line-hi);
   transition:
-    width 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
-    background-color 0.2s;
+    width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 0.25s;
 }
 
-.pop-dot-on {
-  background: #ffe45c;
+.wall-dot-on {
+  background: var(--blood-hi);
 }
 
-/* The whole thing is decoration over a list that is already readable. Anyone
-   who has asked for less movement gets the snap without the slide. */
 @media (prefers-reduced-motion: reduce) {
-  .pop-card,
-  .pop-arrow,
-  .pop-dot {
+  .wall-poster,
+  .wall-arrow,
+  .wall-dot {
     transition: none;
+  }
+  .wall-poster:hover {
+    transform: none;
   }
 }

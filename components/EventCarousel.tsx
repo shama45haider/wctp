@@ -3,96 +3,93 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Flyer from "./Flyer";
 import EventLink from "./EventLink";
-import { bubble, round } from "@/lib/raffle-fonts";
 import { heroPhoto, monthOf, dayOf, type Event } from "@/lib/events";
 import { isPastEvent, money, priceFrom } from "@/lib/tickets";
 import { useNow } from "@/lib/now";
 
 /**
- * Upcoming dates as a swipeable row of flyers.
+ * Upcoming dates as a wall of flyers.
  *
  * This replaced a vertical list that put every date the same distance down the
  * page - the soonest one no more visible than the fifth. A flyer is the thing
- * people actually recognise, so the carousel leads with it at a size worth
- * looking at and lets the rest be swiped to.
+ * people actually recognise, so it leads at a size worth looking at and the
+ * rest are swiped to.
+ *
+ * The look is posters taped up outside a venue rather than cards in an
+ * interface: every one hangs a degree or two off square, throws the soft
+ * shadow paper throws, wears the same grain the rest of the page does, and
+ * straightens when you put a cursor on it. Nothing is rounded and nothing
+ * glows - see the wall-* block in globals.css. The only colour that is not the
+ * site's own comes out of the artwork.
  *
  * Native scroll-snap does the scrolling. No carousel library, no transform
- * track, no autoplay: a horizontal list of links that the browser already
- * knows how to flick through on a phone, with arrows added for a mouse. That
- * also means it still works, and still reads in order, with JavaScript broken -
- * it is a scrolling list of links either way.
- *
- * The sticker look (candy outline, hard offset shadow, no gradients) is the
- * raffle box's, on purpose - see the pop-* block in globals.css.
+ * track, no autoplay: a horizontal list of links the browser already knows how
+ * to flick through on a phone, with arrows added for a mouse. It is still a
+ * readable list of links in order with JavaScript broken.
  */
 
-const FONTS = `${bubble.variable} ${round.variable}`;
-
-function Card({ e, linked, now }: { e: Event; linked: boolean; now: Date }) {
+function Poster({ e, linked, now }: { e: Event; linked: boolean; now: Date }) {
   const past = isPastEvent(e, now);
   const from = priceFrom(e);
   const photo = heroPhoto(e);
 
-  const inner = (
-    <>
-      <div className="relative aspect-[4/5] overflow-hidden rounded-[19px_19px_0_0]">
+  return (
+    <EventLink
+      slug={e.slug}
+      hasPage={linked}
+      // A date published since the last build has no static page yet, and
+      // EventLink renders it as plain text rather than a link to a 404.
+      className="wall-poster relative block w-[76vw] shrink-0 p-2.5 sm:w-[43vw] lg:w-[306px]"
+    >
+      <div
+        className={`wall-grain relative aspect-[4/5] overflow-hidden ${
+          past ? "wall-past" : ""
+        }`}
+      >
         {photo || e.imageId ? (
           <Flyer
             id={e.imageId}
             src={photo ?? undefined}
             alt={e.title}
-            sizes="(max-width:639px) 78vw, (max-width:1023px) 44vw, 300px"
+            sizes="(max-width:639px) 76vw, (max-width:1023px) 43vw, 306px"
             maxWidth={640}
-            className={past ? "grayscale" : ""}
           />
         ) : (
           <div className="hairline-x flex h-full items-center justify-center bg-ink2">
             <span className="label text-silverfaint">NO FLYER</span>
           </div>
         )}
-
-        {/* The date rides on the flyer rather than under it: it is the second
-            thing anyone wants after recognising the picture. */}
-        <span
-          className={`pop-pill pop-round absolute top-3 left-3 px-3 py-1 text-[0.875rem] leading-none font-semibold ${
-            past ? "opacity-70 grayscale" : ""
-          }`}
-        >
-          {e.dow} {dayOf(e.date)} {monthOf(e.date)}
-        </span>
-
-        {from !== null && !past && (
-          <span className="pop-pill pop-round absolute top-3 right-3 px-3 py-1 text-[0.875rem] leading-none font-semibold">
-            {from > 0 ? money(from) : "FREE"}
-          </span>
-        )}
       </div>
 
-      <div className="px-4 pt-3 pb-4">
-        <p className="pop-title text-[1.15rem] leading-tight break-words">
+      {/* Set like the bottom of a gig poster: the day huge and condensed, the
+          month and weekday stacked small beside it, the title under a rule. */}
+      <div className="px-1 pt-3 pb-1">
+        <div className="flex items-end gap-2">
+          <span className="font-display text-[2.6rem] leading-[0.78] tracking-[-0.01em] text-chalk">
+            {dayOf(e.date)}
+          </span>
+          <span className="label pb-1 leading-tight text-silverdim">
+            {monthOf(e.date)}
+            <br />
+            {e.dow}
+          </span>
+          <span className="label ml-auto pb-1 text-right text-silverfaint">
+            {e.time}
+            {from !== null && !past && (
+              <>
+                <br />
+                <span className="text-chalk">
+                  {from > 0 ? money(from) : "FREE"}
+                </span>
+              </>
+            )}
+          </span>
+        </div>
+
+        <p className="font-display mt-2.5 border-t border-linehi pt-2.5 text-[1.05rem] leading-[1.05] break-words uppercase">
           {e.title}
         </p>
-        <p className="pop-round mt-1.5 text-[0.875rem] text-silverdim">
-          {e.time}
-          {typeof e.going === "number" && (
-            <span className="text-silverfaint"> · {e.going} going</span>
-          )}
-        </p>
       </div>
-    </>
-  );
-
-  // A date published since the last build has no static page yet, and
-  // EventLink renders it as plain text rather than a link to a 404.
-  return (
-    <EventLink
-      slug={e.slug}
-      hasPage={linked}
-      className={`pop-card block w-[78vw] shrink-0 overflow-hidden sm:w-[44vw] lg:w-[300px] ${
-        past ? "pop-card-past" : ""
-      }`}
-    >
-      {inner}
     </EventLink>
   );
 }
@@ -111,17 +108,16 @@ export default function EventCarousel({
   /**
    * Whether the track actually overflows.
    *
-   * Three cards on a desk fit side by side with room to spare, and the
+   * Three posters on a desk fit side by side with room to spare, and the
    * controls under them were then a pair of permanently disabled arrows beside
-   * dots that marked the middle card as "current" - because with nothing to
-   * scroll, the card nearest the centre of the viewport is the middle one. Both
-   * were furniture pretending to be controls, so neither is drawn unless there
-   * is somewhere to go.
+   * dots that marked the middle one as "current" - because with nothing to
+   * scroll, the poster nearest the centre of the viewport is the middle one.
+   * Both were furniture pretending to be controls.
    */
   const [overflows, setOverflows] = useState(false);
 
   /**
-   * Which card is nearest the middle, worked out from scrollLeft rather than
+   * Which poster is nearest the middle, worked out from scrollLeft rather than
    * tracked as state the arrows also write to. Swiping, the arrows and a
    * keyboard all move the same scroll position, so reading it back is the only
    * version that cannot disagree with what is on screen.
@@ -143,7 +139,14 @@ export default function EventCarousel({
       }
     });
     setAt(best);
-    setOverflows(el.scrollWidth > el.clientWidth + 2);
+    // Measured across the posters themselves, not scrollWidth, which counts
+    // the track's own trailing padding - enough on a desk to report 27px of
+    // "overflow" and draw a full set of controls for scrolling past nothing.
+    const span =
+      cards[cards.length - 1].offsetLeft +
+      cards[cards.length - 1].offsetWidth -
+      cards[0].offsetLeft;
+    setOverflows(span > el.clientWidth + 2);
     setEnds({
       start: el.scrollLeft <= 2,
       // A pixel of slack: fractional widths mean scrollLeft rarely lands
@@ -155,26 +158,12 @@ export default function EventCarousel({
 
   useEffect(() => {
     measure();
-    const el = track.current;
-    if (!el) return;
     const onResize = () => measure();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [measure, events.length]);
 
-  const go = (dir: -1 | 1) => {
-    const el = track.current;
-    if (!el) return;
-    const cards = [...el.children] as HTMLElement[];
-    const next = cards[Math.min(Math.max(at + dir, 0), cards.length - 1)];
-    if (!next) return;
-    el.scrollTo({
-      left: next.offsetLeft - (el.clientWidth - next.offsetWidth) / 2,
-      behavior: "smooth",
-    });
-  };
-
-  const jump = (i: number) => {
+  const slideTo = (i: number) => {
     const el = track.current;
     const card = el?.children[i] as HTMLElement | undefined;
     if (!el || !card) return;
@@ -187,50 +176,50 @@ export default function EventCarousel({
   if (events.length === 0) return null;
 
   return (
-    <div className={FONTS}>
+    <div>
       <div
         ref={track}
         onScroll={measure}
-        className="pop-track -mx-[4vw] flex gap-4 overflow-x-auto px-[4vw] pt-1"
+        className="wall-track -mx-[4vw] flex gap-5 overflow-x-auto px-[4vw] sm:gap-7"
         role="group"
         aria-label="Upcoming dates"
       >
         {events.map((e) => (
-          <Card key={e.slug} e={e} linked={hasPage(e.slug)} now={now} />
+          <Poster key={e.slug} e={e} linked={hasPage(e.slug)} now={now} />
         ))}
       </div>
 
       {/* Nothing to scroll to, nothing to scroll with. */}
       {overflows && (
-        <div className="mt-4 flex items-center justify-between gap-4">
+        <div className="mt-5 flex items-center justify-between gap-4 border-t border-line pt-4">
           <div className="flex items-center gap-1.5" aria-hidden>
             {events.map((e, i) => (
               <button
                 key={e.slug}
                 type="button"
-                onClick={() => jump(i)}
+                onClick={() => slideTo(i)}
                 tabIndex={-1}
-                className={`pop-dot h-2 ${i === at ? "pop-dot-on w-6" : "w-2"}`}
+                className={`wall-dot h-[3px] ${i === at ? "wall-dot-on w-7" : "w-3.5"}`}
               />
             ))}
           </div>
 
-          <div className="flex gap-2.5">
+          <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => go(-1)}
+              onClick={() => slideTo(at - 1)}
               disabled={ends.start}
               aria-label="Previous date"
-              className="pop-arrow flex h-11 w-11 items-center justify-center text-[1.1rem] leading-none font-bold"
+              className="wall-arrow flex h-11 w-11 items-center justify-center text-[0.95rem] leading-none"
             >
               &larr;
             </button>
             <button
               type="button"
-              onClick={() => go(1)}
+              onClick={() => slideTo(at + 1)}
               disabled={ends.end}
               aria-label="Next date"
-              className="pop-arrow flex h-11 w-11 items-center justify-center text-[1.1rem] leading-none font-bold"
+              className="wall-arrow flex h-11 w-11 items-center justify-center text-[0.95rem] leading-none"
             >
               &rarr;
             </button>
