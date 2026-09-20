@@ -6,6 +6,7 @@ import Flyer from "./Flyer";
 import TicketPass from "./TicketPass";
 import { Editable } from "./Editable";
 import { findEvent, heroPhoto, monthOf, dayOf, org } from "@/lib/events";
+import { startTicketCheckout } from "@/lib/ticket-checkout";
 import { atHandle } from "@/lib/handle";
 import {
   findPromo,
@@ -264,6 +265,7 @@ export default function CheckoutFlow() {
   const [buyer, setBuyer] = useState({ name: "", email: "", phone: "" });
   const [touched, setTouched] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
   const prefilled = useRef(false);
 
   // Prefill once from the account, then leave the fields alone - re-syncing on
@@ -297,7 +299,33 @@ export default function CheckoutFlow() {
   // rather than from a copy that was made when the page opened.
   const ticketName = user?.instagram ? atHandle(user.name) : buyer.name.trim();
 
+  /**
+   * Free carts are booked here, as they always were - nothing is owed, so
+   * there is nothing for Stripe to do and the policy in 0023 allows the write.
+   *
+   * A cart with a price never writes an order at all. It goes to Stripe, and
+   * the order appears only once the webhook hears the money arrived; that is
+   * what stops an abandoned checkout leaving a sale behind it.
+   */
   const settle = () => {
+    if (totals.totalCents > 0) {
+      void (async () => {
+        const { url, error } = await startTicketCheckout({
+          eventSlug: cart?.eventSlug ?? "",
+          lines: lines
+            .filter((l) => !l.donation && l.qty > 0)
+            .map((l) => ({ tierId: l.tierId, qty: l.qty })),
+        });
+        if (url) {
+          window.location.assign(url);
+          return;
+        }
+        setPayError(error ?? "Checkout could not start.");
+        setProgress(null);
+      })();
+      return;
+    }
+
     const placed = placeOrder(
       {
         name: ticketName,
@@ -687,57 +715,32 @@ export default function CheckoutFlow() {
                 </p>
               ) : (
                 <>
-                  <div className="label mt-6 border border-[rgba(200,16,46,0.5)] px-3 py-2.5 text-bloodhi">
-                    <Editable k="checkout.payment.testMode">
-                      TEST MODE · NO CARD IS CHARGED AND NO CARD DETAILS ARE TAKEN
+                  {/* The card fields are gone. They were a read-only
+                      4242 4242 4242 4242 under the words "no card is charged",
+                      which was honest while nothing charged - now the real
+                      thing happens on Stripe's own page and no card number
+                      ever reaches this site. */}
+                  <p className="mt-5 text-[0.9375rem] leading-relaxed text-silverdim">
+                    <Editable k="checkout.payment.handoff">
+                      Paying takes you to Stripe. Your tickets are issued the
+                      moment it goes through, and you land back here.
                     </Editable>
-                  </div>
-
-                  <div className="mt-5 border border-line p-5">
-                    <div className="mb-4 flex flex-col gap-2">
-                      <label htmlFor="card" className="label text-silverfaint">
-                        <Editable k="checkout.payment.cardLabel">CARD NUMBER</Editable>
-                      </label>
-                      <input
-                        id="card"
-                        readOnly
-                        value="4242 4242 4242 4242"
-                        aria-describedby="card-note"
-                        className={`${field} cursor-not-allowed text-silverdim`}
-                      />
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { id: "exp", label: "EXPIRY", value: "12 / 30" },
-                        { id: "cvc", label: "CVC", value: "123" },
-                        { id: "zip", label: "ZIP", value: "10012" },
-                      ].map((f) => (
-                        <div key={f.id} className="flex flex-col gap-2">
-                          <label
-                            htmlFor={f.id}
-                            className="label text-silverfaint"
-                          >
-                            <Editable k={`checkout.payment.${f.id}Label`}>
-                              {f.label}
-                            </Editable>
-                          </label>
-                          <input
-                            id={f.id}
-                            readOnly
-                            value={f.value}
-                            className={`${field} cursor-not-allowed text-silverdim`}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <p id="card-note" className="label mt-4 text-silverfaint">
-                      <Editable k="checkout.payment.cardNote">
-                        FIXED TEST CARD. A LIVE BUILD HANDS THIS STEP TO STRIPE SO
-                        NO CARD NUMBER EVER REACHES THIS SITE.
-                      </Editable>
-                    </p>
-                  </div>
+                  </p>
+                  <p className="label mt-3 text-silverfaint">
+                    <Editable k="checkout.payment.noCardHere">
+                      NO CARD DETAILS EVER REACH THIS SITE
+                    </Editable>
+                  </p>
                 </>
+              )}
+
+              {payError && (
+                <p
+                  className="mt-5 border border-[rgba(200,16,46,0.45)] px-3 py-2.5 text-[0.875rem] leading-relaxed text-bloodhi"
+                  role="alert"
+                >
+                  {payError}
+                </p>
               )}
 
               <div className="label mt-5 flex justify-between border border-line px-3 py-3">

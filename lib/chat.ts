@@ -4,7 +4,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { getSupabase } from "./supabase";
 
 /**
- * The room.
+ * The lounge.
  *
  * Reads go through chat_recent() in 0022, because a plain join to profiles
  * returns nothing for other people's rows. Writes go straight at the table,
@@ -39,7 +39,7 @@ export const MAX_BODY = 600;
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 export const NEEDS_0022 =
-  "This project has not run migration 0022 yet, so the room does not exist.";
+  "This project has not run migration 0022 yet, so the lounge does not exist.";
 
 const NO_RELATION = /does not exist|could not find|schema cache/i;
 const IS_CHAT = /chat_messages|chat_recent|chat-images/i;
@@ -237,7 +237,7 @@ export async function uploadChatImage(
 }
 
 /**
- * Watch the room.
+ * Watch the lounge.
  *
  * postgres_changes gives an insert the moment it lands, but only the raw row -
  * no handle, no picture, because the payload is the table and not the function.

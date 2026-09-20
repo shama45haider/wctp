@@ -585,6 +585,12 @@ export type AdminOrderRow = {
   buyerPhone: string | null;
   createdAt: string;
   cancelledAt: string | null;
+  /**
+   * When Stripe confirmed the money. Null on a free order, which owes nothing,
+   * and null on the mock orders written before 0023 - which is the point: they
+   * stop counting as revenue rather than having to be found and deleted.
+   */
+  paidAt: string | null;
   lines: AdminOrderLine[];
   /** Passes this order issued in total - 0 for a donation-only order. */
   passCount: number;
@@ -603,7 +609,7 @@ export type AdminPass = {
 };
 
 const ORDER_HEAD =
-  "id, event_slug, event_title, promo_code, subtotal_cents, discount_cents, fee_cents, total_cents, buyer_name, buyer_email, buyer_phone, created_at, cancelled_at";
+  "id, event_slug, event_title, promo_code, subtotal_cents, discount_cents, fee_cents, total_cents, buyer_name, buyer_email, buyer_phone, created_at, cancelled_at, paid_at";
 
 const ADMIN_ORDER_COLUMNS = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty, unit_cents, admits, donation), passes(code, tier_name, admits, used_at, revoked_at)`;
 
@@ -616,18 +622,19 @@ const ADMIN_ORDER_COLUMNS = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty,
  * costing it a single distinction. Falling back means a promoter still sees
  * every number; donations just look like ordinary lines until 0004 is applied.
  */
-const ADMIN_ORDER_COLUMNS_PRE_0004 = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty, unit_cents, admits), passes(code, tier_name, admits, used_at, revoked_at)`;
+const ORDER_HEAD_PRE_0023 = ORDER_HEAD.replace(", paid_at", "");
+const ADMIN_ORDER_COLUMNS_PRE_0004 = `${ORDER_HEAD_PRE_0023}, order_lines(tier_id, tier_name, qty, unit_cents, admits), passes(code, tier_name, admits, used_at, revoked_at)`;
 
 /** PostgREST's wording for a column the schema does not have. */
 function isMissingDonationColumn(message: string) {
   return (
-    /donation|revoked_at|revoked_by/i.test(message) &&
+    /donation|revoked_at|revoked_by|paid_at/i.test(message) &&
     /does not exist|could not find/i.test(message)
   );
 }
 
 /** The same query for a database that has run neither 0004 nor 0008. */
-const ADMIN_ORDER_COLUMNS_MINIMAL = `${ORDER_HEAD}, order_lines(tier_id, tier_name, qty, unit_cents, admits), passes(code, tier_name, admits, used_at)`;
+const ADMIN_ORDER_COLUMNS_MINIMAL = `${ORDER_HEAD_PRE_0023}, order_lines(tier_id, tier_name, qty, unit_cents, admits), passes(code, tier_name, admits, used_at)`;
 
 type AdminOrderRecord = {
   id: string;
@@ -643,6 +650,7 @@ type AdminOrderRecord = {
   buyer_phone: string | null;
   created_at: string;
   cancelled_at: string | null;
+  paid_at?: string | null;
   order_lines: {
     tier_id: string;
     tier_name: string;
@@ -676,6 +684,7 @@ function toAdminOrder(r: AdminOrderRecord): AdminOrderRow {
     buyerPhone: r.buyer_phone,
     createdAt: r.created_at,
     cancelledAt: r.cancelled_at,
+    paidAt: r.paid_at ?? null,
     lines: (r.order_lines ?? []).map((l) => ({
       tierId: l.tier_id,
       tierName: l.tier_name,

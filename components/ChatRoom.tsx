@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { Editable } from "./Editable";
+import MemberCard from "./MemberCard";
 import { avatarUrl } from "@/lib/profile-data";
 import { useAccount } from "@/lib/demo-account";
 import {
@@ -20,7 +21,7 @@ import {
 import { btnGo, field } from "@/lib/ui";
 
 /**
- * The room.
+ * The lounge.
  *
  * Reading needs an account; posting needs an age-verified one. Both gates are
  * policies in 0022 - what this component does is explain which side of them
@@ -51,6 +52,7 @@ export default function ChatRoom() {
   const [pending, setPending] = useState<{ path: string; url: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
+  const [card, setCard] = useState<string | null>(null);
 
   const alive = useRef(true);
   const foot = useRef<HTMLDivElement>(null);
@@ -132,7 +134,7 @@ export default function ChatRoom() {
     return (
       <div className="border border-dashed border-line px-4 py-8 text-center">
         <p className="text-[0.9375rem] leading-relaxed text-silverdim">
-          <Editable k="room.signedOut">Sign in to read the room.</Editable>
+          <Editable k="room.signedOut">Sign in to read the lounge.</Editable>
         </p>
         <Link href="/login" className={`${btnGo} mt-5`}>
           Sign in
@@ -189,7 +191,13 @@ export default function ChatRoom() {
 
                 <div className="min-w-0 flex-1">
                   <p className="label flex items-baseline gap-2 text-silverfaint">
-                    <span className="text-silver">@{m.handle}</span>
+                    <button
+                      type="button"
+                      onClick={() => setCard(m.handle)}
+                      className="text-silver transition-colors hover:text-chalk hover:underline"
+                    >
+                      @{m.handle}
+                    </button>
                     <span>{when(m.createdAt)}</span>
                     {mine && (
                       <button
@@ -224,6 +232,8 @@ export default function ChatRoom() {
 
         <div ref={foot} />
       </div>
+
+      {card && <MemberCard handle={card} onClose={() => setCard(null)} />}
 
       {/* ---------------------------------------------------------- box -- */}
       {canPost ? (
@@ -294,7 +304,7 @@ export default function ChatRoom() {
         <div className="border-t border-line p-4">
           <p className="text-[0.875rem] leading-relaxed text-silverdim">
             <Editable k="room.needsVerify">
-              You can read the room. Posting needs your age checked first.
+              You can read the lounge. Posting needs your age checked first.
             </Editable>
           </p>
           <Link

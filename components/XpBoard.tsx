@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import MemberCard from "./MemberCard";
 import { Editable } from "./Editable";
 import { avatarUrl } from "@/lib/profile-data";
 import { xpBoard, type BoardRow } from "@/lib/xp";
@@ -21,6 +22,8 @@ type Load =
 
 export default function XpBoard({ limit = 25 }: { limit?: number }) {
   const [load, setLoad] = useState<Load>({ kind: "loading" });
+  // Which row is open, by handle. The card fetches the rest itself.
+  const [open, setOpen] = useState<{ handle: string; total: number } | null>(null);
   const alive = useRef(true);
 
   useEffect(() => {
@@ -69,10 +72,12 @@ export default function XpBoard({ limit = 25 }: { limit?: number }) {
           {load.rows.map((r, i) => {
             const face = avatarUrl(r.avatarPath);
             return (
-              <li
-                key={r.handle}
-                className="flex items-center gap-3 border-b border-linesoft px-4 py-2.5 last:border-b-0"
-              >
+              <li key={r.handle} className="border-b border-linesoft last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => setOpen({ handle: r.handle, total: r.total })}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-ink2"
+                >
                 <span
                   className={`label w-5 shrink-0 text-right tabular-nums ${
                     i === 0 ? "text-bloodhi" : "text-silverfaint"
@@ -95,13 +100,22 @@ export default function XpBoard({ limit = 25 }: { limit?: number }) {
                 <span className="min-w-0 flex-1 truncate text-[0.875rem] text-chalk">
                   @{r.handle}
                 </span>
-                <span className="label shrink-0 text-silver tabular-nums">
-                  {r.total}
-                </span>
+                  <span className="label shrink-0 text-silver tabular-nums">
+                    {r.total}
+                  </span>
+                </button>
               </li>
             );
           })}
         </ol>
+      )}
+
+      {open && (
+        <MemberCard
+          handle={open.handle}
+          total={open.total}
+          onClose={() => setOpen(null)}
+        />
       )}
     </section>
   );

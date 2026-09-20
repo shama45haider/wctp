@@ -317,6 +317,9 @@ type EventStats = {
   admitCount: number;
   orderCount: number;
   cancelledCount: number;
+  /** Orders with a price that Stripe never confirmed. Counted in nothing. */
+  unpaidCount: number;
+  unpaidCents: number;
   /** Ticket sales after any promo discount, before the service fee. */
   ticketNetCents: number;
   donationCents: number;
@@ -334,6 +337,8 @@ function emptyStats(): EventStats {
     admitCount: 0,
     orderCount: 0,
     cancelledCount: 0,
+    unpaidCount: 0,
+    unpaidCents: 0,
     ticketNetCents: 0,
     donationCents: 0,
     grossCents: 0,
@@ -365,6 +370,8 @@ function addStats(a: EventStats, b: EventStats): EventStats {
     admitCount: a.admitCount + b.admitCount,
     orderCount: a.orderCount + b.orderCount,
     cancelledCount: a.cancelledCount + b.cancelledCount,
+    unpaidCount: a.unpaidCount + b.unpaidCount,
+    unpaidCents: a.unpaidCents + b.unpaidCents,
     ticketNetCents: a.ticketNetCents + b.ticketNetCents,
     donationCents: a.donationCents + b.donationCents,
     grossCents: a.grossCents + b.grossCents,
@@ -387,6 +394,19 @@ function addStats(a: EventStats, b: EventStats): EventStats {
 function foldOrder(s: EventStats, o: AdminOrderRow): EventStats {
   if (o.cancelledAt) {
     return { ...s, cancelledCount: s.cancelledCount + 1, cancelledRows: [...s.cancelledRows, o] };
+  }
+
+  // An order with a price and no paid_at is money that never arrived. Since
+  // 0023 that can only be a leftover from the mock checkout, because a paid
+  // order is now created by the Stripe webhook and never exists before the
+  // payment does. Counted separately and added to nothing, which is what
+  // takes the demo totals off this screen without deleting anybody's history.
+  if (o.totalCents > 0 && !o.paidAt) {
+    return {
+      ...s,
+      unpaidCount: s.unpaidCount + 1,
+      unpaidCents: s.unpaidCents + o.totalCents,
+    };
   }
 
   const donationCents = o.lines
@@ -412,6 +432,8 @@ function foldOrder(s: EventStats, o: AdminOrderRow): EventStats {
     admitCount,
     orderCount: s.orderCount + 1,
     cancelledCount: s.cancelledCount,
+    unpaidCount: s.unpaidCount,
+    unpaidCents: s.unpaidCents,
     ticketNetCents: s.ticketNetCents + ticketNetCents,
     donationCents: s.donationCents + donationCents,
     grossCents: s.grossCents + o.totalCents,
@@ -1091,6 +1113,17 @@ export default function Admin() {
                         sub="Across all doors"
                       />
                     </div>
+                    {upcomingTotal.unpaidCount > 0 && (
+                      <p className="border-t border-linesoft px-5 py-3 text-[0.875rem] text-silverdim">
+                        Not counted:{" "}
+                        <span className="text-chalk tabular-nums">
+                          {upcomingTotal.unpaidCount} order
+                          {upcomingTotal.unpaidCount === 1 ? "" : "s"}
+                        </span>{" "}
+                        worth {usd(upcomingTotal.unpaidCents)} that were never
+                        paid for — the old test checkout wrote those.
+                      </p>
+                    )}
                     {upcomingTotal.donationCents > 0 && (
                       <p className="border-t border-linesoft px-5 py-3 text-[0.875rem] text-silverdim">
                         Plus{" "}

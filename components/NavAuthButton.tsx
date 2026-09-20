@@ -123,8 +123,8 @@ export default function NavAuthButton() {
             Your profile
           </Link>
 
-          <Link href="/room" role="menuitem" className={ITEM}>
-            The room
+          <Link href="/lounge" role="menuitem" className={ITEM}>
+            Online Lounge
           </Link>
           <Link href="/account" role="menuitem" className={ITEM}>
             Your tickets
