@@ -265,10 +265,12 @@ export async function uploadChatImage(
  */
 const CHANNEL = "lounge";
 const SHOUT = "said";
+const TYPING = "typing";
 
 export async function watchRoom(
   onChange: () => void,
   onStatus?: (live: boolean) => void,
+  onTyping?: (who: string) => void,
 ): Promise<RealtimeChannel | null> {
   const supabase = safeClient();
   if (!supabase) return null;
@@ -280,6 +282,10 @@ export async function watchRoom(
   const channel = supabase
     .channel(CHANNEL)
     .on("broadcast", { event: SHOUT }, () => onChange())
+    .on("broadcast", { event: TYPING }, ({ payload }) => {
+      const who = (payload as { who?: unknown })?.who;
+      if (typeof who === "string" && who) onTyping?.(who);
+    })
     .on(
       "postgres_changes",
       // Updates as well as inserts: hiding a message is an update, and without
@@ -302,6 +308,23 @@ export async function watchRoom(
 export function announce(channel: RealtimeChannel | null) {
   if (!channel) return;
   void channel.send({ type: "broadcast", event: SHOUT, payload: {} });
+}
+
+/**
+ * "Someone is typing."
+ *
+ * Deliberately anonymous. Putting a handle in here would mean rendering a name
+ * nothing validated - a broadcast payload is a message between clients, not a
+ * row the database vouched for, so anybody could make the room say the
+ * organiser was typing. `who` is an opaque key used only to count distinct
+ * people, and a forged one inflates a number rather than impersonating
+ * somebody.
+ *
+ * Nothing is stored. Typing is true for a few seconds and then it is not.
+ */
+export function announceTyping(channel: RealtimeChannel | null, who: string) {
+  if (!channel) return;
+  void channel.send({ type: "broadcast", event: TYPING, payload: { who } });
 }
 
 export function stopWatching(channel: RealtimeChannel | null) {

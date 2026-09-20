@@ -16,6 +16,7 @@ import {
   uploadChatImage,
   watchRoom,
   announce,
+  announceTyping,
   MAX_BODY,
   type ChatMessage,
 } from "@/lib/chat";
@@ -55,24 +56,63 @@ export default function ChatRoom() {
   const [said, setSaid] = useState<string | null>(null);
   const [card, setCard] = useState<string | null>(null);
   const [live, setLive] = useState(false);
+  /** Your own message, shown before the server has confirmed it. */
+  const [sending, setSending] = useState<string | null>(null);
+  const [typing, setTyping] = useState(0);
+  const [behind, setBehind] = useState(false);
 
   const alive = useRef(true);
   const foot = useRef<HTMLDivElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const channel = useRef<RealtimeChannel | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  /** Whether the reader was at the bottom before this batch arrived. */
+  const wasAtBottom = useRef(true);
+  const coalesce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typers = useRef(new Map<string, number>());
+  const lastTypedAt = useRef(0);
+  /**
+   * Stable per tab, meaningless off it, only ever counted and never shown.
+   * Filled on mount rather than inline: generating it during render is an
+   * impure call, and nothing reads it until an event fires anyway.
+   */
+  const myKey = useRef("");
 
   useEffect(() => {
     alive.current = true;
+    if (!myKey.current) myKey.current = crypto.randomUUID();
     return () => {
       alive.current = false;
     };
   }, []);
 
+  const atBottom = () => {
+    const el = scroller.current;
+    if (!el) return true;
+    // Within a line and a half of the end counts as "following along".
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  };
+
   const read = useCallback(async () => {
+    wasAtBottom.current = atBottom();
     const { rows, error } = await recentMessages();
     if (!alive.current) return;
     setLoad(error ? { kind: "error", message: error } : { kind: "ready", rows });
+    // The authoritative list has landed, so the optimistic copy has either
+    // arrived in it or failed; either way it stops being shown twice.
+    setSending(null);
   }, []);
+
+  /**
+   * One read per burst.
+   *
+   * Five people posting at once is five broadcasts, and re-reading the whole
+   * room five times in a tick is wasted work that also makes the list flicker.
+   */
+  const readSoon = useCallback(() => {
+    if (coalesce.current) clearTimeout(coalesce.current);
+    coalesce.current = setTimeout(() => void read(), 90);
+  }, [read]);
 
   // Only once there is a session: chat_recent() returns nothing without one,
   // and an empty room is the wrong thing to show somebody who is signed out.
@@ -82,8 +122,13 @@ export default function ChatRoom() {
     let dead = false;
     void (async () => {
       const ch = await watchRoom(
-        () => void read(),
+        () => readSoon(),
         (ok) => setLive(ok),
+        (who) => {
+          if (who === myKey.current) return;
+          typers.current.set(who, Date.now());
+          setTyping(typers.current.size);
+        },
       );
       // Unmounted while the session lookup was in flight: close it rather than
       // leaving a subscribed channel behind with nothing listening.
@@ -117,21 +162,52 @@ export default function ChatRoom() {
       8_000,
     );
 
+    // Nobody sends a "stopped typing"; an entry simply goes stale.
+    const sweep = window.setInterval(() => {
+      const cutoff = Date.now() - 4000;
+      let changed = false;
+      for (const [k, at] of typers.current) {
+        if (at < cutoff) {
+          typers.current.delete(k);
+          changed = true;
+        }
+      }
+      if (changed) setTyping(typers.current.size);
+    }, 1500);
+
     return () => {
       dead = true;
+      window.clearInterval(sweep);
+      if (coalesce.current) clearTimeout(coalesce.current);
       window.clearInterval(tick);
       stopWatching(channel.current);
       channel.current = null;
       setLive(false);
     };
-  }, [ready, user, read]);
+  }, [ready, user, read, readSoon]);
 
-  // Stay at the bottom as messages land, which is where a transcript is read.
+  /**
+   * Follow the bottom, but only for somebody who was already there.
+   *
+   * This used to scroll on every load, including the backstop poll - so
+   * anyone reading back through the night got dragged to the newest message
+   * every eight seconds. Instagram does not do that, and neither should this:
+   * if you have scrolled up, you stay where you are and a button appears.
+   */
   useEffect(() => {
-    if (load.kind === "ready") {
+    if (load.kind !== "ready") return;
+    if (wasAtBottom.current) {
       foot.current?.scrollIntoView({ block: "end" });
+      setBehind(false);
+    } else {
+      setBehind(true);
     }
-  }, [load]);
+  }, [load, sending]);
+
+  const jumpDown = () => {
+    foot.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    setBehind(false);
+  };
 
   const attach = async (files: FileList | null) => {
     const file = files?.[0];
@@ -155,18 +231,44 @@ export default function ChatRoom() {
     setBusy(true);
     setSaid(null);
 
-    const out = await sendMessage({ body, imagePath: pending?.path ?? null });
+    // Shown before the round trip finishes. It is your own text, so there is
+    // nothing to verify - and waiting two network hops to see what you just
+    // typed is the single thing that makes a chat feel slow.
+    const mine = body.trim();
+    wasAtBottom.current = true;
+    setSending(mine || "📷");
+    setBody("");
+
+    const out = await sendMessage({ body: mine, imagePath: pending?.path ?? null });
     if (!alive.current) return;
     setBusy(false);
 
     if (!out.ok) {
+      // Put it back in the box rather than losing what they wrote.
+      setSending(null);
+      setBody(mine);
       setSaid(out.error ?? "That did not send.");
       return;
     }
-    setBody("");
     setPending(null);
     void read();
     announce(channel.current);
+  };
+
+  /**
+   * Tell the room, at most once every two seconds.
+   *
+   * A broadcast per keystroke is a lot of traffic for an indicator nobody
+   * reads closely, and the receiving side treats anything within four seconds
+   * as still typing.
+   */
+  const onTyped = (next: string) => {
+    setBody(next);
+    const now = Date.now();
+    if (next && now - lastTypedAt.current > 2000) {
+      lastTypedAt.current = now;
+      announceTyping(channel.current, myKey.current);
+    }
   };
 
   if (!ready) {
@@ -207,7 +309,13 @@ export default function ChatRoom() {
       </div>
 
       {/* ----------------------------------------------------- transcript -- */}
-      <div className="h-[clamp(20rem,58vh,34rem)] overflow-y-auto px-4 py-4">
+      <div
+        ref={scroller}
+        onScroll={() => {
+          if (atBottom()) setBehind(false);
+        }}
+        className="relative h-[clamp(20rem,58vh,34rem)] overflow-y-auto px-4 py-4"
+      >
         {load.kind === "loading" && (
           <p className="label animate-pulse text-silverfaint uppercase">Loading…</p>
         )}
@@ -290,10 +398,46 @@ export default function ChatRoom() {
             );
           })}
 
+        {sending && (
+          <div className="flex gap-3 py-2 opacity-55">
+            <span className="label flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line text-silverfaint">
+              {user.name.slice(0, 1).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="label flex items-baseline gap-2 text-silverfaint">
+                <span className="text-silver">@{user.name}</span>
+                <span>SENDING…</span>
+              </p>
+              <p className="mt-0.5 text-[0.9375rem] leading-relaxed break-words text-chalk">
+                {sending}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div ref={foot} />
       </div>
 
       {card && <MemberCard handle={card} onClose={() => setCard(null)} />}
+
+      {behind && (
+        <button
+          type="button"
+          onClick={jumpDown}
+          className="label w-full border-t border-linesoft bg-ink2 py-2 text-center text-silverdim transition-colors hover:text-chalk"
+        >
+          NEW MESSAGES ↓
+        </button>
+      )}
+
+      {typing > 0 && (
+        <p
+          aria-live="polite"
+          className="label border-t border-linesoft px-4 py-1.5 text-silverfaint"
+        >
+          {typing === 1 ? "Someone is typing…" : `${typing} people are typing…`}
+        </p>
+      )}
 
       {/* ---------------------------------------------------------- box -- */}
       {canPost ? (
@@ -316,10 +460,11 @@ export default function ChatRoom() {
           <div className="flex items-end gap-2">
             <input
               value={body}
-              onChange={(e) => setBody(e.target.value)}
+              onChange={(e) => onTyped(e.target.value)}
               maxLength={MAX_BODY}
               placeholder="Say something"
               aria-label="Message"
+              autoComplete="off"
               className={`${field} min-w-0 flex-1`}
             />
             <button
