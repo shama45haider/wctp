@@ -655,3 +655,120 @@ button.label:not([class*="min-h-"]) {
   animation-timing-function: linear;
   animation-fill-mode: forwards;
 }
+/* --- upcoming carousel (components/EventCarousel.tsx) ---
+   The same party-flyer sticker language as the raffle box above: flat candy
+   colors, a thick outline and a hard offset shadow, nothing glowing or
+   gradiented. Reused rather than reinvented so the two bubbly things on the
+   site read as one idea. */
+
+.pop-track {
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  /* The shadows below hang 6px right and down; without room the track clips
+     them off at its own edges. */
+  padding-bottom: 12px;
+}
+
+.pop-track::-webkit-scrollbar {
+  display: none;
+}
+
+.pop-card {
+  scroll-snap-align: center;
+  border: 3px solid #ffe45c;
+  border-radius: 22px;
+  background: #0c0d10;
+  box-shadow: 6px 6px 0 #ff5fa8;
+  transition:
+    transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pop-card:hover {
+    transform: translate(-3px, -3px);
+    box-shadow: 10px 10px 0 #ff5fa8;
+  }
+}
+
+.pop-card:active {
+  transform: translate(3px, 3px);
+  box-shadow: 2px 2px 0 #ff5fa8;
+}
+
+/* A past date keeps the shape and loses the sugar. */
+.pop-card-past {
+  border-color: #3a3f47;
+  box-shadow: 6px 6px 0 #24272d;
+}
+
+.pop-title {
+  font-family: var(--font-bubble), "Arial Rounded MT Bold", system-ui, sans-serif;
+  font-weight: 400;
+  color: #ffe45c;
+  text-shadow: 2px 2px 0 #ff5fa8;
+  letter-spacing: 0.01em;
+}
+
+.pop-round {
+  font-family: var(--font-round), ui-rounded, system-ui, sans-serif;
+}
+
+.pop-pill {
+  border: 2.5px solid #050505;
+  border-radius: 999px;
+  background: #ffe45c;
+  color: #050505;
+  box-shadow: 2px 2px 0 #ff5fa8;
+}
+
+.pop-arrow {
+  border: 2.5px solid #050505;
+  border-radius: 999px;
+  background: #ff5fa8;
+  color: #050505;
+  box-shadow: 0 4px 0 #ffe45c;
+  transition:
+    transform 0.1s ease-out,
+    box-shadow 0.1s ease-out,
+    filter 0.15s;
+}
+
+.pop-arrow:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+
+.pop-arrow:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #ffe45c;
+}
+
+.pop-arrow:disabled {
+  background: #24272d;
+  color: #4c515a;
+  border-color: #24272d;
+  box-shadow: 0 4px 0 #191c21;
+}
+
+.pop-dot {
+  border-radius: 999px;
+  background: #3a3f47;
+  transition:
+    width 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 0.2s;
+}
+
+.pop-dot-on {
+  background: #ffe45c;
+}
+
+/* The whole thing is decoration over a list that is already readable. Anyone
+   who has asked for less movement gets the snap without the slide. */
+@media (prefers-reduced-motion: reduce) {
+  .pop-card,
+  .pop-arrow,
+  .pop-dot {
+    transition: none;
+  }
+}

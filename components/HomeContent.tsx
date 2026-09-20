@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import EventLink from "./EventLink";
-import EventManifest from "./EventManifest";
 import Flyer from "./Flyer";
 import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
 import { heroPhoto, org, monthOf, dayOf } from "@/lib/events";
 import { useRuntimeEvents } from "@/lib/events-runtime";
+import EventCarousel from "./EventCarousel";
 import { poshRsvpFor } from "@/lib/tickets";
 
 /**
@@ -234,7 +234,7 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
             }
           />
           {upcoming.length > 0 ? (
-            <EventManifest events={upcoming} hasPage={hasPage} />
+            <EventCarousel events={upcoming} hasPage={hasPage} />
           ) : (
             <div className="border border-dashed border-linehi p-10 text-center">
               <p className="font-display text-2xl">

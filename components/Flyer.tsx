@@ -42,8 +42,10 @@ export default function Flyer({
   priority?: boolean;
   className?: string;
 }) {
+  // alt is passed explicitly at each call below rather than spread in with the
+  // rest: jsx-a11y cannot see through a spread and reports both images as
+  // missing it.
   const shared = {
-    alt,
     loading: priority ? ("eager" as const) : ("lazy" as const),
     fetchPriority: priority ? ("high" as const) : ("auto" as const),
     decoding: "async" as const,
@@ -52,7 +54,7 @@ export default function Flyer({
 
   if (src) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} sizes={sizes} {...shared} />;
+    return <img src={src} alt={alt} sizes={sizes} {...shared} />;
   }
   if (!id) return null;
 
@@ -63,6 +65,7 @@ export default function Flyer({
     <img
       src={url(id, widths[widths.length - 1])}
       srcSet={widths.map((w) => `${url(id, w)} ${w}w`).join(", ")}
+      alt={alt}
       sizes={sizes}
       {...shared}
     />

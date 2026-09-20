@@ -63,6 +63,15 @@ type Draft = {
   published: boolean;
 };
 
+/**
+ * A new date starts published.
+ *
+ * It used to start as a draft, which meant the button marked "Post event"
+ * posted something nobody could see - the row appeared in the list here and
+ * never on the site, with nothing on either screen saying why. Anyone who
+ * genuinely wants to hold one back can untick the box; that is a deliberate
+ * act, and it is the rarer one.
+ */
 const EMPTY: Draft = {
   slug: "",
   title: "",
@@ -71,7 +80,7 @@ const EMPTY: Draft = {
   blurb: "",
   ticketRedirectUrl: "",
   photoPaths: [],
-  published: false,
+  published: true,
 };
 
 type Listing =
@@ -491,19 +500,26 @@ export default function AdminEvents() {
             </Group>
 
             <Group label="Publish">
-              <label
-                htmlFor="published"
-                className="label flex min-h-11 cursor-pointer items-center gap-3 border border-line px-3.5 text-chalk uppercase"
-              >
-                <input
-                  id="published"
-                  type="checkbox"
-                  checked={draft.published}
-                  onChange={(e) => set("published", e.target.checked)}
-                  className="h-4 w-4 accent-blood"
-                />
-                Published
-              </label>
+              <div>
+                <label
+                  htmlFor="published"
+                  className="label flex min-h-11 cursor-pointer items-center gap-3 border border-line px-3.5 text-chalk uppercase"
+                >
+                  <input
+                    id="published"
+                    type="checkbox"
+                    checked={draft.published}
+                    onChange={(e) => set("published", e.target.checked)}
+                    className="h-4 w-4 accent-blood"
+                  />
+                  Published
+                </label>
+                <p className={hint}>
+                  {draft.published
+                    ? "Live on the site as soon as you save."
+                    : "Saved as a draft — it will not appear on the site."}
+                </p>
+              </div>
             </Group>
 
             {notice && (
