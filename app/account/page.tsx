@@ -8,6 +8,8 @@ import { useNow } from "@/lib/now";
 import { isPastEvent, usd } from "@/lib/tickets";
 import TicketPass from "@/components/TicketPass";
 import AttendedEvents from "@/components/AttendedEvents";
+import XpPanel from "@/components/XpPanel";
+import FriendsPanel from "@/components/FriendsPanel";
 import SongRequests from "@/components/SongRequests";
 import { Editable } from "@/components/Editable";
 import { btn, btnGo } from "@/lib/ui";
@@ -221,7 +223,11 @@ export default function Account() {
         </div>
       )}
 
+      <XpPanel />
+
       <AttendedEvents orders={orders} now={now} />
+
+      <FriendsPanel />
 
       <SongRequests />
 

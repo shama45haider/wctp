@@ -14,6 +14,7 @@ import {
 } from "@/lib/profile-data";
 import { btn, btnGo, field } from "@/lib/ui";
 import { Editable } from "@/components/Editable";
+import BoardOptOut from "@/components/BoardOptOut";
 
 /**
  * The profile: a picture, a first name, an Instagram handle and a phone
@@ -440,6 +441,8 @@ export default function Profile() {
           )}
         </div>
       </dl>
+
+      <BoardOptOut />
 
       <div className="mt-7 flex flex-col gap-3">
         {!verified && !awaiting && (

@@ -123,6 +123,9 @@ export default function NavAuthButton() {
             Your profile
           </Link>
 
+          <Link href="/room" role="menuitem" className={ITEM}>
+            The room
+          </Link>
           <Link href="/account" role="menuitem" className={ITEM}>
             Your tickets
           </Link>
