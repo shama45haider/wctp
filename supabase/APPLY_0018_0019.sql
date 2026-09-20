@@ -1,3 +1,63 @@
+-- =============================================================
+-- RUN THIS WHOLE FILE IN THE SUPABASE SQL EDITOR.
+--
+-- Migrations 0018 and 0019, and nothing else.
+--
+-- 0018 is in here even though you have already run it. Every
+-- statement is written to survive a second run, and re-running
+-- it costs nothing - whereas guessing wrong about whether it
+-- took is what left the events table without its columns last
+-- time. If it is already applied, this is a no-op.
+--
+-- The check at the bottom prints one row per change, so there
+-- is no guessing this time either.
+-- =============================================================
+
+
+-- ==================== 0018: event photos + ticket link ====================
+
+-- Event photos and an outside ticket link.
+--
+-- Two columns on public.events, both nullable, both safe to run twice.
+--
+-- The first version of this migration was written but never pasted into the
+-- SQL editor, while the code that selects the column shipped - so PostgREST
+-- rejected the whole select and the events list went dark on the dashboard and
+-- fell back to the bundled dates on the public site. lib/admin-data.ts now
+-- retries without these columns when they are missing, the way it already does
+-- for 0006 and 0011, so the same mistake degrades instead of breaking.
+
+-- ------------------------------------------------------ outside ticketing --
+
+-- Where to send someone instead of selling them a ticket here. Null means the
+-- site's own picker, which is what every existing row wants.
+alter table public.events
+  add column if not exists ticket_redirect_url text;
+
+-- ------------------------------------------------------------- the photos --
+
+-- Paths in the public site-images bucket, in the order they should be shown.
+-- The first is the flyer - what a listing card and a shared link preview use.
+--
+-- An array rather than a photos table: five is the ceiling, they are always
+-- read together with the event and never queried on their own, and ordering is
+-- the array's own index rather than a sort column that has to be kept tidy.
+alter table public.events
+  add column if not exists photo_paths text[] not null default '{}';
+
+-- Five is a flyer plus four. The check is here rather than only in the form,
+-- because the form is not what the database is protecting itself from.
+alter table public.events
+  drop constraint if exists events_photo_paths_max;
+alter table public.events
+  add constraint events_photo_paths_max check (cardinality(photo_paths) <= 5);
+
+-- flyer_url stays. Every date already posted points at a Posh flyer through
+-- it, and the runtime list still falls back to it when a row has no uploads.
+-- The form no longer offers it; nothing needs it removed from the table.
+
+-- ==================== 0019: song requests ====================
+
 -- Song requests.
 --
 -- A guest asks for a track, for a particular night or for the list in general.
@@ -102,3 +162,47 @@ drop trigger if exists on_song_request_insert on public.song_requests;
 create trigger on_song_request_insert
   before insert on public.song_requests
   for each row execute function public.limit_song_requests();
+
+
+-- ---------- did it work? ----------
+
+-- Every `present` should read true.
+
+select 'events.ticket_redirect_url' as thing,
+       exists (
+         select 1 from information_schema.columns
+         where table_schema = 'public'
+           and table_name = 'events' and column_name = 'ticket_redirect_url'
+       ) as present
+union all
+select 'events.photo_paths',
+       exists (
+         select 1 from information_schema.columns
+         where table_schema = 'public'
+           and table_name = 'events' and column_name = 'photo_paths'
+       )
+union all
+select 'photo cap (max 5)',
+       exists (select 1 from pg_constraint where conname = 'events_photo_paths_max')
+union all
+select 'song_requests table',
+       exists (
+         select 1 from information_schema.tables
+         where table_schema = 'public' and table_name = 'song_requests'
+       )
+union all
+select 'song_requests.link',
+       exists (
+         select 1 from information_schema.columns
+         where table_schema = 'public'
+           and table_name = 'song_requests' and column_name = 'link'
+       )
+union all
+select 'YouTube-only link rule',
+       exists (select 1 from pg_constraint where conname = 'song_requests_link_youtube')
+union all
+select 'five-per-night trigger',
+       exists (select 1 from pg_trigger where tgname = 'on_song_request_insert')
+union all
+select 'site-images bucket',
+       exists (select 1 from storage.buckets where id = 'site-images');
