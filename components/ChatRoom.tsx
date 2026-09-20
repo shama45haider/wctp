@@ -15,6 +15,7 @@ import {
   stopWatching,
   uploadChatImage,
   watchRoom,
+  announce,
   MAX_BODY,
   type ChatMessage,
 } from "@/lib/chat";
@@ -78,10 +79,20 @@ export default function ChatRoom() {
   useEffect(() => {
     if (!ready || !user) return;
     void read();
-    channel.current = watchRoom(
-      () => void read(),
-      (ok) => setLive(ok),
-    );
+    let dead = false;
+    void (async () => {
+      const ch = await watchRoom(
+        () => void read(),
+        (ok) => setLive(ok),
+      );
+      // Unmounted while the session lookup was in flight: close it rather than
+      // leaving a subscribed channel behind with nothing listening.
+      if (dead) {
+        stopWatching(ch);
+        return;
+      }
+      channel.current = ch;
+    })();
 
     /**
      * A slow backstop, running whether or not realtime says it is connected.
@@ -90,8 +101,10 @@ export default function ChatRoom() {
      * that made it necessary: with the table missing from the publication the
      * channel reported SUBSCRIBED and delivered nothing, so a status-gated
      * poll would have stayed asleep while the room sat frozen. Twenty-five
-     * seconds is cheap enough to run always and short enough that a silently
-     * dead socket is an annoyance rather than a broken page.
+     * Eight seconds, not the twenty-five it started at: at twenty-five anyone
+     * waiting on a reply refreshes long before it fires, so the backstop might
+     * as well not have been there. This is insurance behind broadcast, not the
+     * way messages are meant to arrive.
      *
      * Slowed right down when the tab is hidden, the way the raffle page does -
      * nobody is reading a chat they cannot see.
@@ -101,10 +114,11 @@ export default function ChatRoom() {
         if (document.hidden) return;
         void read();
       },
-      25_000,
+      8_000,
     );
 
     return () => {
+      dead = true;
       window.clearInterval(tick);
       stopWatching(channel.current);
       channel.current = null;
@@ -152,6 +166,7 @@ export default function ChatRoom() {
     setBody("");
     setPending(null);
     void read();
+    announce(channel.current);
   };
 
   if (!ready) {
@@ -242,7 +257,12 @@ export default function ChatRoom() {
                     {mine && (
                       <button
                         type="button"
-                        onClick={() => void hideMessage(m.id).then(() => read())}
+                        onClick={() =>
+                          void hideMessage(m.id).then(() => {
+                            void read();
+                            announce(channel.current);
+                          })
+                        }
                         className="ml-auto opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:text-bloodhi"
                       >
                         REMOVE

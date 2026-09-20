@@ -239,36 +239,69 @@ export async function uploadChatImage(
 /**
  * Watch the lounge.
  *
- * postgres_changes fires the moment a row lands, but hands over only the raw
- * row - no handle, no picture, because the payload is the table and not the
- * function. So the caller re-reads rather than splicing it in: at chat volumes
- * that is one small round trip, and it keeps one code path building a message
- * instead of two that have to agree.
+ * Two paths in, deliberately, because the fast one has a dependency that can
+ * silently not be there.
  *
- * `onStatus` exists because of how this broke the first time. The table was
- * not in the supabase_realtime publication, so Postgres published nothing -
- * and the channel still reported SUBSCRIBED and sat there silently. Every
- * visible sign said it was working. Reporting the status is not enough to
- * catch that particular fault on its own, which is why ChatRoom also keeps a
- * slow backstop poll running regardless.
+ * BROADCAST is the primary. A client that has just posted shouts on the
+ * channel and everyone else re-reads. It needs no publication, no replica
+ * identity and no row-level security evaluation - it is a message between
+ * subscribers rather than a feed off the table - so it works the moment two
+ * people have the page open, whatever state the database is in.
+ *
+ * POSTGRES_CHANGES is the second. It catches anything broadcast cannot: a row
+ * inserted from the dashboard, from SQL, or by a client whose broadcast did
+ * not land. It only works once chat_messages is in the supabase_realtime
+ * publication - which it was not, at first, and the channel reported
+ * SUBSCRIBED the whole time it was delivering nothing.
+ *
+ * Both call the same `onChange`, which re-reads. The payload is never used:
+ * postgres_changes hands over the raw row without a handle or a picture, and
+ * building a message two different ways is how the two drift apart.
+ *
+ * setAuth first, because postgres_changes is filtered by row-level security
+ * and this table's read policy requires auth.uid(). A socket that connected
+ * before the token reached it is anonymous, and an anonymous subscriber is
+ * told about nothing.
  */
-export function watchRoom(
+const CHANNEL = "lounge";
+const SHOUT = "said";
+
+export async function watchRoom(
   onChange: () => void,
   onStatus?: (live: boolean) => void,
-): RealtimeChannel | null {
+): Promise<RealtimeChannel | null> {
   const supabase = safeClient();
   if (!supabase) return null;
 
-  return supabase
-    .channel("lounge")
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (token) supabase.realtime.setAuth(token);
+
+  const channel = supabase
+    .channel(CHANNEL)
+    .on("broadcast", { event: SHOUT }, () => onChange())
     .on(
       "postgres_changes",
       // Updates as well as inserts: hiding a message is an update, and without
       // it a removal stays on everybody else's screen until they reload.
       { event: "*", schema: "public", table: "chat_messages" },
       () => onChange(),
-    )
-    .subscribe((status) => onStatus?.(status === "SUBSCRIBED"));
+    );
+
+  channel.subscribe((status) => onStatus?.(status === "SUBSCRIBED"));
+  return channel;
+}
+
+/**
+ * Tell the room something happened.
+ *
+ * Called after a successful write, by the client that made it. Broadcast does
+ * not echo to the sender by default, which is right - the sender re-reads on
+ * its own and does not need telling twice.
+ */
+export function announce(channel: RealtimeChannel | null) {
+  if (!channel) return;
+  void channel.send({ type: "broadcast", event: SHOUT, payload: {} });
 }
 
 export function stopWatching(channel: RealtimeChannel | null) {
