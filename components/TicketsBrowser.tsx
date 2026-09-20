@@ -6,7 +6,7 @@ import EventLink from "./EventLink";
 import Flyer from "./Flyer";
 import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
-import { monthOf, dayOf, type Event } from "@/lib/events";
+import { heroPhoto, monthOf, dayOf, type Event } from "@/lib/events";
 import type { RuntimeEventList } from "@/lib/events-runtime";
 import {
   money,
@@ -66,9 +66,10 @@ function Card({ e, now, linked }: { e: Event; now: Date; linked: boolean }) {
         hasPage={linked}
         className="relative block aspect-[4/5] overflow-hidden sm:aspect-[3/4]"
       >
-        {e.imageId ? (
+        {heroPhoto(e) || e.imageId ? (
           <Flyer
             id={e.imageId}
+            src={heroPhoto(e) ?? undefined}
             alt={e.title}
             sizes="(max-width:639px) 92vw, (max-width:1023px) 46vw, 360px"
             maxWidth={640}

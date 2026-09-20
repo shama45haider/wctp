@@ -111,13 +111,13 @@ export function siteImageUrl(path: string | null | undefined): string | null {
 /**
  * Puts an image in the bucket and returns its path.
  *
- * `folder` keeps team photos and gallery shots apart, which matters only for
- * anyone reading the bucket by hand - the policy in 0012 is is_admin() for
- * the whole bucket rather than per folder.
+ * `folder` keeps team photos, gallery shots and event pictures apart, which
+ * matters only for anyone reading the bucket by hand - the policy in 0012 is
+ * is_admin() for the whole bucket rather than per folder.
  */
 export async function uploadSiteImage(
   file: File,
-  folder: "team" | "gallery",
+  folder: "team" | "gallery" | "events",
 ): Promise<{ path?: string; error?: string }> {
   const supabase = safeClient();
   if (!supabase) return { error: NOT_CONNECTED };

@@ -1251,3 +1251,45 @@ $$;
 
 revoke all on function public.donor_board() from public;
 grant execute on function public.donor_board() to anon, authenticated;
+
+
+-- ---------- 0018_ticket_redirect.sql ----------
+
+-- Event photos and an outside ticket link.
+--
+-- See supabase/migrations/0018_ticket_redirect.sql for the why. Both columns
+-- are nullable and both statements are safe to run twice.
+
+alter table public.events
+  add column if not exists ticket_redirect_url text;
+
+-- Paths in the public site-images bucket, in the order they are shown. The
+-- first is the flyer - what a listing card and a shared link preview use.
+alter table public.events
+  add column if not exists photo_paths text[] not null default '{}';
+
+-- Five is a flyer plus four. Dropped first because ADD CONSTRAINT has no
+-- IF NOT EXISTS and a re-run would otherwise fail here.
+alter table public.events
+  drop constraint if exists events_photo_paths_max;
+alter table public.events
+  add constraint events_photo_paths_max check (cardinality(photo_paths) <= 5);
+
+-- The pictures live in the site-images bucket from 0012, which already lets an
+-- admin write and anyone read. Nothing to add here - but if that migration was
+-- never run, the bucket below is the whole of what the uploader needs.
+insert into storage.buckets (id, name, public)
+values ('site-images', 'site-images', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "admins upload site images" on storage.objects;
+create policy "admins upload site images" on storage.objects for insert
+  with check (bucket_id = 'site-images' and public.is_admin());
+
+drop policy if exists "admins replace site images" on storage.objects;
+create policy "admins replace site images" on storage.objects for update
+  using (bucket_id = 'site-images' and public.is_admin());
+
+drop policy if exists "admins delete site images" on storage.objects;
+create policy "admins delete site images" on storage.objects for delete
+  using (bucket_id = 'site-images' and public.is_admin());

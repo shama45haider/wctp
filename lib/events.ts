@@ -14,9 +14,28 @@ export type Event = {
    * PLACEHOLDERS — replace them with real door prices before launch.
    */
   priceCents?: number;
-  /** External URL to redirect to for ticketing. If set, TicketPicker redirects instead of showing inline picker. */
+  /**
+   * Somewhere else to buy. Set on a date whose tickets are sold off-site, and
+   * the picker becomes a link out instead of a tier list.
+   */
   ticketRedirectUrl?: string;
+  /**
+   * Uploaded pictures, flyer first, as public URLs in the site-images bucket.
+   * Only ever set on a date posted from the dashboard - the events built into
+   * this file use `imageId` against Posh's CDN instead.
+   */
+  photos?: string[];
 };
+
+/**
+ * The picture a listing card and a share preview should use.
+ *
+ * An upload wins over the Posh flyer: it is the more recent decision, and it
+ * is the only one an admin can make without leaving the site.
+ */
+export function heroPhoto(e: Event): string | null {
+  return e.photos?.[0] ?? null;
+}
 
 /*
  * Where a night happens is deliberately not on the site. The address goes out

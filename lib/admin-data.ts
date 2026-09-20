@@ -82,7 +82,10 @@ export type EventRow = {
   dow: string;
   flyerUrl: string | null;
   blurb: string | null;
+  /** Where to send a buyer instead of selling here. Null uses the site picker. */
   ticketRedirectUrl: string | null;
+  /** Paths in the public site-images bucket, flyer first. Empty on an old row. */
+  photoPaths: string[];
   published: boolean;
   createdAt: string;
 };
@@ -91,6 +94,8 @@ const NOT_CONNECTED = "Not connected";
 const UNREACHABLE = "The database did not answer";
 const NO_ROW =
   "Nothing changed - the row is gone, or this account is not an admin";
+export const NEEDS_0018 =
+  "This project has not run migration 0018 yet, so there is nowhere to save photos or a ticket link. Paste supabase/RUN_THIS.sql into the Supabase SQL editor.";
 
 /** How long any one query gets before the dashboard stops waiting on it. */
 const TIMEOUT_MS = 8000;
@@ -127,8 +132,23 @@ const VERIFICATION_COLUMNS =
   "id,user_id,method,status,birth_year,document_path,document_kind,note,created_at";
 // No venue: the column is still there (see 0011) but the site never shows an
 // address, so it is neither read nor written from here.
-const EVENT_COLUMNS =
-  "slug,title,date,time,dow,flyer_url,blurb,ticket_redirect_url,published,created_at";
+const EVENT_COLUMNS_BASE =
+  "slug,title,date,time,dow,flyer_url,blurb,published,created_at";
+/** With the two columns 0018 adds. Fallen back from when they are missing. */
+const EVENT_COLUMNS = `${EVENT_COLUMNS_BASE},ticket_redirect_url,photo_paths`;
+
+/**
+ * PostgREST's wording for the columns 0018 adds, on a project that has not run
+ * it yet.
+ *
+ * Worth the retry rather than letting the error stand: this select feeds the
+ * public date list as well as the dashboard, and one unrun migration would
+ * otherwise take every runtime event off the site rather than costing it a
+ * redirect link and some photos.
+ */
+function isMissing0018Column(message: string) {
+  return /ticket_redirect_url|photo_paths/i.test(message) && MISSING.test(message);
+}
 
 type Attempt<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -201,9 +221,11 @@ type EventRecord = {
   dow: string;
   flyer_url: string | null;
   blurb: string | null;
-  ticket_redirect_url: string | null;
   published: boolean;
   created_at: string;
+  /** Absent entirely before 0018, rather than null. */
+  ticket_redirect_url?: string | null;
+  photo_paths?: string[] | null;
 };
 
 const toAccount = (r: ProfileRecord): AccountRow => ({
@@ -241,7 +263,8 @@ const toEvent = (r: EventRecord): EventRow => ({
   dow: r.dow,
   flyerUrl: r.flyer_url,
   blurb: r.blurb,
-  ticketRedirectUrl: r.ticket_redirect_url,
+  ticketRedirectUrl: r.ticket_redirect_url ?? null,
+  photoPaths: r.photo_paths ?? [],
   published: r.published,
   createdAt: r.created_at,
 });
@@ -425,17 +448,29 @@ export async function listEvents(opts?: {
   const supabase = getSupabase();
   if (!supabase) return { rows: [], error: NOT_CONNECTED };
 
-  const all = supabase.from("events").select(EVENT_COLUMNS);
-  const res = await attempt(
-    (opts?.publishedOnly ? all.eq("published", true) : all)
-      // Latest date first, so the archive sinks to the bottom of the list.
-      .order("date", { ascending: false }),
-  );
-  if (!res.ok) return { rows: [], error: res.error };
+  const read = (columns: string) => {
+    const all = supabase.from("events").select(columns);
+    return attempt(
+      (opts?.publishedOnly ? all.eq("published", true) : all)
+        // Latest date first, so the archive sinks to the bottom of the list.
+        .order("date", { ascending: false }),
+    );
+  };
 
-  const { data, error } = res.value;
+  let res = await read(EVENT_COLUMNS);
+  if (!res.ok) return { rows: [], error: res.error };
+  let { data, error } = res.value;
+
+  if (error && isMissing0018Column(error.message)) {
+    res = await read(EVENT_COLUMNS_BASE);
+    if (!res.ok) return { rows: [], error: res.error };
+    ({ data, error } = res.value);
+  }
+
   if (error) return { rows: [], error: error.message };
-  return { rows: ((data ?? []) as EventRecord[]).map(toEvent) };
+  return {
+    rows: ((data ?? []) as unknown as EventRecord[]).map(toEvent),
+  };
 }
 
 export async function upsertEvent(
@@ -460,6 +495,7 @@ export async function upsertEvent(
   if (e.flyerUrl !== undefined) row.flyer_url = e.flyerUrl;
   if (e.blurb !== undefined) row.blurb = e.blurb;
   if (e.ticketRedirectUrl !== undefined) row.ticket_redirect_url = e.ticketRedirectUrl;
+  if (e.photoPaths !== undefined) row.photo_paths = e.photoPaths;
   if (e.published !== undefined) row.published = e.published;
 
   // created_by is left alone. An upsert cannot tell an insert from an update,
@@ -471,7 +507,12 @@ export async function upsertEvent(
   if (!res.ok) return { ok: false, error: res.error };
 
   const { data, error } = res.value;
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    // Naming the migration is the whole message here. "column does not exist"
+    // on its own sends someone looking through this file for a typo.
+    if (isMissing0018Column(error.message)) return { ok: false, error: NEEDS_0018 };
+    return { ok: false, error: error.message };
+  }
   if (((data ?? []) as unknown[]).length === 0) {
     return { ok: false, error: NO_ROW };
   }

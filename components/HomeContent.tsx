@@ -6,7 +6,7 @@ import EventManifest from "./EventManifest";
 import Flyer from "./Flyer";
 import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
-import { org, monthOf, dayOf } from "@/lib/events";
+import { heroPhoto, org, monthOf, dayOf } from "@/lib/events";
 import { useRuntimeEvents } from "@/lib/events-runtime";
 import { poshRsvpFor } from "@/lib/tickets";
 
@@ -174,9 +174,10 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
                 hasPage={nextHasPage}
                 className="scanlines group relative block aspect-[4/5] w-full -rotate-[2deg] overflow-hidden border border-linehi shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)] transition-transform hover:rotate-0"
               >
-                {next.imageId ? (
+                {heroPhoto(next) || next.imageId ? (
                   <Flyer
                     id={next.imageId}
+            src={heroPhoto(next) ?? undefined}
                     alt={next.title}
                     sizes="(max-width:767px) 58vw, 270px"
                     maxWidth={640}
@@ -291,9 +292,10 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
                 className="group border border-line bg-ink transition-colors hover:border-linehi"
               >
                 <div className="relative aspect-[4/5] overflow-hidden sm:aspect-auto sm:h-[180px]">
-                  {e.imageId ? (
+                  {heroPhoto(e) || e.imageId ? (
                     <Flyer
                       id={e.imageId}
+            src={heroPhoto(e) ?? undefined}
                       alt={e.title}
                       sizes="(max-width:639px) 45vw, (max-width:1023px) 46vw, 280px"
                       maxWidth={640}

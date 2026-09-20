@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { monthOf, dayOf, type Event } from "@/lib/events";
+import { heroPhoto, monthOf, dayOf, type Event } from "@/lib/events";
 import { money, poshRsvpFor, priceFrom, saleState, ticketsLeft } from "@/lib/tickets";
 import EventLink from "./EventLink";
 import Flyer from "./Flyer";
@@ -43,9 +43,10 @@ function Row({ e, linked }: { e: Event; linked: boolean }) {
       {/* Spans the stacked rows below md so the row height comes from the text
           beside it, instead of leaving a hole under a short first row. */}
       <div className="relative row-span-3 aspect-square self-start overflow-hidden border border-line md:row-span-1">
-        {e.imageId ? (
+        {heroPhoto(e) || e.imageId ? (
           <Flyer
             id={e.imageId}
+            src={heroPhoto(e) ?? undefined}
             alt=""
             sizes="(max-width:767px) 112px, 96px"
             maxWidth={256}

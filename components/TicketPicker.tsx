@@ -262,32 +262,39 @@ export default function TicketPicker({ event }: { event: Event }) {
   // itself has not been rebuilt since.
   const now = useNow();
 
-  // If event has a ticket redirect URL, show a button to redirect there instead
-  if (event.ticketRedirectUrl) {
+  const tiers = tiersFor(event.slug);
+  const state = saleState(event, now);
+
+  // Sold somewhere else, set per event from the dashboard. Checked after
+  // saleState rather than before it, so a date that has already happened says
+  // so instead of cheerfully sending someone off to buy a ticket for it.
+  if (event.ticketRedirectUrl && state !== "closed") {
     return (
-      <div className="border border-line bg-ink p-6">
-        <p className="font-display text-2xl mb-4">
-          <Editable k="event.picker.externalTickets">Get tickets</Editable>
-        </p>
-        <p className="text-sm text-silverdim mb-6">
-          <Editable k="event.picker.externalTicketsDesc">
-            Tickets for this event are available on an external platform.
+      <div id="tickets" className="border border-line bg-ink p-4">
+        <p className="text-sm leading-relaxed text-silverdim">
+          <Editable k="event.picker.offsite.blurb">
+            Tickets for this one are sold off-site.
           </Editable>
         </p>
         <a
           href={event.ticketRedirectUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${btnGo} w-full text-center block`}
+          className={`${btnGo} mt-4 w-full`}
         >
-          <Editable k="event.picker.externalTicketsButton">Get tickets →</Editable>
+          Get tickets
         </a>
+        <p className="label mt-3 text-center text-silverfaint">
+          <Link
+            href="/tickets"
+            className="-my-3 inline-block py-3 underline hover:text-chalk"
+          >
+            ALL DATES
+          </Link>
+        </p>
       </div>
     );
   }
-
-  const tiers = tiersFor(event.slug);
-  const state = saleState(event, now);
 
   // Taken on Posh, not here - see poshRsvpFor() in lib/tickets.ts. No tiers,
   // no cart: the button goes straight to the Posh event page.

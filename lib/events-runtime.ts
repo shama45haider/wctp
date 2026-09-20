@@ -6,6 +6,7 @@ import { allEvents, findEvent, type Event } from "./events";
 import { isPastEvent } from "./tickets";
 import { useNow } from "./now";
 import { dowOf, poshImageId } from "./posh";
+import { siteImageUrl } from "./site-content";
 
 /**
  * The public date list, with anything published from the dashboard folded in
@@ -79,6 +80,11 @@ function toEvent(row: EventRow, base?: Event): Event | null {
   const imageId = poshImageId(row.flyerUrl) ?? base?.imageId;
   const note = row.blurb?.trim() || base?.note;
   const ticketRedirectUrl = row.ticketRedirectUrl?.trim();
+  // Resolved to public URLs here rather than at every render site. A path that
+  // no longer resolves drops out instead of rendering a broken frame.
+  const photos = (row.photoPaths ?? [])
+    .map((path) => siteImageUrl(path))
+    .filter((url): url is string => Boolean(url));
 
   return {
     ...base,
@@ -90,6 +96,7 @@ function toEvent(row: EventRow, base?: Event): Event | null {
     ...(imageId ? { imageId } : {}),
     ...(note ? { note } : {}),
     ...(ticketRedirectUrl ? { ticketRedirectUrl } : {}),
+    ...(photos.length ? { photos } : {}),
   };
 }
 

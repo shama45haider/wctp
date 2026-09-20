@@ -5,7 +5,7 @@ import Link from "next/link";
 import Flyer from "./Flyer";
 import TicketPass from "./TicketPass";
 import { Editable } from "./Editable";
-import { findEvent, monthOf, dayOf, org } from "@/lib/events";
+import { findEvent, heroPhoto, monthOf, dayOf, org } from "@/lib/events";
 import { atHandle } from "@/lib/handle";
 import {
   findPromo,
@@ -123,10 +123,11 @@ function Summary({
 
   return (
     <aside className="border border-line bg-ink lg:sticky lg:top-28">
-      {ev?.imageId && (
+      {ev && (heroPhoto(ev) || ev.imageId) && (
         <div className="relative aspect-[16/9] overflow-hidden border-b border-line">
           <Flyer
             id={ev.imageId}
+            src={heroPhoto(ev) ?? undefined}
             alt=""
             sizes="(max-width:1023px) 92vw, 360px"
             maxWidth={640}

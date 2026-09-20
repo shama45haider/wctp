@@ -2,7 +2,7 @@
 
 import Flyer from "./Flyer";
 import { Editable } from "./Editable";
-import type { Event } from "@/lib/events";
+import { heroPhoto, type Event } from "@/lib/events";
 import { useNow } from "@/lib/now";
 import { isPastEvent, money, priceFrom, saleState } from "@/lib/tickets";
 
@@ -24,10 +24,13 @@ export function EventFlyer({ event }: { event: Event }) {
   const past = isPastEvent(event, now);
   const onSale = saleState(event, now) === "on-sale";
 
-  return event.imageId ? (
+  const uploaded = heroPhoto(event);
+
+  return uploaded || event.imageId ? (
     <>
       <Flyer
         id={event.imageId}
+        src={uploaded ?? undefined}
         alt={event.title}
         sizes="(max-width:767px) 92vw, 380px"
         maxWidth={900}

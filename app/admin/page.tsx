@@ -232,8 +232,8 @@ function Failed({
       <p className="mt-2 text-[0.9375rem] leading-relaxed text-bloodhi">
         {message}
       </p>
-      <p className="mt-2 text-[0.9375rem] leading-relaxed text-silverdim">
-        Do not read this as an empty list. Nothing was read at all.
+      <p className="mt-2 text-[0.875rem] leading-relaxed text-silverdim">
+        Not an empty list — nothing was read at all.
       </p>
       <button onClick={onRetry} className={`${btn} mt-4`}>
         Try again
@@ -2063,7 +2063,7 @@ export default function Admin() {
               <PanelHead
                 title="Scanned on this device"
                 count={scans.length}
-                sub="Point any phone camera at a ticket QR. It opens the ticket, shows whose name is on it, and offers to mark it used."
+                sub="Point a camera at a ticket QR to open it and mark it used. This list is only on this phone."
                 right={
                   scans.length > 0 ? (
                     <button
@@ -2078,11 +2078,7 @@ export default function Admin() {
 
               {scans.length === 0 ? (
                 <PanelBody>
-                  <Empty>
-                    Nothing scanned on this device yet. This list is local to
-                    this handset - it is not the guest list, and clearing it
-                    changes nothing at the door.
-                  </Empty>
+                  <Empty>Nothing scanned on this phone yet.</Empty>
                 </PanelBody>
               ) : (
                 <>

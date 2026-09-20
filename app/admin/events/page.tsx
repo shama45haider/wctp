@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import {
@@ -9,6 +15,8 @@ import {
   upsertEvent,
   type EventRow,
 } from "@/lib/admin-data";
+import { siteImageUrl } from "@/lib/site-content";
+import EventPhotoPicker from "@/components/EventPhotoPicker";
 import { btn, btnGo, field } from "@/lib/ui";
 import { dayOf, monthOf } from "@/lib/events";
 
@@ -21,12 +29,9 @@ import { dayOf, monthOf } from "@/lib/events";
  * row-level security refuses the write regardless, and upsertEvent reports the
  * refusal as an error rather than a silent success.
  *
- * Laid out as the dashboard is, in panels with a head and a body, so moving
- * between the two does not feel like moving between two sites. On a desk the
- * form and the list sit side by side, which is what makes the edit button
- * worth pressing - the row and the fields it fills are in view at once. On a
- * phone they stack, form first, because posting a date is what this screen is
- * opened for, and the edit button scrolls the form back into view.
+ * On a desk the form and the list sit side by side, which is what makes the
+ * edit button worth pressing - the row and the fields it fills are in view at
+ * once. On a phone they stack, form first, and editing scrolls back up to it.
  */
 
 const DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -51,9 +56,10 @@ type Draft = {
   title: string;
   date: string;
   time: string;
-  flyerUrl: string;
   blurb: string;
   ticketRedirectUrl: string;
+  /** Paths in the site-images bucket, in the order they will be shown. */
+  photoPaths: string[];
   published: boolean;
 };
 
@@ -62,9 +68,9 @@ const EMPTY: Draft = {
   title: "",
   date: "",
   time: "",
-  flyerUrl: "",
   blurb: "",
   ticketRedirectUrl: "",
+  photoPaths: [],
   published: false,
 };
 
@@ -74,9 +80,12 @@ type Listing =
   | { kind: "ready"; rows: EventRow[] };
 
 const rowBtn =
-  "label min-h-11 border border-line px-3 text-silverdim transition-colors hover:border-silverdim hover:text-chalk disabled:cursor-not-allowed disabled:opacity-50";
+  "label min-h-9 border border-line px-3 tracking-[0.11em] text-silverdim uppercase transition-colors hover:border-linehi hover:bg-ink2 hover:text-chalk disabled:cursor-not-allowed disabled:opacity-50";
 const rowBtnDanger =
-  "label min-h-11 border border-[rgba(200,16,46,0.5)] px-3 text-bloodhi transition-colors hover:border-bloodhi disabled:cursor-not-allowed disabled:opacity-50";
+  "label min-h-9 border border-[rgba(200,16,46,0.45)] px-3 tracking-[0.11em] text-bloodhi uppercase transition-colors hover:border-bloodhi disabled:cursor-not-allowed disabled:opacity-50";
+
+/** The small grey caption under a field. */
+const hint = "mt-2 text-[0.8125rem] leading-relaxed text-silverfaint";
 
 /**
  * The head of a panel. Deliberately the same shape, padding and type as the
@@ -114,6 +123,25 @@ function PanelHead({
       </div>
       {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
     </div>
+  );
+}
+
+/**
+ * A labelled group of fields, so the form reads as four decisions not nine.
+ *
+ * A plain div rather than fieldset/legend on purpose. A fieldset carries
+ * `min-inline-size: min-content` in the UA stylesheet, which a flex column of
+ * inputs inside it cannot shrink past - the group ends up as wide as its widest
+ * unbreakable child and spills out of the panel.
+ */
+function Group({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section className="min-w-0 border-t border-linesoft pt-5 first:border-t-0 first:pt-0">
+      <h2 className="label mb-3 tracking-[0.11em] text-silverdim uppercase">
+        {label}
+      </h2>
+      <div className="flex min-w-0 flex-col gap-5">{children}</div>
+    </section>
   );
 }
 
@@ -160,12 +188,12 @@ export default function AdminEvents() {
   const title = draft.title.trim();
   const problems = {
     slug: !slug
-      ? "REQUIRED"
+      ? "Needed"
       : SLUG_OK.test(slug)
         ? null
-        : "LOWERCASE LETTERS, DIGITS AND HYPHENS ONLY",
-    title: title ? null : "REQUIRED",
-    date: draft.date ? null : "REQUIRED",
+        : "Lowercase letters, numbers and hyphens only",
+    title: title ? null : "Needed",
+    date: draft.date ? null : "Needed",
   };
   const blocked = Boolean(problems.slug || problems.title || problems.date);
 
@@ -186,9 +214,9 @@ export default function AdminEvents() {
       title: row.title,
       date: row.date,
       time: row.time,
-      flyerUrl: row.flyerUrl ?? "",
       blurb: row.blurb ?? "",
       ticketRedirectUrl: row.ticketRedirectUrl ?? "",
+      photoPaths: row.photoPaths ?? [],
       published: row.published,
     });
     setEditing(row.slug);
@@ -207,10 +235,8 @@ export default function AdminEvents() {
     setSaving(true);
     setNotice(null);
 
-    const flyerUrl = draft.flyerUrl.trim();
     const blurb = draft.blurb.trim();
     const time = draft.time.trim();
-
     const ticketRedirectUrl = draft.ticketRedirectUrl.trim();
 
     const payload: Parameters<typeof upsertEvent>[0] = {
@@ -219,9 +245,9 @@ export default function AdminEvents() {
       date: draft.date,
       dow: dowOf(draft.date),
       // Nullable columns, so an emptied field means "clear this".
-      flyerUrl: flyerUrl || null,
       blurb: blurb || null,
       ticketRedirectUrl: ticketRedirectUrl || null,
+      photoPaths: draft.photoPaths,
       published: draft.published,
     };
     // The time cannot hold an empty string - it is NOT NULL with a default in
@@ -234,10 +260,10 @@ export default function AdminEvents() {
     setSaving(false);
 
     if (!out.ok) {
-      setNotice({ bad: true, text: out.error ?? "The save did not go through" });
+      setNotice({ bad: true, text: out.error ?? "That did not save." });
       return;
     }
-    setNotice({ bad: false, text: `SAVED ${slug}` });
+    setNotice({ bad: false, text: `Saved ${slug}.` });
     reset();
     void load();
   };
@@ -252,13 +278,10 @@ export default function AdminEvents() {
     setBusySlug(null);
 
     if (!out.ok) {
-      setNotice({
-        bad: true,
-        text: out.error ?? "The delete did not go through",
-      });
+      setNotice({ bad: true, text: out.error ?? "That did not delete." });
       return;
     }
-    setNotice({ bad: false, text: `DELETED ${target}` });
+    setNotice({ bad: false, text: `Deleted ${target}.` });
     if (editing === target) reset();
     void load();
   };
@@ -266,7 +289,7 @@ export default function AdminEvents() {
   if (!ready) {
     return (
       <main className="mx-auto w-[92vw] max-w-[560px] py-[clamp(3rem,10vw,6rem)]">
-        <p className="label text-silverfaint">CHECKING ACCESS…</p>
+        <p className="label text-silverfaint uppercase">Checking access…</p>
       </main>
     );
   }
@@ -274,28 +297,26 @@ export default function AdminEvents() {
   if (!user || !isAdmin) {
     return (
       <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(3rem,10vw,6rem)]">
-        <span className="label border border-line px-3 py-2 text-silverfaint">
-          STAFF ONLY
+        <span className="label border border-line px-3 py-2 tracking-[0.11em] text-silverfaint uppercase">
+          Staff only
         </span>
         <h1 className="font-display chrome mt-7 text-[clamp(2rem,8vw,3.25rem)] leading-[0.85]">
           Events
         </h1>
         <p className="mt-4 text-[0.9375rem] leading-relaxed text-silverdim">
           {user
-            ? "This account is signed in but is not an admin."
+            ? "You are signed in, but this account is not an admin."
             : "Sign in with an admin account to post or edit dates."}
         </p>
-        {authError && (
-          <p className="label mt-4 text-silverfaint">{authError}</p>
-        )}
+        {authError && <p className={hint}>{authError}</p>}
         <Link href="/login" className={`${btnGo} mt-7 w-full`}>
           Sign in
         </Link>
         <Link
           href="/admin"
-          className="label mt-6 block text-silverfaint transition-colors hover:text-chalk"
+          className="label mt-6 block tracking-[0.11em] text-silverfaint uppercase transition-colors hover:text-chalk"
         >
-          &larr; BACK TO ADMIN
+          &larr; Back to admin
         </Link>
       </main>
     );
@@ -304,191 +325,192 @@ export default function AdminEvents() {
   return (
     <main className="mx-auto w-[92vw] max-w-[1320px] pb-[clamp(2rem,6vw,3.5rem)]">
       {/* ------------------------------------------------------- app bar -- */}
-      {/* The same sticky bar the dashboard uses, so the two read as one tool
-          rather than two pages that happen to share a palette. */}
       <header className="sticky top-0 z-30 -mx-[4vw] mb-4 border-b border-line bg-void/90 px-[4vw] py-3 backdrop-blur-md">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <Link
-              href="/admin"
-              className="label flex min-h-9 shrink-0 items-center gap-1.5 tracking-[0.11em] text-silverfaint uppercase transition-colors hover:text-chalk"
-            >
-              <span aria-hidden>&larr;</span> Admin
-            </Link>
-            <span className="hidden h-4 w-px shrink-0 bg-line sm:block" />
-            <span className="font-display truncate text-[1.0625rem] leading-none tracking-[0.06em] text-chalk uppercase">
-              Events
-            </span>
-          </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin"
+            className="label flex min-h-9 shrink-0 items-center gap-1.5 tracking-[0.11em] text-silverfaint uppercase transition-colors hover:text-chalk"
+          >
+            <span aria-hidden>&larr;</span> Admin
+          </Link>
+          <span className="hidden h-4 w-px shrink-0 bg-line sm:block" />
+          <span className="font-display truncate text-[1.0625rem] leading-none tracking-[0.06em] text-chalk uppercase">
+            Events
+          </span>
         </div>
       </header>
 
-      <p className="mb-4 max-w-[68ch] text-[0.875rem] leading-relaxed text-silverdim">
-        Drafts stay invisible to guests until published. The dates built into
-        the site are separate and are not listed here. The address is never
-        posted here - it goes out by email to the list.
-      </p>
-
-      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)] lg:items-start lg:gap-5">
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:items-start lg:gap-5">
         {/* --------------------------------------------------------- form -- */}
         <section className="border border-line bg-ink">
           <PanelHead
             title={editing ? "Editing" : "New event"}
-            sub={editing ?? "Posts to the site the moment Published is ticked."}
+            sub={editing ?? "Nothing here shows up until you publish it."}
           />
 
-          <form ref={formRef} onSubmit={save} className="flex flex-col gap-5 px-5 py-5">
-            <div>
-              <label htmlFor="slug" className="label text-silverfaint">
-                SLUG
-              </label>
-              <input
-                id="slug"
-                value={draft.slug}
-                onChange={(e) => set("slug", e.target.value)}
-                // A slug is the primary key, so an edit that changes it inserts a
-                // second event rather than renaming the first.
-                readOnly={editing !== null}
-                aria-invalid={Boolean(shown("slug"))}
-                placeholder="wecametoohalloween"
-                className={`${field} mt-2 w-full ${
-                  editing ? "text-silverdim" : ""
-                }`}
-              />
-              {shown("slug") ? (
-                <p className="label mt-2 text-bloodhi" role="alert">
-                  {shown("slug")}
-                </p>
-              ) : (
-                <p className="label mt-2 text-silverfaint">
-                  {editing
-                    ? "PERMANENT. DELETE AND REPOST TO CHANGE IT."
-                    : "THE ADDRESS: /EVENTS/YOUR-SLUG"}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label htmlFor="title" className="label text-silverfaint">
-                TITLE
-              </label>
-              <input
-                id="title"
-                value={draft.title}
-                onChange={(e) => set("title", e.target.value)}
-                aria-invalid={Boolean(shown("title"))}
-                className={`${field} mt-2 w-full`}
-              />
-              {shown("title") && (
-                <p className="label mt-2 text-bloodhi" role="alert">
-                  {shown("title")}
-                </p>
-              )}
-            </div>
-
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label htmlFor="date" className="label text-silverfaint">
-                  DATE
+          <form
+            ref={formRef}
+            onSubmit={save}
+            className="flex flex-col gap-6 px-5 py-5"
+          >
+            <Group label="Basics">
+              <div>
+                <label htmlFor="title" className="label text-silverfaint uppercase">
+                  Title
                 </label>
                 <input
-                  id="date"
-                  type="date"
-                  value={draft.date}
-                  onChange={(e) => set("date", e.target.value)}
-                  aria-invalid={Boolean(shown("date"))}
+                  id="title"
+                  value={draft.title}
+                  onChange={(e) => set("title", e.target.value)}
+                  aria-invalid={Boolean(shown("title"))}
+                  placeholder="WECAMETOOHALLOWEEN"
                   className={`${field} mt-2 w-full`}
                 />
-                {shown("date") && (
-                  <p className="label mt-2 text-bloodhi" role="alert">
-                    {shown("date")}
+                {shown("title") && (
+                  <p className="mt-2 text-[0.8125rem] text-bloodhi" role="alert">
+                    {shown("title")}
                   </p>
                 )}
               </div>
-              <div className="w-[6.5rem]">
-                <span className="label text-silverfaint">DAY</span>
-                <p className="label mt-2 flex min-h-11 items-center border border-line px-3.5 text-chalk">
-                  {dowOf(draft.date) || "—"}
+
+              <div>
+                <label htmlFor="slug" className="label text-silverfaint uppercase">
+                  Web address
+                </label>
+                <div className="mt-2 flex items-center">
+                  <span className="label flex min-h-11 shrink-0 items-center border border-r-0 border-line bg-[#0a0b0d] px-3 text-silverfaint">
+                    /events/
+                  </span>
+                  <input
+                    id="slug"
+                    value={draft.slug}
+                    onChange={(e) => set("slug", e.target.value)}
+                    // The slug is the primary key, so changing it on an edit
+                    // would insert a second event rather than rename the first.
+                    readOnly={editing !== null}
+                    aria-invalid={Boolean(shown("slug"))}
+                    placeholder="wecametoohalloween"
+                    className={`${field} w-full min-w-0 ${editing ? "text-silverdim" : ""}`}
+                  />
+                </div>
+                {shown("slug") ? (
+                  <p className="mt-2 text-[0.8125rem] text-bloodhi" role="alert">
+                    {shown("slug")}
+                  </p>
+                ) : (
+                  editing && <p className={hint}>Fixed once posted.</p>
+                )}
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label htmlFor="date" className="label text-silverfaint uppercase">
+                    Date
+                  </label>
+                  <input
+                    id="date"
+                    type="date"
+                    value={draft.date}
+                    onChange={(e) => set("date", e.target.value)}
+                    aria-invalid={Boolean(shown("date"))}
+                    className={`${field} mt-2 w-full`}
+                  />
+                  {shown("date") && (
+                    <p className="mt-2 text-[0.8125rem] text-bloodhi" role="alert">
+                      {shown("date")}
+                    </p>
+                  )}
+                </div>
+                <div className="w-[6.5rem]">
+                  <span className="label text-silverfaint uppercase">Day</span>
+                  <p className="label mt-2 flex min-h-11 items-center border border-line px-3.5 text-chalk">
+                    {dowOf(draft.date) || "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="time" className="label text-silverfaint uppercase">
+                  Time
+                </label>
+                <input
+                  id="time"
+                  value={draft.time}
+                  onChange={(e) => set("time", e.target.value)}
+                  placeholder="9:00 PM"
+                  className={`${field} mt-2 w-full`}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="blurb" className="label text-silverfaint uppercase">
+                  Blurb
+                </label>
+                <textarea
+                  id="blurb"
+                  value={draft.blurb}
+                  onChange={(e) => set("blurb", e.target.value)}
+                  rows={3}
+                  placeholder="Dress code, who's playing, anything worth knowing."
+                  className={`${field} mt-2 w-full resize-y`}
+                />
+                <p className={hint}>Never the address — that goes out by email.</p>
+              </div>
+            </Group>
+
+            <Group label="Photos">
+              <EventPhotoPicker
+                paths={draft.photoPaths}
+                onChange={(next) => set("photoPaths", next)}
+                disabled={saving}
+              />
+            </Group>
+
+            <Group label="Tickets">
+              <div>
+                <label
+                  htmlFor="ticketRedirectUrl"
+                  className="label text-silverfaint uppercase"
+                >
+                  Sell somewhere else
+                </label>
+                <input
+                  id="ticketRedirectUrl"
+                  value={draft.ticketRedirectUrl}
+                  onChange={(e) => set("ticketRedirectUrl", e.target.value)}
+                  inputMode="url"
+                  placeholder="https://posh.vip/e/…"
+                  className={`${field} mt-2 w-full`}
+                />
+                <p className={hint}>
+                  {draft.ticketRedirectUrl.trim()
+                    ? "The event page will send people here instead of selling."
+                    : "Leave empty to sell on the site."}
                 </p>
               </div>
-            </div>
+            </Group>
 
-            <div>
-              <label htmlFor="time" className="label text-silverfaint">
-                TIME
+            <Group label="Publish">
+              <label
+                htmlFor="published"
+                className="label flex min-h-11 cursor-pointer items-center gap-3 border border-line px-3.5 text-chalk uppercase"
+              >
+                <input
+                  id="published"
+                  type="checkbox"
+                  checked={draft.published}
+                  onChange={(e) => set("published", e.target.checked)}
+                  className="h-4 w-4 accent-blood"
+                />
+                Published
               </label>
-              <input
-                id="time"
-                value={draft.time}
-                onChange={(e) => set("time", e.target.value)}
-                placeholder="9:00 PM"
-                className={`${field} mt-2 w-full`}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="flyer" className="label text-silverfaint">
-                FLYER URL
-              </label>
-              <input
-                id="flyer"
-                value={draft.flyerUrl}
-                onChange={(e) => set("flyerUrl", e.target.value)}
-                inputMode="url"
-                placeholder="https://…"
-                className={`${field} mt-2 w-full`}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="ticketRedirectUrl" className="label text-silverfaint">
-                TICKET REDIRECT URL
-              </label>
-              <input
-                id="ticketRedirectUrl"
-                value={draft.ticketRedirectUrl}
-                onChange={(e) => set("ticketRedirectUrl", e.target.value)}
-                inputMode="url"
-                placeholder="https://example.com/tickets"
-                className={`${field} mt-2 w-full`}
-              />
-              <p className="label mt-2 text-silverfaint">
-                Leave empty to show normal ticket picker. Set a URL to redirect to external ticketing.
-              </p>
-            </div>
-
-            <div>
-              <label htmlFor="blurb" className="label text-silverfaint">
-                BLURB
-              </label>
-              <textarea
-                id="blurb"
-                value={draft.blurb}
-                onChange={(e) => set("blurb", e.target.value)}
-                rows={3}
-                className={`${field} mt-2 w-full resize-y`}
-              />
-            </div>
-
-            <label
-              htmlFor="published"
-              className="label flex min-h-11 cursor-pointer items-center gap-3 border border-line px-3.5 text-chalk"
-            >
-              <input
-                id="published"
-                type="checkbox"
-                checked={draft.published}
-                onChange={(e) => set("published", e.target.checked)}
-                className="h-4 w-4 accent-blood"
-              />
-              PUBLISHED
-            </label>
+            </Group>
 
             {notice && (
               <p
-                className={`label border px-3 py-2 leading-loose ${
+                className={`border px-3 py-2.5 text-[0.875rem] leading-relaxed ${
                   notice.bad
-                    ? "border-[rgba(200,16,46,0.5)] bg-[rgba(200,16,46,0.06)] text-bloodhi"
+                    ? "border-[rgba(200,16,46,0.45)] bg-[rgba(200,16,46,0.06)] text-bloodhi"
                     : "border-line text-silverdim"
                 }`}
                 role={notice.bad ? "alert" : "status"}
@@ -517,36 +539,36 @@ export default function AdminEvents() {
         {/* --------------------------------------------------------- list -- */}
         <section className="border border-line bg-ink">
           <PanelHead
-            title="POSTED EVENTS"
-            right={
-              <span className="label text-chalk">
-                {listing.kind === "ready" ? listing.rows.length : "—"}
-              </span>
-            }
+            title="Posted"
+            count={listing.kind === "ready" ? listing.rows.length : "—"}
+            sub="Only dates posted from here. The ones built into the site are separate."
           />
 
           {/* Still reading, nothing there and could not read are three
               different sentences in three different frames. A promoter who
               takes a failed read for an empty list posts the same date twice. */}
           {listing.kind === "loading" && (
-            <div className="p-4">
-              <p className="label flex animate-pulse items-center gap-2 text-silverfaint">
+            <div className="px-5 py-5">
+              <p className="label flex animate-pulse items-center gap-2 text-silverfaint uppercase">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-silverfaint" />
-                LOADING EVENTS…
+                Loading…
               </p>
             </div>
           )}
 
           {listing.kind === "error" && (
             <div
-              className="m-4 border border-[rgba(200,16,46,0.5)] bg-[rgba(200,16,46,0.06)] p-4"
+              className="m-5 border border-[rgba(200,16,46,0.45)] bg-[rgba(200,16,46,0.06)] p-4"
               role="alert"
             >
-              <p className="label text-bloodhi">
-                NOTHING LOADED - THIS IS AN ERROR
+              <p className="label tracking-[0.11em] text-bloodhi uppercase">
+                Nothing loaded
               </p>
               <p className="mt-2 text-[0.9375rem] leading-relaxed text-bloodhi">
                 {listing.text}
+              </p>
+              <p className="mt-2 text-[0.875rem] leading-relaxed text-silverdim">
+                Not an empty list — nothing was read at all.
               </p>
               <button onClick={() => void load()} className={`${btn} mt-4`}>
                 Try again
@@ -555,10 +577,10 @@ export default function AdminEvents() {
           )}
 
           {listing.kind === "ready" && listing.rows.length === 0 && (
-            <div className="p-4">
-              <div className="border border-dashed border-line px-4 py-5">
-                <p className="label leading-loose text-silverfaint">
-                  NOTHING POSTED YET. THE FORM ABOVE WRITES THE FIRST ONE.
+            <div className="px-5 py-5">
+              <div className="border border-dashed border-line px-4 py-6 text-center">
+                <p className="text-[0.9375rem] leading-relaxed text-silverdim">
+                  No dates posted yet. The form writes the first one.
                 </p>
               </div>
             </div>
@@ -566,66 +588,94 @@ export default function AdminEvents() {
 
           {listing.kind === "ready" && listing.rows.length > 0 && (
             <ul>
-              {listing.rows.map((row) => (
-                <li
-                  key={row.slug}
-                  className="border-b border-line px-4 py-3.5 last:border-b-0"
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-3">
-                    <span className="font-display min-w-0 text-[1.05rem] break-words text-chalk">
-                      {row.title}
-                    </span>
-                    {!row.published && (
-                      <span className="label shrink-0 border border-line px-2 py-1 text-silverfaint">
-                        DRAFT
-                      </span>
-                    )}
-                  </div>
+              {listing.rows.map((row) => {
+                const thumb =
+                  siteImageUrl(row.photoPaths?.[0] ?? null) ?? row.flyerUrl;
+                return (
+                  <li
+                    key={row.slug}
+                    className="flex gap-4 border-t border-linesoft px-5 py-4 transition-colors hover:bg-ink2/40"
+                  >
+                    <div className="aspect-[3/4] w-14 shrink-0 overflow-hidden border border-line bg-ink2">
+                      {thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={thumb} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="hairline-x h-full w-full" />
+                      )}
+                    </div>
 
-                  <p className="label mt-2 text-silverdim">
-                    {row.dow || dowOf(row.date)} {dayOf(row.date)}{" "}
-                    {monthOf(row.date)} · {row.time}
-                  </p>
-                  <p className="label mt-1 break-all text-silverfaint">
-                    /{row.slug}
-                  </p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <span className="font-display min-w-0 text-[1.05rem] break-words text-chalk">
+                          {row.title}
+                        </span>
+                        <div className="flex shrink-0 gap-1.5">
+                          {row.ticketRedirectUrl && (
+                            <span
+                              className="label border border-line px-1.5 py-0.5 text-silverfaint"
+                              title={row.ticketRedirectUrl}
+                            >
+                              OFF-SITE
+                            </span>
+                          )}
+                          {!row.published && (
+                            <span className="label border border-line px-1.5 py-0.5 text-silverfaint">
+                              DRAFT
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => edit(row)}
-                      disabled={busySlug === row.slug}
-                      className={rowBtn}
-                    >
-                      EDIT
-                    </button>
-                    {confirming === row.slug ? (
-                      <>
+                      <p className="label mt-1.5 text-silverdim">
+                        {row.dow || dowOf(row.date)} {dayOf(row.date)}{" "}
+                        {monthOf(row.date)} · {row.time}
+                      </p>
+                      <p className="label mt-1 break-all text-silverfaint">
+                        /{row.slug}
+                        {row.photoPaths?.length
+                          ? ` · ${row.photoPaths.length} photo${row.photoPaths.length === 1 ? "" : "s"}`
+                          : ""}
+                      </p>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
                         <button
-                          onClick={() => void remove(row.slug)}
+                          onClick={() => edit(row)}
                           disabled={busySlug === row.slug}
-                          className={rowBtnDanger}
-                        >
-                          DELETE FOR GOOD
-                        </button>
-                        <button
-                          onClick={() => setConfirming(null)}
                           className={rowBtn}
                         >
-                          KEEP
+                          Edit
                         </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => setConfirming(row.slug)}
-                        disabled={busySlug === row.slug}
-                        className={rowBtn}
-                      >
-                        {busySlug === row.slug ? "DELETING…" : "DELETE"}
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ))}
+                        {confirming === row.slug ? (
+                          <>
+                            <button
+                              onClick={() => void remove(row.slug)}
+                              disabled={busySlug === row.slug}
+                              className={rowBtnDanger}
+                            >
+                              Delete for good
+                            </button>
+                            <button
+                              onClick={() => setConfirming(null)}
+                              className={rowBtn}
+                            >
+                              Keep
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => setConfirming(row.slug)}
+                            disabled={busySlug === row.slug}
+                            className={rowBtn}
+                          >
+                            {busySlug === row.slug ? "Deleting…" : "Delete"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

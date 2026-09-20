@@ -19,13 +19,22 @@ const url = (id: string, w: number) =>
  */
 export default function Flyer({
   id,
+  src,
   alt,
   sizes,
   maxWidth,
   priority = false,
   className = "",
 }: {
-  id: string;
+  /** A Posh image id. Ignored when `src` is given. */
+  id?: string;
+  /**
+   * A whole URL, for a picture uploaded from the dashboard into the
+   * site-images bucket. Supabase does not resize on demand the way Posh's CDN
+   * does, so there is one file and no srcSet - which is also why the form caps
+   * an upload at 8MB rather than letting a 40MP phone photo through.
+   */
+  src?: string;
   alt: string;
   sizes: string;
   /** Cap the srcSet so the browser cannot pick a file larger than the slot needs. */
@@ -33,6 +42,20 @@ export default function Flyer({
   priority?: boolean;
   className?: string;
 }) {
+  const shared = {
+    alt,
+    loading: priority ? ("eager" as const) : ("lazy" as const),
+    fetchPriority: priority ? ("high" as const) : ("auto" as const),
+    decoding: "async" as const,
+    className: `absolute inset-0 h-full w-full object-cover ${className}`,
+  };
+
+  if (src) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} sizes={sizes} {...shared} />;
+  }
+  if (!id) return null;
+
   const widths = WIDTHS.filter((w) => w <= (maxWidth ?? Infinity));
   return (
     // next/image cannot emit a srcSet under `images.unoptimized`; see note above.
@@ -41,11 +64,7 @@ export default function Flyer({
       src={url(id, widths[widths.length - 1])}
       srcSet={widths.map((w) => `${url(id, w)} ${w}w`).join(", ")}
       sizes={sizes}
-      alt={alt}
-      loading={priority ? "eager" : "lazy"}
-      fetchPriority={priority ? "high" : "auto"}
-      decoding="async"
-      className={`absolute inset-0 h-full w-full object-cover ${className}`}
+      {...shared}
     />
   );
 }
