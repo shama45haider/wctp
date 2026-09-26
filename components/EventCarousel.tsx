@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Flyer from "./Flyer";
 import EventLink from "./EventLink";
+import DeleteEventButton from "./DeleteEventButton";
 import { heroPhoto, monthOf, dayOf, type Event } from "@/lib/events";
 import { isPastEvent, money, priceFrom } from "@/lib/tickets";
 import { useNow } from "@/lib/now";
@@ -28,24 +29,35 @@ import { useNow } from "@/lib/now";
  * readable list of links in order with JavaScript broken.
  */
 
-function Poster({ e, linked, now }: { e: Event; linked: boolean; now: Date }) {
+const POSTER = "wall-poster relative block w-[76vw] shrink-0 sm:w-[43vw] lg:w-[306px]";
+
+function Poster({
+  e,
+  linked,
+  now,
+  onDelete,
+}: {
+  e: Event;
+  linked: boolean;
+  now: Date;
+  /** Set for an admin: the poster gets a delete control in its corner. */
+  onDelete?: (slug: string) => void;
+}) {
   const past = isPastEvent(e, now);
   const from = priceFrom(e);
   const photo = heroPhoto(e);
 
-  return (
+  const link = (
     <EventLink
       slug={e.slug}
       hasPage={linked}
       externalHref={e.ticketRedirectUrl}
       // A date published since the last build has no static page yet, and
       // EventLink renders it as plain text rather than a link to a 404.
-      className="wall-poster relative block w-[76vw] shrink-0 p-2.5 sm:w-[43vw] lg:w-[306px]"
+      className={onDelete ? "block p-2.5" : `${POSTER} p-2.5`}
     >
       <div
-        className={`wall-grain relative aspect-[4/5] overflow-hidden ${
-          past ? "wall-past" : ""
-        }`}
+        className={`wall-grain relative aspect-[4/5] overflow-hidden ${past ? "wall-past" : ""}`}
       >
         {photo || e.imageId ? (
           <Flyer
@@ -79,9 +91,7 @@ function Poster({ e, linked, now }: { e: Event; linked: boolean; now: Date }) {
             {from !== null && !past && (
               <>
                 <br />
-                <span className="text-chalk">
-                  {from > 0 ? money(from) : "FREE"}
-                </span>
+                <span className="text-chalk">{from > 0 ? money(from) : "FREE"}</span>
               </>
             )}
           </span>
@@ -93,14 +103,28 @@ function Poster({ e, linked, now }: { e: Event; linked: boolean; now: Date }) {
       </div>
     </EventLink>
   );
+
+  // The wall-poster class moves up to a wrapper, so the tilt, the tape and
+  // the scroll-snap still land on the track's direct child, and the button
+  // sits beside the link instead of inside it.
+  return onDelete ? (
+    <div className={POSTER}>
+      {link}
+      <DeleteEventButton slug={e.slug} title={e.title} onDeleted={onDelete} />
+    </div>
+  ) : (
+    link
+  );
 }
 
 export default function EventCarousel({
   events,
   hasPage,
+  onDelete,
 }: {
   events: Event[];
   hasPage: (slug: string) => boolean;
+  onDelete?: (slug: string) => void;
 }) {
   const now = useNow();
   const track = useRef<HTMLDivElement>(null);
@@ -186,7 +210,7 @@ export default function EventCarousel({
         aria-label="Upcoming dates"
       >
         {events.map((e) => (
-          <Poster key={e.slug} e={e} linked={hasPage(e.slug)} now={now} />
+          <Poster key={e.slug} e={e} linked={hasPage(e.slug)} now={now} onDelete={onDelete} />
         ))}
       </div>
 

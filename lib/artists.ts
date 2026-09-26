@@ -10,7 +10,22 @@
  * Photos go in /public/roster and are referenced by path.
  */
 
-export type Role = "ceo" | "dj" | "artist" | "photographer" | "designer" | "promoter";
+/**
+ * A section id. The six below ship with the site; an admin can add more from
+ * the Team page (public.team_sections), so any other slug is a valid role too.
+ */
+export type Role = string;
+
+export type Section = {
+  id: Role;
+  heading: string;
+  label: string;
+  blurb: string;
+  /** The section's colour, used as --accent on its cards and header. */
+  accent: string;
+  /** True for a section an admin added, which an admin can also remove. */
+  custom?: boolean;
+};
 
 export type Artist = {
   slot: number;
@@ -26,42 +41,48 @@ export type Artist = {
 };
 
 /** The sections of the page, top to bottom. */
-export const ROLES: { id: Role; heading: string; label: string; blurb: string }[] = [
+export const ROLES: Section[] = [
   {
     id: "ceo",
     heading: "The CEOs",
     label: "CEO",
     blurb: "The two who run it.",
+    accent: "#ffd166",
   },
   {
     id: "dj",
     heading: "The DJs",
     label: "DJ",
     blurb: "Behind the decks on the night.",
+    accent: "#5ee7ff",
   },
   {
     id: "artist",
     heading: "The Artists",
     label: "ARTIST",
     blurb: "The rest of the family.",
+    accent: "#ff5fa8",
   },
   {
     id: "photographer",
     heading: "The Photographers",
     label: "PHOTOGRAPHER",
     blurb: "Behind the camera on the night.",
+    accent: "#b8ff5c",
   },
   {
     id: "designer",
     heading: "The Graphic Designers",
     label: "GRAPHIC DESIGNER",
     blurb: "The flyers, and the look of it all.",
+    accent: "#b69cff",
   },
   {
     id: "promoter",
     heading: "The Promoters",
     label: "PROMOTER",
     blurb: "Getting the word out.",
+    accent: "#ff8f1f",
   },
 ];
 

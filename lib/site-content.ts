@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase } from "./supabase";
-import { ROLES, roster, type Artist, type Role } from "./artists";
+import { ROLES, roster, type Artist, type Role, type Section } from "./artists";
 
 /**
  * The two pages an admin edits in place: the team roster and the gallery.
@@ -66,12 +66,14 @@ export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 const NOT_CONNECTED = "Not connected.";
 const UNREACHABLE = "The database did not answer.";
+export const NEEDS_0026 =
+  "This project has not run migration 0026 yet, so there is nowhere to save a new category.";
 export const NEEDS_0012 =
   "This project has not run migration 0012 yet, so there is nowhere to save the team or the gallery.";
 
-const TEAM_COLUMNS =
-  "slot,role,name,title,bio,image_path,instagram,soundcloud,published";
+const TEAM_COLUMNS = "slot,role,name,title,bio,image_path,instagram,soundcloud,published";
 const GALLERY_COLUMNS = "id,image_path,caption,sort,published";
+const SECTION_COLUMNS = "id,heading,label,blurb,accent,sort";
 
 /** PostgREST's wording for a table or column the schema does not have. */
 function isMissingSchema(message: string) {
@@ -173,11 +175,10 @@ type TeamRecord = {
   published: boolean | null;
 };
 
-// Read off ROLES rather than listed again, so a section added there is never
-// quietly filed back under "artist" when its cards load.
-const ROLES_SET = new Set<Role>(ROLES.map((r) => r.id));
-const asRole = (raw: string | null): Role =>
-  raw && ROLES_SET.has(raw as Role) ? (raw as Role) : "artist";
+// Kept as saved rather than checked against ROLES: a card may name a section
+// an admin added in team_sections, which only TeamBoard knows about once both
+// have loaded. TeamBoard files a role it cannot place under "artist".
+const asRole = (raw: string | null): Role => raw?.trim() || "artist";
 
 /**
  * The roster as the page should draw it: the bundled list with any row from
@@ -213,11 +214,7 @@ function mergeTeam(rows: TeamRecord[]): TeamMember[] {
   const merged: TeamMember[] = [];
   for (const seed of roster) {
     const row = fromDb.get(seed.slot);
-    merged.push(
-      row
-        ? asMember(row, seed)
-        : { ...seed, fromDb: false, published: true },
-    );
+    merged.push(row ? asMember(row, seed) : { ...seed, fromDb: false, published: true });
   }
 
   const seeded = new Set(roster.map((a) => a.slot));
@@ -255,14 +252,14 @@ export async function listTeam(): Promise<{
  * Writes one card. An upsert rather than an update: most slots have never
  * had a row, since the bundle was the only thing that ever filled them in.
  */
-export async function saveTeamMember(
-  slot: number,
-  patch: TeamPatch,
-): Promise<Outcome> {
+export async function saveTeamMember(slot: number, patch: TeamPatch): Promise<Outcome> {
   const supabase = safeClient();
   if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
-  const row: Record<string, unknown> = { slot, updated_at: new Date().toISOString() };
+  const row: Record<string, unknown> = {
+    slot,
+    updated_at: new Date().toISOString(),
+  };
   if (patch.role !== undefined) row.role = patch.role;
   if (patch.name !== undefined) row.name = patch.name?.trim() || null;
   if (patch.title !== undefined) row.title = patch.title?.trim() || null;
@@ -285,7 +282,10 @@ export async function saveTeamMember(
   }
   // A write a policy refuses changes nothing and says nothing about it.
   if ((res.data ?? []).length === 0) {
-    return { ok: false, error: "Nothing saved - this account is not an admin." };
+    return {
+      ok: false,
+      error: "Nothing saved - this account is not an admin.",
+    };
   }
   return { ok: true };
 }
@@ -308,6 +308,132 @@ export async function resetTeamMember(slot: number): Promise<Outcome> {
     return {
       ok: false,
       error: isMissingSchema(res.error.message) ? NEEDS_0012 : res.error.message,
+    };
+  }
+  return { ok: true };
+}
+
+/* --------------------------------------------------------- team sections -- */
+
+type SectionRecord = {
+  id: string;
+  heading: string;
+  label: string;
+  blurb: string | null;
+  accent: string | null;
+  sort: number | null;
+};
+
+const toSection = (r: SectionRecord): Section => ({
+  id: r.id,
+  heading: r.heading,
+  label: r.label,
+  blurb: r.blurb ?? "",
+  accent: r.accent ?? "#ff5fa8",
+  custom: true,
+});
+
+const isMissingSections = (message: string) =>
+  /team_sections/i.test(message) && /does not exist|could not find|schema cache/i.test(message);
+
+/**
+ * The bundled sections followed by any an admin added. A project that has not
+ * run 0026 just gets the bundled six, with no error: the page is whole
+ * without them, and the add button reports the missing table when used.
+ */
+export async function listTeamSections(): Promise<Section[]> {
+  const supabase = safeClient();
+  if (!supabase) return ROLES;
+
+  const res = await capped(
+    supabase
+      .from("team_sections")
+      .select(SECTION_COLUMNS)
+      .order("sort", { ascending: true })
+      .order("created_at", { ascending: true }),
+    TIMEOUT_MS,
+  );
+  if (!res || res.error) return ROLES;
+
+  const builtIn = new Set(ROLES.map((r) => r.id));
+  const extra = ((res.data ?? []) as unknown as SectionRecord[])
+    .filter((r) => !builtIn.has(r.id))
+    .map(toSection);
+  return [...ROLES, ...extra];
+}
+
+/** A URL-safe id for a new section, from its label, that nothing else uses. */
+export function sectionIdFor(label: string, taken: Iterable<string>): string {
+  const base =
+    label
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 32) || "crew";
+  const used = new Set(taken);
+  if (!used.has(base)) return base;
+  for (let n = 2; ; n++) {
+    if (!used.has(`${base}-${n}`)) return `${base}-${n}`;
+  }
+}
+
+export async function addTeamSection(section: {
+  id: string;
+  heading: string;
+  label: string;
+  blurb?: string;
+  accent: string;
+  sort: number;
+}): Promise<Outcome> {
+  const supabase = safeClient();
+  if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+  const res = await capped(
+    supabase
+      .from("team_sections")
+      .insert({
+        id: section.id,
+        heading: section.heading.trim(),
+        label: section.label.trim(),
+        blurb: section.blurb?.trim() || null,
+        accent: section.accent,
+        sort: section.sort,
+      })
+      .select("id"),
+    TIMEOUT_MS,
+  );
+  if (!res) return { ok: false, error: UNREACHABLE };
+  if (res.error) {
+    return {
+      ok: false,
+      error: isMissingSections(res.error.message) ? NEEDS_0026 : res.error.message,
+    };
+  }
+  if ((res.data ?? []).length === 0) {
+    return {
+      ok: false,
+      error: "Nothing saved - this account is not an admin.",
+    };
+  }
+  return { ok: true };
+}
+
+/** Removes a section an admin added. The page only offers this once it is empty. */
+export async function deleteTeamSection(id: string): Promise<Outcome> {
+  const supabase = safeClient();
+  if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+  const res = await capped(
+    supabase.from("team_sections").delete().eq("id", id).select("id"),
+    TIMEOUT_MS,
+  );
+  if (!res) return { ok: false, error: UNREACHABLE };
+  if (res.error) return { ok: false, error: res.error.message };
+  if ((res.data ?? []).length === 0) {
+    return {
+      ok: false,
+      error: "Nothing removed - this account is not an admin.",
     };
   }
   return { ok: true };
@@ -363,10 +489,7 @@ export async function listGallery(): Promise<{
   };
 }
 
-export async function addGalleryItem(
-  imagePath: string,
-  caption?: string,
-): Promise<Outcome> {
+export async function addGalleryItem(imagePath: string, caption?: string): Promise<Outcome> {
   const supabase = safeClient();
   if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
@@ -385,15 +508,15 @@ export async function addGalleryItem(
     };
   }
   if ((res.data ?? []).length === 0) {
-    return { ok: false, error: "Nothing saved - this account is not an admin." };
+    return {
+      ok: false,
+      error: "Nothing saved - this account is not an admin.",
+    };
   }
   return { ok: true };
 }
 
-export async function updateGalleryItem(
-  id: string,
-  patch: GalleryPatch,
-): Promise<Outcome> {
+export async function updateGalleryItem(id: string, patch: GalleryPatch): Promise<Outcome> {
   const supabase = safeClient();
   if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
@@ -410,7 +533,10 @@ export async function updateGalleryItem(
   if (!res) return { ok: false, error: UNREACHABLE };
   if (res.error) return { ok: false, error: res.error.message };
   if ((res.data ?? []).length === 0) {
-    return { ok: false, error: "Nothing saved - this account is not an admin." };
+    return {
+      ok: false,
+      error: "Nothing saved - this account is not an admin.",
+    };
   }
   return { ok: true };
 }
@@ -420,10 +546,7 @@ export async function updateGalleryItem(
  * row pointing at a deleted file is a broken tile on a public page, while a
  * file with no row is only bytes nobody looks at.
  */
-export async function deleteGalleryItem(
-  id: string,
-  imagePath: string,
-): Promise<Outcome> {
+export async function deleteGalleryItem(id: string, imagePath: string): Promise<Outcome> {
   const supabase = safeClient();
   if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
@@ -434,7 +557,10 @@ export async function deleteGalleryItem(
   if (!res) return { ok: false, error: UNREACHABLE };
   if (res.error) return { ok: false, error: res.error.message };
   if ((res.data ?? []).length === 0) {
-    return { ok: false, error: "Nothing removed - this account is not an admin." };
+    return {
+      ok: false,
+      error: "Nothing removed - this account is not an admin.",
+    };
   }
 
   // Best effort. The tile is already gone from the page either way.
@@ -447,6 +573,8 @@ export async function deleteGalleryItem(
 export type TeamList = {
   ready: boolean;
   members: TeamMember[];
+  /** Bundled sections first, then any an admin added, in page order. */
+  sections: Section[];
   error: string | null;
   reload: () => void;
 };
@@ -459,15 +587,17 @@ export type TeamList = {
  * anything to draw.
  */
 export function useTeam(): TeamList {
-  const [state, setState] = useState<{ members: TeamMember[]; error: string | null } | null>(
-    null,
-  );
+  const [state, setState] = useState<{
+    members: TeamMember[];
+    sections: Section[];
+    error: string | null;
+  } | null>(null);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let live = true;
-    void listTeam().then(({ members, error }) => {
-      if (live) setState({ members, error: error ?? null });
+    void Promise.all([listTeam(), listTeamSections()]).then(([{ members, error }, sections]) => {
+      if (live) setState({ members, sections, error: error ?? null });
     });
     return () => {
       live = false;
@@ -482,6 +612,7 @@ export function useTeam(): TeamList {
   return {
     ready: state !== null,
     members: state?.members ?? seeded,
+    sections: state?.sections ?? ROLES,
     error: state?.error ?? null,
     reload: useCallback(() => setTick((t) => t + 1), []),
   };
@@ -495,9 +626,10 @@ export type GalleryList = {
 };
 
 export function useGallery(): GalleryList {
-  const [state, setState] = useState<{ items: GalleryItem[]; error: string | null } | null>(
-    null,
-  );
+  const [state, setState] = useState<{
+    items: GalleryItem[];
+    error: string | null;
+  } | null>(null);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {

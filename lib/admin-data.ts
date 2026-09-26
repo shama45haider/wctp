@@ -92,8 +92,7 @@ export type EventRow = {
 
 const NOT_CONNECTED = "Not connected";
 const UNREACHABLE = "The database did not answer";
-const NO_ROW =
-  "Nothing changed - the row is gone, or this account is not an admin";
+const NO_ROW = "Nothing changed - the row is gone, or this account is not an admin";
 export const NEEDS_0018 =
   "This project has not run migration 0018 yet, so there is nowhere to save photos or a ticket link. Paste supabase/RUN_THIS.sql into the Supabase SQL editor.";
 
@@ -112,8 +111,7 @@ const ID_BUCKET = "id-documents";
  */
 const SIGNED_URL_SECONDS = 60;
 
-const ACCOUNT_COLUMNS =
-  "id,name,email,instagram,phone,verified,birth_year,created_at";
+const ACCOUNT_COLUMNS = "id,name,email,instagram,phone,verified,birth_year,created_at";
 /** With the two columns 0006 adds. */
 const ACCOUNT_COLUMNS_0006 = `${ACCOUNT_COLUMNS},nickname,avatar_path`;
 /** With the two 0011 adds as well. Fallen back from, in order, when missing. */
@@ -132,8 +130,7 @@ const VERIFICATION_COLUMNS =
   "id,user_id,method,status,birth_year,document_path,document_kind,note,created_at";
 // No venue: the column is still there (see 0011) but the site never shows an
 // address, so it is neither read nor written from here.
-const EVENT_COLUMNS_BASE =
-  "slug,title,date,time,dow,flyer_url,blurb,published,created_at";
+const EVENT_COLUMNS_BASE = "slug,title,date,time,dow,flyer_url,blurb,published,created_at";
 /** With the two columns 0018 adds. Fallen back from when they are missing. */
 const EVENT_COLUMNS = `${EVENT_COLUMNS_BASE},ticket_redirect_url,photo_paths`;
 
@@ -165,10 +162,7 @@ async function attempt<T>(work: PromiseLike<T>): Promise<Attempt<T>> {
     return await Promise.race([
       Promise.resolve(work).then((value) => ({ ok: true as const, value })),
       new Promise<Attempt<T>>((resolve) => {
-        timer = setTimeout(
-          () => resolve({ ok: false, error: UNREACHABLE }),
-          TIMEOUT_MS,
-        );
+        timer = setTimeout(() => resolve({ ok: false, error: UNREACHABLE }), TIMEOUT_MS);
       }),
     ]);
   } catch (e) {
@@ -286,12 +280,7 @@ export async function listAccounts(): Promise<{
   // Newest first: the reason to open the roster is almost always somebody
   // who signed up in the last hour.
   const read = (columns: string) =>
-    attempt(
-      supabase
-        .from("profiles")
-        .select(columns)
-        .order("created_at", { ascending: false }),
-    );
+    attempt(supabase.from("profiles").select(columns).order("created_at", { ascending: false }));
 
   let res = await read(ACCOUNT_COLUMNS_FULL);
   if (!res.ok) return { rows: [], error: res.error };
@@ -426,9 +415,7 @@ export async function reviewVerification(
 
   // profiles.verified is not touched here. The trigger in 0002 flips it, so
   // the two can never be set to disagree with each other.
-  const res = await attempt(
-    supabase.from("verifications").update(patch).eq("id", id).select("id"),
-  );
+  const res = await attempt(supabase.from("verifications").update(patch).eq("id", id).select("id"));
   if (!res.ok) return { ok: false, error: res.error };
 
   const { data, error } = res.value;
@@ -516,18 +503,70 @@ export async function upsertEvent(
   if (((data ?? []) as unknown[]).length === 0) {
     return { ok: false, error: NO_ROW };
   }
+  // Saving a date is the way back from deleting it on the home page, so the
+  // removal is dropped here. Best effort: before 0027 there is nothing to drop.
+  await attempt(
+    supabase
+      .from("event_removals")
+      .delete()
+      .eq("slug", row.slug as string),
+  );
   return { ok: true };
 }
 
-export async function deleteEvent(
-  slug: string,
-): Promise<{ ok: boolean; error?: string }> {
+export const NEEDS_0027 =
+  "This project has not run migration 0027 yet, so a date cannot be deleted from the home page. Paste supabase/RUN_THIS.sql into the Supabase SQL editor.";
+
+/**
+ * Takes a date off the site from the home page, bundled or not.
+ *
+ * Deleting its row alone would not do it: most dates also ship in
+ * lib/events.ts, and the site lays the table over that list, so the bundled
+ * copy would come straight back. The slug goes into event_removals first,
+ * which every list on the site leaves out, and then any row is deleted.
+ */
+export async function removeEvent(slug: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = getSupabase();
   if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
   const res = await attempt(
-    supabase.from("events").delete().eq("slug", slug).select("slug"),
+    supabase.from("event_removals").upsert({ slug }, { onConflict: "slug" }).select("slug"),
   );
+  if (!res.ok) return { ok: false, error: res.error };
+  const { data, error } = res.value;
+  if (error) {
+    if (
+      /event_removals/i.test(error.message) &&
+      /does not exist|could not find|schema cache/i.test(error.message)
+    ) {
+      return { ok: false, error: NEEDS_0027 };
+    }
+    return { ok: false, error: error.message };
+  }
+  if (((data ?? []) as unknown[]).length === 0) {
+    return { ok: false, error: NO_ROW };
+  }
+
+  // Most bundled dates have no row, so "nothing deleted" is fine here.
+  const del = await attempt(supabase.from("events").delete().eq("slug", slug));
+  if (del.ok && del.value.error) return { ok: false, error: del.value.error.message };
+  return { ok: true };
+}
+
+/** Slugs deleted from the home page. Empty on any failure, including no 0027. */
+export async function listRemovedEvents(): Promise<Set<string>> {
+  const supabase = getSupabase();
+  if (!supabase) return new Set();
+  const res = await attempt(supabase.from("event_removals").select("slug"));
+  if (!res.ok || res.value.error) return new Set();
+  return new Set(((res.value.data ?? []) as { slug: string }[]).map((r) => r.slug));
+}
+
+export async function deleteEvent(slug: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+  const res = await attempt(supabase.from("events").delete().eq("slug", slug).select("slug"));
   if (!res.ok) return { ok: false, error: res.error };
 
   const { data, error } = res.value;
@@ -727,12 +766,7 @@ export async function listAllOrders(): Promise<{
   if (!supabase) return { rows: [], error: NOT_CONNECTED };
 
   const read = (columns: string) =>
-    attempt(
-      supabase
-        .from("orders")
-        .select(columns)
-        .order("created_at", { ascending: false }),
-    );
+    attempt(supabase.from("orders").select(columns).order("created_at", { ascending: false }));
 
   let res = await read(ADMIN_ORDER_COLUMNS);
   if (!res.ok) return { rows: [], error: res.error };
@@ -759,12 +793,14 @@ export async function listAllOrders(): Promise<{
   const rows = ((data ?? []) as unknown as AdminOrderRecord[]).map((r) =>
     toAdminOrder({
       ...r,
-      order_lines: (r.order_lines ?? []).map((l) => ({ ...l, donation: l.donation ?? false })),
+      order_lines: (r.order_lines ?? []).map((l) => ({
+        ...l,
+        donation: l.donation ?? false,
+      })),
     }),
   );
   return { rows };
 }
-
 
 // ------------------------------------------------------------------ revoke --
 
@@ -776,9 +812,7 @@ export async function listAllOrders(): Promise<{
  * "admins cancel any order" from 0008; without it the update matches nothing
  * and the answer says so rather than reporting a revoke that did not take.
  */
-export async function revokeOrder(
-  orderId: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function revokeOrder(orderId: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = getSupabase();
   if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
@@ -809,9 +843,7 @@ export async function revokeOrder(
  * Distinct from used_at, which means the opposite - scanned in. Needs the
  * revoked_at column from 0008.
  */
-export async function revokePass(
-  code: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function revokePass(code: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = getSupabase();
   if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
@@ -838,15 +870,16 @@ export async function revokePass(
     return { ok: false, error: error.message };
   }
   if (((data ?? []) as unknown[]).length === 0) {
-    return { ok: false, error: "Nothing changed - already revoked, or not an admin." };
+    return {
+      ok: false,
+      error: "Nothing changed - already revoked, or not an admin.",
+    };
   }
   return { ok: true };
 }
 
 /** Puts a revoked pass back. The mirror of revokePass, for a mis-tap. */
-export async function restorePass(
-  code: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function restorePass(code: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = getSupabase();
   if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
@@ -868,7 +901,6 @@ export async function restorePass(
   return { ok: true };
 }
 
-
 // ------------------------------------------------------------------- reset --
 
 /**
@@ -880,15 +912,11 @@ export async function restorePass(
  * rows rejected with a note. The function checks is_admin() itself; a
  * non-admin gets P0001 back, not a quiet no-op.
  */
-export async function resetVerification(
-  userId: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function resetVerification(userId: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = getSupabase();
   if (!supabase) return { ok: false, error: NOT_CONNECTED };
 
-  const res = await attempt(
-    supabase.rpc("reset_verification", { p_user_id: userId }),
-  );
+  const res = await attempt(supabase.rpc("reset_verification", { p_user_id: userId }));
   if (!res.ok) return { ok: false, error: res.error };
 
   const { error } = res.value;

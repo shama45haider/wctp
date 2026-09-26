@@ -8,6 +8,8 @@ import { Editable } from "./Editable";
 import { heroPhoto, org, monthOf, dayOf } from "@/lib/events";
 import { useRuntimeEvents } from "@/lib/events-runtime";
 import EventCarousel from "./EventCarousel";
+import DeleteEventButton from "./DeleteEventButton";
+import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { poshRsvpFor } from "@/lib/tickets";
 
 /**
@@ -42,14 +44,10 @@ function SectionHead({
   return (
     <div className="mb-10 flex flex-col items-start gap-3 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
       <div>
-        <h2 className="font-display chrome text-[clamp(2.5rem,6vw,4.5rem)]">
-          {title}
-        </h2>
+        <h2 className="font-display chrome text-[clamp(2.5rem,6vw,4.5rem)]">{title}</h2>
         {blurb && <p className="mt-2 max-w-[42ch] text-silverdim">{blurb}</p>}
       </div>
-      {aside && (
-        <div className="label text-silverfaint sm:shrink-0">{aside}</div>
-      )}
+      {aside && <div className="label text-silverfaint sm:shrink-0">{aside}</div>}
     </div>
   );
 }
@@ -60,7 +58,12 @@ const GET_TICKETS =
 export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
   // hasPage: a date published since the last build is listed, but has no page
   // to link to yet - see components/EventLink.tsx.
-  const { upcoming, past, hasPage } = useRuntimeEvents(pageSlugs);
+  const { upcoming, past, hasPage, hide } = useRuntimeEvents(pageSlugs);
+  // Delete controls on every flyer, for an admin only. Waits on `ready` so a
+  // guest never sees one flash past while the session resolves; the delete
+  // itself is refused by row-level security for anyone else regardless.
+  const { ready, isAdmin } = useSupabaseAuth();
+  const onDelete = ready && isAdmin ? hide : undefined;
   const next = upcoming[0] as (typeof upcoming)[number] | undefined;
   const nextHasPage = next ? hasPage(next.slug) : false;
   // A date whose RSVP is on Posh sends GET TICKETS there - see lib/tickets.ts.
@@ -138,10 +141,7 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
                   </PoshLink>
                 ) : (
                   nextHasPage && (
-                    <Link
-                      href={`/events/${next.slug}#tickets`}
-                      className={GET_TICKETS}
-                    >
+                    <Link href={`/events/${next.slug}#tickets`} className={GET_TICKETS}>
                       GET TICKETS &rarr;
                     </Link>
                   )
@@ -177,7 +177,7 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
                 {heroPhoto(next) || next.imageId ? (
                   <Flyer
                     id={next.imageId}
-            src={heroPhoto(next) ?? undefined}
+                    src={heroPhoto(next) ?? undefined}
                     alt={next.title}
                     sizes="(max-width:767px) 58vw, 270px"
                     maxWidth={640}
@@ -234,7 +234,7 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
             }
           />
           {upcoming.length > 0 ? (
-            <EventCarousel events={upcoming} hasPage={hasPage} />
+            <EventCarousel events={upcoming} hasPage={hasPage} onDelete={onDelete} />
           ) : (
             <div className="border border-dashed border-linehi p-10 text-center">
               <p className="font-display text-2xl">
@@ -285,38 +285,42 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
               an archive. Paired columns show each flyer whole. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(230px,1fr))] sm:gap-5">
             {past.map((e) => (
-              <EventLink
-                key={e.slug}
-                slug={e.slug}
-                hasPage={hasPage(e.slug)}
-                className="group border border-line bg-ink transition-colors hover:border-linehi"
-              >
-                <div className="relative aspect-[4/5] overflow-hidden sm:aspect-auto sm:h-[180px]">
-                  {heroPhoto(e) || e.imageId ? (
-                    <Flyer
-                      id={e.imageId}
-            src={heroPhoto(e) ?? undefined}
-                      alt={e.title}
-                      sizes="(max-width:639px) 45vw, (max-width:1023px) 46vw, 280px"
-                      maxWidth={640}
-                      className="grayscale transition-[filter] duration-500 group-hover:grayscale-[0.5]"
-                    />
-                  ) : (
-                    <div className="label flex h-full items-center justify-center bg-ink2 text-silverfaint">
-                      NO FLYER
-                    </div>
-                  )}
-                  <span className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(5,5,5,0.85)]" />
-                </div>
-                <div className="px-4 pt-3 pb-5 sm:px-5 sm:pt-4 sm:pb-6">
-                  <h3 className="font-display text-[1.15rem] break-words sm:text-[1.4rem]">
-                    {e.title}
-                  </h3>
-                  <span className="label mt-2 block text-silverfaint">
-                    {e.dow} {dayOf(e.date)} {monthOf(e.date)} &middot; {e.time}
-                  </span>
-                </div>
-              </EventLink>
+              <div key={e.slug} className="relative flex">
+                <EventLink
+                  slug={e.slug}
+                  hasPage={hasPage(e.slug)}
+                  className="group w-full border border-line bg-ink transition-colors hover:border-linehi"
+                >
+                  <div className="relative aspect-[4/5] overflow-hidden sm:aspect-auto sm:h-[180px]">
+                    {heroPhoto(e) || e.imageId ? (
+                      <Flyer
+                        id={e.imageId}
+                        src={heroPhoto(e) ?? undefined}
+                        alt={e.title}
+                        sizes="(max-width:639px) 45vw, (max-width:1023px) 46vw, 280px"
+                        maxWidth={640}
+                        className="grayscale transition-[filter] duration-500 group-hover:grayscale-[0.5]"
+                      />
+                    ) : (
+                      <div className="label flex h-full items-center justify-center bg-ink2 text-silverfaint">
+                        NO FLYER
+                      </div>
+                    )}
+                    <span className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(5,5,5,0.85)]" />
+                  </div>
+                  <div className="px-4 pt-3 pb-5 sm:px-5 sm:pt-4 sm:pb-6">
+                    <h3 className="font-display text-[1.15rem] break-words sm:text-[1.4rem]">
+                      {e.title}
+                    </h3>
+                    <span className="label mt-2 block text-silverfaint">
+                      {e.dow} {dayOf(e.date)} {monthOf(e.date)} &middot; {e.time}
+                    </span>
+                  </div>
+                </EventLink>
+                {onDelete && (
+                  <DeleteEventButton slug={e.slug} title={e.title} onDeleted={onDelete} />
+                )}
+              </div>
             ))}
           </div>
         </div>

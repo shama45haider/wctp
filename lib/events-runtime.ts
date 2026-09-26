@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { listEvents, type EventRow } from "./admin-data";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { listEvents, listRemovedEvents, type EventRow } from "./admin-data";
 import { allEvents, findEvent, type Event } from "./events";
 import { isPastEvent } from "./tickets";
 import { useNow } from "./now";
@@ -48,6 +48,8 @@ export type RuntimeEventList = {
    * `dynamicParams = false`, so a link to it would 404. List it, unlinked.
    */
   hasPage: (slug: string) => boolean;
+  /** Drops a date from this list right away, after removeEvent has succeeded. */
+  hide: (slug: string) => void;
   error: string | null;
 };
 
@@ -123,7 +125,7 @@ function bySiteOrder(now: Date) {
  * table was empty also meant it never got a second look once "now" moved on,
  * which is the exact bug this hook exists to close.
  */
-function merge(rows: EventRow[], now: Date): Event[] {
+function merge(rows: EventRow[], removed: Set<string>, now: Date): Event[] {
   const fromDb = new Map<string, Event>();
   for (const row of rows) {
     const event = toEvent(row, findEvent(row.slug));
@@ -136,7 +138,8 @@ function merge(rows: EventRow[], now: Date): Event[] {
   for (const event of fromDb.values()) {
     if (!STATIC_SLUGS.has(event.slug)) merged.push(event);
   }
-  return merged.sort(bySiteOrder(now));
+  // Deleted from the home page (event_removals): gone whichever list it came from.
+  return merged.filter((e) => !removed.has(e.slug)).sort(bySiteOrder(now));
 }
 
 /**
@@ -155,10 +158,21 @@ export function useRuntimeEvents(pageSlugs?: readonly string[]): RuntimeEventLis
   // Null until the fetch answers, including with an error - not the same as
   // "zero rows", which is the ordinary night and still needs sorting against
   // `now` every time it comes up, not just the first.
-  const [db, setDb] = useState<{ rows: EventRow[]; error: string | null } | null>(null);
+  const [db, setDb] = useState<{
+    rows: EventRow[];
+    error: string | null;
+  } | null>(null);
+  const [removed, setRemoved] = useState<Set<string>>(() => new Set());
+  const hide = useCallback((slug: string) => setRemoved((prev) => new Set(prev).add(slug)), []);
 
   useEffect(() => {
     let live = true;
+
+    void listRemovedEvents()
+      .catch(() => new Set<string>())
+      .then((slugs) => {
+        if (live && slugs.size) setRemoved((prev) => new Set([...prev, ...slugs]));
+      });
 
     void (async () => {
       // listEvents caps itself at eight seconds and returns a sentence instead
@@ -189,7 +203,7 @@ export function useRuntimeEvents(pageSlugs?: readonly string[]): RuntimeEventLis
   // so a date crossing "now" while the tab is open reorders the list without
   // waiting on a fresh fetch to trigger it.
   return useMemo<RuntimeEventList>(() => {
-    const events = merge(db?.rows ?? [], now);
+    const events = merge(db?.rows ?? [], removed, now);
     // `events` is already upcoming-then-past by construction, so the first
     // past entry is exactly where the archive begins.
     const splitAt = events.findIndex((e) => isPastEvent(e, now));
@@ -202,7 +216,8 @@ export function useRuntimeEvents(pageSlugs?: readonly string[]): RuntimeEventLis
       past,
       now,
       hasPage,
+      hide,
       error: db?.error ?? null,
     };
-  }, [db, now, hasPage]);
+  }, [db, removed, now, hasPage, hide]);
 }
