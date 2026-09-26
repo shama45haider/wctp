@@ -27,7 +27,7 @@ import { enterRaffle, loadRaffle, type Entrant, type RaffleState } from "@/lib/r
  * sits on top of the sign-up or ID upload it just asked for.
  */
 
-const HIDDEN_ON = ["/admin", "/pass", "/signup", "/login", "/reset-password", "/verify", "/checkout", "/raffle"];
+const HIDDEN_ON = ["/admin", "/pass", "/claim", "/signup", "/login", "/reset-password", "/verify", "/checkout", "/raffle"];
 const TILES = ["bg-[#ffe45c]", "bg-[#ff8cc6]", "bg-[#8fdcff]"];
 const FONTS = `${bubble.variable} ${round.variable}`;
 const seenKey = (raffleId: string) => `wctp.raffle.${raffleId}.seen`;

@@ -25,6 +25,8 @@ import { atHandle } from "@/lib/handle";
 import Flyer from "@/components/Flyer";
 import { avatarUrl } from "@/lib/profile-data";
 import RaffleAdmin from "@/components/RaffleAdmin";
+import StoreAdmin from "@/components/StoreAdmin";
+import { listStoreOrders } from "@/lib/store";
 
 /**
  * The dashboard.
@@ -53,7 +55,7 @@ import RaffleAdmin from "@/components/RaffleAdmin";
 
 const SCAN_KEY = "wctp.scanned";
 
-type Tab = "parties" | "accounts" | "review" | "door" | "raffle";
+type Tab = "parties" | "accounts" | "review" | "door" | "store" | "raffle";
 
 type Load<T> =
   | { kind: "loading" }
@@ -497,6 +499,24 @@ export default function Admin() {
   } | null>(null);
 
   const [scans, setScans] = useState<[string, string][]>([]);
+  // Prizes paid for and not yet handed over, for the Store tab's badge. Read
+  // every half minute so a sale shows up on the rail without opening the tab.
+  const [prizesWaiting, setPrizesWaiting] = useState<number | null>(null);
+  const adminHere = auth.isAdmin;
+  useEffect(() => {
+    if (!adminHere) return;
+    let live = true;
+    const read = () =>
+      void listStoreOrders().then((res) => {
+        if (live && !res.error) setPrizesWaiting(res.orders.filter((o) => !o.redeemedAt).length);
+      });
+    read();
+    const timer = window.setInterval(read, 30_000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [adminHere]);
 
   const alive = useRef(true);
   useEffect(() => {
@@ -934,6 +954,19 @@ export default function Admin() {
         ) : (
           <span className="rounded-full bg-ink2 px-1.5 py-0.5 text-[0.6875rem] text-silver tabular-nums">
             {scans.length}
+          </span>
+        ),
+    },
+    {
+      id: "store",
+      label: "Store",
+      hint: "Prizes, buyers and pickups",
+      badge:
+        !prizesWaiting ? (
+          <span className="text-silverfaint">—</span>
+        ) : (
+          <span className="rounded-full bg-prize px-1.5 py-0.5 text-[0.6875rem] text-void tabular-nums">
+            {prizesWaiting}
           </span>
         ),
     },
@@ -2137,6 +2170,8 @@ export default function Admin() {
               )}
             </Panel>
           )}
+
+          {tab === "store" && <StoreAdmin />}
 
           {tab === "raffle" && <RaffleAdmin />}
 

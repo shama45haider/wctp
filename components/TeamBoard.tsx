@@ -40,6 +40,23 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const labelOf = (role: Role) => ROLES.find((r) => r.id === role)!.label;
 
 /**
+ * One accent per section, so the page reads as six crews rather than one grey
+ * grid. Each card and section header takes its colour as --accent (see the
+ * team block in globals.css); nothing else on the site uses these, so the
+ * roster is the one page that gets to be loud.
+ */
+const ACCENT: Record<Role, string> = {
+  ceo: "#ffd166",
+  dj: "#5ee7ff",
+  artist: "#ff5fa8",
+  photographer: "#b8ff5c",
+  designer: "#b69cff",
+  promoter: "#ff8f1f",
+};
+
+const accentStyle = (role: Role) => ({ "--accent": ACCENT[role] }) as React.CSSProperties;
+
+/**
  * A plain img rather than next/image for every photo on this page.
  *
  * Half the cards now point at the site-images bucket and a photo being
@@ -74,7 +91,7 @@ function EditTab({ onEdit, slot }: { onEdit: () => void; slot: number }) {
 
 function FilledCard({ a, onEdit }: { a: TeamMember; onEdit?: () => void }) {
   return (
-    <article className="group relative border border-line bg-ink transition-colors hover:border-linehi">
+    <article className="team-card group relative border border-line bg-ink" style={accentStyle(a.role)}>
       <div className="relative aspect-[4/5] overflow-hidden">
         {a.imageUrl ? (
           <Photo src={a.imageUrl} alt={a.name!} />
@@ -83,7 +100,8 @@ function FilledCard({ a, onEdit }: { a: TeamMember; onEdit?: () => void }) {
             <Editable k="team.card.noPhoto">NO PHOTO</Editable>
           </div>
         )}
-        <span className="label absolute top-0 left-0 bg-void/85 px-2 py-1 text-silverfaint">
+        <div aria-hidden className="team-photo-fade pointer-events-none absolute inset-x-0 bottom-0 h-1/3" />
+        <span className="team-slot label absolute top-0 left-0 px-2 py-1">
           {pad(a.slot)}
         </span>
         {/* Only an admin ever sees this card at all once it is hidden, so the
@@ -97,8 +115,8 @@ function FilledCard({ a, onEdit }: { a: TeamMember; onEdit?: () => void }) {
       </div>
 
       <div className="px-5 pt-4 pb-6">
-        <h3 className="font-display text-[1.6rem]">{a.name}</h3>
-        <div className="label mt-1 text-bloodhi">
+        <h3 className="font-display text-[1.6rem] break-words">{a.name}</h3>
+        <div className="team-role label mt-1">
           <Editable k={`team.role.${a.role}.label`}>{labelOf(a.role)}</Editable>
         </div>
         {a.title && (
@@ -108,7 +126,7 @@ function FilledCard({ a, onEdit }: { a: TeamMember; onEdit?: () => void }) {
           <p className="mt-3 text-sm leading-relaxed text-silverdim">{a.bio}</p>
         )}
         {(a.instagram || a.soundcloud) && (
-          <div className="label mt-4 flex gap-5 border-t border-line pt-1">
+          <div className="label mt-4 flex gap-5 border-t border-line pt-1 [&_a:hover]:text-[var(--accent)]">
             {a.instagram && (
               <a
                 href={a.instagram}
@@ -138,9 +156,9 @@ function FilledCard({ a, onEdit }: { a: TeamMember; onEdit?: () => void }) {
 
 function EmptySlot({ a, onEdit }: { a: TeamMember; onEdit?: () => void }) {
   return (
-    <article className="relative border border-dashed border-linehi bg-ink/40">
+    <article className="relative border border-dashed border-linehi bg-ink/40" style={accentStyle(a.role)}>
       <div className="hairline-x relative flex aspect-[4/5] items-center justify-center opacity-25" />
-      <span className="font-display absolute top-3 left-4 text-[2.5rem] leading-none text-linehi">
+      <span className="font-display absolute top-3 left-4 text-[2.5rem] leading-none text-[var(--accent)] opacity-60">
         {pad(a.slot)}
       </span>
       {onEdit && <EditTab onEdit={onEdit} slot={a.slot} />}
@@ -399,7 +417,7 @@ function SlotEditor({
             value={draft.instagram}
             onChange={(e) => set("instagram", e.target.value)}
             inputMode="url"
-            placeholder="https://www.instagram.com/â€¦"
+            placeholder="https://www.instagram.com/…"
             className={`${field} mt-2 w-full`}
           />
         </div>
@@ -413,7 +431,7 @@ function SlotEditor({
             value={draft.soundcloud}
             onChange={(e) => set("soundcloud", e.target.value)}
             inputMode="url"
-            placeholder="https://soundcloud.com/â€¦"
+            placeholder="https://soundcloud.com/…"
             className={`${field} mt-2 w-full`}
           />
         </div>
@@ -484,7 +502,7 @@ function SlotEditor({
             disabled={busy !== null}
             className={`${btnGo} flex-1`}
           >
-            {busy === "saving" ? "Savingâ€¦" : "Save"}
+            {busy === "saving" ? "Saving…" : "Save"}
           </button>
           <button
             type="button"
@@ -513,7 +531,7 @@ function SlotEditor({
                   disabled={busy !== null}
                   className="label min-h-11 border border-[rgba(200,16,46,0.5)] px-3 text-bloodhi transition-colors hover:border-bloodhi disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {busy === "restoring" ? "RESETTINGâ€¦" : "RESET IT"}
+                  {busy === "restoring" ? "RESETTING…" : "RESET IT"}
                 </button>
                 <button
                   type="button"
@@ -571,13 +589,21 @@ export default function TeamBoard() {
     reload();
   };
 
+  // Names for the ticker under the header, each in its crew's colour. Drawn
+  // twice back to back so the -50% loop in .marquee-track has no seam.
+  const named = members.filter(isFilled);
+
   return (
     <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(2.5rem,6vw,4.5rem)]">
-      <div className="flex flex-col items-start gap-3 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
+      <div className="team-hero relative flex flex-col items-start gap-3 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
         <div>
+          <p className="label mb-3 text-[var(--accent-hi)]">
+            <Editable k="team.eyebrow">THE FAMILY BEHIND THE NIGHTS</Editable>
+          </p>
           <h1 className="font-display chrome text-[clamp(2.5rem,8vw,5.5rem)] leading-[0.82]">
             <Editable k="team.heading">Meet The Team</Editable>
           </h1>
+          <div aria-hidden className="team-spectrum mt-4 h-[3px] w-[min(22rem,70vw)]" />
           <p className="mt-4 max-w-[46ch] leading-relaxed text-silverdim">
             <Editable k="team.intro.lead">
               The people behind the nights. Want on the roster? Reach us at
@@ -601,10 +627,14 @@ export default function TeamBoard() {
           </p>
         </div>
         <div className="flex flex-col items-start gap-3 sm:shrink-0 sm:items-end">
-          <div className="label text-silverfaint">
-            {pad(announced)} <Editable k="team.count.of">OF</Editable>{" "}
-            {pad(members.length)}{" "}
-            <Editable k="team.count.announced">ANNOUNCED</Editable>
+          <div className="flex items-baseline gap-2">
+            <span className="font-display text-[clamp(2.25rem,6vw,3.25rem)] leading-none text-chalk tabular-nums">
+              {pad(announced)}
+            </span>
+            <span className="label text-silverfaint">
+              <Editable k="team.count.of">OF</Editable> {pad(members.length)}{" "}
+              <Editable k="team.count.announced">ANNOUNCED</Editable>
+            </span>
           </div>
           {canEdit && (
             <button
@@ -617,6 +647,48 @@ export default function TeamBoard() {
           )}
         </div>
       </div>
+
+      {/* Jump to a crew. One chip per section in its own colour, with a count,
+          so the page says how many crews and how big each is before a scroll. */}
+      <nav aria-label="Crews" className="mt-5 flex flex-wrap gap-2">
+        {ROLES.map((r) => {
+          const n = members.filter((m) => m.role === r.id && isFilled(m)).length;
+          return (
+            <a
+              key={r.id}
+              href={`#${r.id}s`}
+              style={accentStyle(r.id)}
+              className="team-chip label flex min-h-10 items-center gap-2 border px-3"
+            >
+              <span aria-hidden className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+              <Editable k={`team.role.${r.id}.label`}>{r.label}</Editable>
+              <span className="text-silverfaint tabular-nums">{n}</span>
+            </a>
+          );
+        })}
+      </nav>
+
+      {named.length > 2 && (
+        <div aria-hidden className="team-ticker relative -mx-[4vw] mt-8 overflow-hidden border-y border-line bg-ink/60 py-3">
+          <div className="marquee-track">
+            {[0, 1].map((copy) => (
+              <div key={copy} className="flex shrink-0 items-center">
+                {named.map((m) => (
+                  <span key={`${copy}-${m.slot}`} className="flex items-center">
+                    <span
+                      className="font-display px-5 text-[clamp(1.25rem,3vw,1.75rem)] leading-none uppercase"
+                      style={{ color: ACCENT[m.role] }}
+                    >
+                      {m.name}
+                    </span>
+                    <span className="text-silverfaint">&#10022;</span>
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* A roster that failed to load is not a guest's problem - the bundled
           one is a whole page on its own, and always was - but an admin about
@@ -643,17 +715,31 @@ export default function TeamBoard() {
           four-column grid so a card is the same width all the way down the
           page; the two-card CEO and DJ sections simply fill two of the four
           columns on a wide screen rather than stretching to a different size. */}
-      {ROLES.map((r) => {
+      {ROLES.map((r, i) => {
         const slots = members.filter((m) => m.role === r.id);
         return (
-          <section key={r.id} id={`${r.id}s`} className="mt-12 scroll-mt-28">
-            <div className="mb-6 border-b border-line pb-4">
-              <h2 className="font-display text-[clamp(1.9rem,5vw,3rem)]">
-                <Editable k={`team.role.${r.id}.heading`}>{r.heading}</Editable>
-              </h2>
-              <p className="mt-2 max-w-[42ch] text-silverdim">
-                <Editable k={`team.role.${r.id}.blurb`}>{r.blurb}</Editable>
-              </p>
+          <section
+            key={r.id}
+            id={`${r.id}s`}
+            style={accentStyle(r.id)}
+            className="mt-14 scroll-mt-28"
+          >
+            <div className="team-section-head relative mb-6 flex items-end justify-between gap-4 border-b border-line pb-4 pl-5">
+              <div className="min-w-0">
+                <p className="label text-[var(--accent)]">
+                  {pad(i + 1)} &middot; <Editable k={`team.role.${r.id}.label`}>{r.label}</Editable>
+                </p>
+                <h2 className="font-display mt-1 text-[clamp(1.9rem,5vw,3rem)]">
+                  <Editable k={`team.role.${r.id}.heading`}>{r.heading}</Editable>
+                  <span className="text-[var(--accent)]">.</span>
+                </h2>
+                <p className="mt-2 max-w-[42ch] text-silverdim">
+                  <Editable k={`team.role.${r.id}.blurb`}>{r.blurb}</Editable>
+                </p>
+              </div>
+              <span className="font-display shrink-0 text-[clamp(2rem,5vw,3rem)] leading-none text-[var(--accent)] opacity-25 tabular-nums">
+                {pad(slots.filter(isFilled).length)}
+              </span>
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">

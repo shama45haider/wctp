@@ -117,7 +117,7 @@ export function siteImageUrl(path: string | null | undefined): string | null {
  */
 export async function uploadSiteImage(
   file: File,
-  folder: "team" | "gallery" | "events",
+  folder: "team" | "gallery" | "events" | "store",
 ): Promise<{ path?: string; error?: string }> {
   const supabase = safeClient();
   if (!supabase) return { error: NOT_CONNECTED };

@@ -38,7 +38,10 @@ const ICONS: Record<string, React.ReactNode> = {
     </>
   ),
   "/donate": (
-    <path d="M12 19.5s-7.25-4.4-8.75-8.9A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8.75 3.6C19.25 15.1 12 19.5 12 19.5z" />
+    <>
+      <path d="M5.5 8.5h13l-1 11h-11z" />
+      <path d="M9 10.5V7a3 3 0 0 1 6 0v3.5" />
+    </>
   ),
   "/help": (
     <>

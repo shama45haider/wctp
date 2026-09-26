@@ -18,6 +18,8 @@
   --blood-hi: #e8213f;
   /* East Village Buyers' sign orange - the sponsor popup's accent only. */
   --sponsor: #ff8f1f;
+  /* Prize gold: the store's price tags and pickup QR. */
+  --prize: #ffd166;
 }
 
 @theme inline {
@@ -34,6 +36,7 @@
   --color-blood: var(--blood);
   --color-bloodhi: var(--blood-hi);
   --color-sponsor: var(--sponsor);
+  --color-prize: var(--prize);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
   --font-mono: var(--font-mono);
@@ -567,13 +570,18 @@ button.label:not([class*="min-h-"]) {
 /* A rainbow streak sweeping through the prize text, like light passing over
    holographic foil - the words stay dark and readable against the tile's
    solid color between passes. Same clipped-gradient trick as .chrome above,
-   animated instead of fixed. */
+   animated instead of fixed.
+   The loop has to move the gradient by exactly one tile or the last frame
+   doesn't match the first and the streak jumps every cycle. With a tile twice
+   the box's width, a percentage position p offsets it by p x (box - tile) =
+   -p x box, so 200% -> 0% slides it exactly one tile (2 x box) to the right:
+   the streak runs left to right and the seam is invisible. */
 @keyframes raffle-glare {
   from {
-    background-position: 0% 50%;
+    background-position: 200% 50%;
   }
   to {
-    background-position: 200% 50%;
+    background-position: 0% 50%;
   }
 }
 
@@ -581,19 +589,21 @@ button.label:not([class*="min-h-"]) {
   background-image: linear-gradient(
     100deg,
     var(--void) 0%,
-    var(--void) 38%,
-    #ff5fa8 44%,
+    var(--void) 30%,
+    #ff5fa8 40%,
     #ffe45c 50%,
-    #8fdcff 56%,
-    var(--void) 62%,
+    #8fdcff 60%,
+    var(--void) 70%,
     var(--void) 100%
   );
-  background-size: 260% 100%;
+  background-size: 200% 100%;
+  background-repeat: repeat-x;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: raffle-glare 3s linear infinite;
+  animation: raffle-glare 2.6s linear infinite;
+  will-change: background-position;
 }
 
 .raffle-wheel-glow {
@@ -603,6 +613,148 @@ button.label:not([class*="min-h-"]) {
     rgba(167, 139, 250, 0.08) 62%,
     transparent
   );
+}
+
+/* --- team (components/TeamBoard.tsx) ---
+   Each crew carries its own --accent, set inline per section and per card.
+   The roster is the one page allowed to be colourful: a thin accent strip
+   across every card, the role in that colour, and a lift with a coloured
+   glow on hover. */
+
+.team-hero {
+  --accent-hi: #ff5fa8;
+}
+
+.team-hero::before {
+  content: "";
+  position: absolute;
+  inset: -3rem -10vw auto auto;
+  width: min(34rem, 80vw);
+  height: 20rem;
+  background:
+    radial-gradient(closest-side, rgba(255, 95, 168, 0.16), transparent 70%),
+    radial-gradient(closest-side at 70% 60%, rgba(94, 231, 255, 0.12), transparent 70%);
+  filter: blur(8px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.team-spectrum {
+  background: linear-gradient(90deg, #ffd166, #5ee7ff, #ff5fa8, #b8ff5c, #b69cff, #ff8f1f);
+  box-shadow: 0 0 22px rgba(255, 95, 168, 0.35);
+}
+
+.team-chip {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--silver);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.team-chip:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--white);
+}
+
+.team-ticker {
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+.team-section-head::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.15rem;
+  bottom: 1rem;
+  width: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 16px var(--accent);
+}
+
+.team-card {
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 0.28s,
+    box-shadow 0.28s;
+}
+
+.team-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--accent);
+  z-index: 2;
+}
+
+@media (hover: hover) {
+  .team-card:hover {
+    transform: translateY(-5px);
+    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+    box-shadow: 0 26px 60px -30px var(--accent);
+  }
+}
+
+.team-photo-fade {
+  background: linear-gradient(0deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.team-card:hover .team-photo-fade {
+  opacity: 1;
+}
+
+.team-slot {
+  background: var(--accent);
+  color: var(--void);
+}
+
+.team-role {
+  color: var(--accent);
+}
+
+/* --- store (components/StoreFront.tsx) ---
+   A shelf, not a form: each prize is a card with a gold price tag pinned to
+   its photo, and the card lifts toward the buyer on hover. Gold is the store's
+   accent only - the buy button stays the site's red like every other primary
+   action. */
+
+.store-tag {
+  background: var(--prize);
+  color: var(--void);
+  box-shadow: 3px 3px 0 var(--blood);
+  transform: rotate(-3deg);
+}
+
+.store-card {
+  transition:
+    transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 0.25s,
+    box-shadow 0.25s;
+}
+
+@media (hover: hover) {
+  .store-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255, 209, 102, 0.45);
+    box-shadow: 0 24px 50px -26px rgba(255, 209, 102, 0.35);
+  }
+}
+
+.store-step {
+  counter-increment: store-step;
+}
+
+.store-step::before {
+  content: "0" counter(store-step);
+  font-family: var(--font-display), "Arial Narrow", sans-serif;
+  font-weight: 900;
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--prize);
 }
 
 /* --- sponsor redirect (components/PoshLink.tsx) ---

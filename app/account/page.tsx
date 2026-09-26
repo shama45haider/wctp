@@ -11,6 +11,7 @@ import AttendedEvents from "@/components/AttendedEvents";
 import XpPanel from "@/components/XpPanel";
 import FriendsPanel from "@/components/FriendsPanel";
 import SongRequests from "@/components/SongRequests";
+import MyPrizes from "@/components/MyPrizes";
 import { Editable } from "@/components/Editable";
 import { btn, btnGo } from "@/lib/ui";
 
@@ -222,6 +223,8 @@ export default function Account() {
           })}
         </div>
       )}
+
+      <MyPrizes />
 
       <XpPanel />
 

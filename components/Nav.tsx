@@ -6,7 +6,7 @@ export const navLinks = [
   { href: "/tickets", label: "TICKETS" },
   { href: "/team", label: "TEAM" },
   { href: "/gallery", label: "GALLERY" },
-  { href: "/donate", label: "DONATE" },
+  { href: "/donate", label: "STORE" },
   { href: "/help", label: "HELP" },
 ];
 

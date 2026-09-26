@@ -26,6 +26,7 @@
  */
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { recordStoreOrder } from "../_shared/store.ts";
 
 const enc = new TextEncoder();
 
@@ -116,6 +117,21 @@ Deno.serve(async (req) => {
   if (!sessionId || !paid) return new Response("not paid", { status: 200 });
 
   const meta = (session.metadata ?? {}) as Record<string, string>;
+
+  // A prize from the store rather than tickets: recorded by the shared code
+  // store-order-status also uses, so whichever arrives first wins and the
+  // other finds it done.
+  if (meta.kind === "store") {
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+    const out = await recordStoreOrder(admin, session, Deno.env.get("STRIPE_SECRET_KEY"));
+    return out.ok
+      ? new Response("ok", { status: 200 })
+      : new Response(`store order failed: ${out.error}`, { status: 500 });
+  }
+
   const userId = meta.user_id;
   const eventSlug = meta.event_slug;
   if (!userId || !eventSlug) return new Response("no metadata", { status: 200 });
