@@ -9,7 +9,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import {
-  findPromo,
+  addonsOn,
   linesFromCart,
   maxSelectable,
   tiersFor,
@@ -17,6 +17,7 @@ import {
   type Cart,
   type OrderLine,
 } from "./tickets";
+import { useTicketCatalog } from "./ticket-catalog";
 import { isSupabaseConfigured } from "./supabase";
 import { useSupabaseAuth } from "./supabase-auth";
 import { cancelOrderInDb, listOrders, syncOrder } from "./orders-data";
@@ -230,6 +231,9 @@ export function useAccount() {
    * database.
    */
   const { profile, loaded: profileLoaded, reload: refreshProfile } = useOwnProfile(userId);
+  // Prices and stock come from the database now; the cart is re-priced when
+  // they land.
+  const { loaded: catalogLoaded } = useTicketCatalog();
 
   const authUser = auth.user;
   const user: AccountUser | null = useMemo(() => {
@@ -290,6 +294,10 @@ export function useAccount() {
     [userId],
   );
 
+  const [ordersTick, setOrdersTick] = useState(0);
+  /** Re-reads orders from the database - after a Stripe payment lands, say. */
+  const reloadOrders = useCallback(() => setOrdersTick((t) => t + 1), []);
+
   useEffect(() => {
     if (!isSupabaseConfigured || !userId) return;
     let live = true;
@@ -301,7 +309,7 @@ export function useAccount() {
     return () => {
       live = false;
     };
-  }, [userId]);
+  }, [userId, ordersTick]);
 
   /**
    * Backfill.
@@ -447,10 +455,24 @@ export function useAccount() {
     [],
   );
 
-  const setPromoCode = useCallback((code: string | null) => {
-    if (!snapshot.cart) return;
+  /**
+   * Moves an add-on's quantity by a delta. Only on a cart for this event that
+   * already holds a ticket - an add-on on its own has nothing to ride on.
+   */
+  const adjustAddon = useCallback((eventSlug: string, addonId: string, delta: number) => {
+    const cart = snapshot.cart;
+    if (!cart || cart.eventSlug !== eventSlug) return;
+    const addon = addonsOn().find((a) => a.id === addonId);
+    if (!addon) return;
+    const current = cart.addons?.[addonId] ?? 0;
     patch({
-      cart: { ...snapshot.cart, promoCode: code?.toUpperCase() || undefined },
+      cart: {
+        ...cart,
+        addons: {
+          ...cart.addons,
+          [addonId]: Math.min(addon.maxPerOrder, Math.max(0, current + delta)),
+        },
+      },
     });
   }, []);
 
@@ -469,14 +491,13 @@ export function useAccount() {
       const lines = linesFromCart(cart);
       if (!cart || lines.length === 0) return null;
 
-      const promo = cart.promoCode ? findPromo(cart.promoCode) : null;
-      const t = totalsFor(lines, promo);
+      const t = totalsFor(lines);
       const id = makeOrderId();
 
-      // Donations buy nobody entry, so they issue no pass. An order that is
-      // only a donation is a receipt, not a ticket.
+      // Donations and add-ons buy nobody entry, so they issue no pass. An
+      // order that is only a donation is a receipt, not a ticket.
       const passes: Pass[] = lines
-        .filter((l) => !l.donation)
+        .filter((l) => !l.donation && !l.addon)
         .flatMap((l) =>
           Array.from({ length: l.qty }, (_, i) => ({
             code: `${id}-${l.tierId.slice(0, 2).toUpperCase()}${i + 1}`,
@@ -492,7 +513,6 @@ export function useAccount() {
         eventSlug: cart.eventSlug,
         eventTitle,
         lines,
-        promoCode: promo?.code,
         subtotalCents: t.subtotalCents,
         discountCents: t.discountCents,
         feeCents: t.feeCents,
@@ -541,7 +561,9 @@ export function useAccount() {
     [orders],
   );
 
-  const lines = useMemo(() => linesFromCart(cart), [cart]);
+  // catalogLoaded is what re-prices the cart once the tiers arrive.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const lines = useMemo(() => linesFromCart(cart), [cart, catalogLoaded]);
   const passCount = useMemo(
     () => orders.reduce((n, o) => n + o.passes.length, 0),
     [orders],
@@ -559,13 +581,14 @@ export function useAccount() {
      * more" notice, not a load failure for the whole screen. */
     ordersError,
     passCount,
+    reloadOrders,
     /** Re-reads the profile row: call after filing an age check or saving the profile. */
     refreshProfile,
     signOut,
     setQty,
     adjustQty,
     setDonation,
-    setPromoCode,
+    adjustAddon,
     clearCart,
     placeOrder,
     cancelOrder,

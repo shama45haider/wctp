@@ -52,7 +52,8 @@ const SERVICE_FLAT_CENTS = 119;
 const MAX_TOTAL_CENTS = 300_000;
 
 type Line = { tierId?: unknown; qty?: unknown };
-type Payload = { eventSlug?: unknown; lines?: unknown; origin?: unknown };
+type AddonPick = { addonId?: unknown; qty?: unknown };
+type Payload = { eventSlug?: unknown; lines?: unknown; addons?: unknown; origin?: unknown };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -159,12 +160,41 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Add-ons, priced from public.ticket_addons. Only ever alongside a ticket,
+  // which the loop above has already required.
+  const picks = Array.isArray(payload.addons) ? (payload.addons as AddonPick[]) : [];
+  const extras: { id: string; name: string; unit: number; qty: number }[] = [];
+  if (picks.length > 0) {
+    const { data: addonRows, error: addonErr } = await admin
+      .from("ticket_addons")
+      .select("id, name, price_cents, max_per_order, active");
+    if (addonErr) return json({ error: "Could not read add-on prices." }, 500);
+    const addonsById = new Map((addonRows ?? []).map((a) => [a.id as string, a]));
+    for (const pick of picks) {
+      const addonId = typeof pick.addonId === "string" ? pick.addonId : "";
+      const qty = Number(pick.qty);
+      if (!addonId || !Number.isInteger(qty) || qty <= 0) {
+        return json({ error: "Bad add-on." }, 400);
+      }
+      const a = addonsById.get(addonId);
+      if (!a || !a.active) return json({ error: "That add-on is not available." }, 400);
+      if (qty > (a.max_per_order as number)) {
+        return json({ error: `Only ${a.max_per_order} ${a.name} per order.` }, 400);
+      }
+      const unit = a.price_cents as number;
+      subtotal += unit * qty;
+      extras.push({ id: addonId, name: a.name as string, unit, qty });
+    }
+  }
+
   if (subtotal <= 0) {
     // A cart of nothing but free tickets never reaches Stripe - the site books
     // those directly, and sending a $0 session would just fail.
     return json({ error: "Nothing to pay for." }, 400);
   }
 
+  // Must match totalsFor() in lib/tickets.ts: a percentage of tickets and
+  // add-ons, plus a flat amount per paid ticket.
   const fee = Math.round(subtotal * SERVICE_RATE) + SERVICE_FLAT_CENTS * paidTickets;
   const total = subtotal + fee;
   if (total > MAX_TOTAL_CENTS) return json({ error: "That order is too large." }, 400);
@@ -173,7 +203,9 @@ Deno.serve(async (req) => {
 
   const form = new URLSearchParams();
   form.set("mode", "payment");
-  form.set("success_url", `${origin}/account?paid=1`);
+  // Stripe fills in the session id, which /account hands to
+  // ticket-order-status so the tickets appear without waiting on the webhook.
+  form.set("success_url", `${origin}/account?paid=tickets&session_id={CHECKOUT_SESSION_ID}`);
   form.set("cancel_url", `${origin}/checkout`);
   if (profile.email) form.set("customer_email", String(profile.email));
 
@@ -183,19 +215,31 @@ Deno.serve(async (req) => {
     form.set(`line_items[${i}][price_data][unit_amount]`, String(l.unit));
     form.set(`line_items[${i}][price_data][product_data][name]`, l.name);
   });
+  extras.forEach((a, j) => {
+    const i = priced.length + j;
+    form.set(`line_items[${i}][quantity]`, String(a.qty));
+    form.set(`line_items[${i}][price_data][currency]`, "usd");
+    form.set(`line_items[${i}][price_data][unit_amount]`, String(a.unit));
+    form.set(`line_items[${i}][price_data][product_data][name]`, a.name);
+  });
   // The fee as its own line, so the buyer sees what the site added rather than
   // finding the ticket costs more than the page said.
-  form.set(`line_items[${priced.length}][quantity]`, "1");
-  form.set(`line_items[${priced.length}][price_data][currency]`, "usd");
-  form.set(`line_items[${priced.length}][price_data][unit_amount]`, String(fee));
-  form.set(`line_items[${priced.length}][price_data][product_data][name]`, "Service fee");
+  const feeAt = priced.length + extras.length;
+  form.set(`line_items[${feeAt}][quantity]`, "1");
+  form.set(`line_items[${feeAt}][price_data][currency]`, "usd");
+  form.set(`line_items[${feeAt}][price_data][unit_amount]`, String(fee));
+  form.set(`line_items[${feeAt}][price_data][product_data][name]`, "Service fee");
 
   // Everything the webhook needs to build the order, carried by Stripe so the
   // two sides cannot disagree about what was bought.
+  form.set("metadata[kind]", "tickets");
   form.set("metadata[user_id]", user.id);
   form.set("metadata[event_slug]", eventSlug);
   form.set("metadata[lines]", JSON.stringify(
     priced.map((l) => ({ t: l.tierId, n: l.name, u: l.unit, q: l.qty, a: l.admits })),
+  ));
+  form.set("metadata[addons]", JSON.stringify(
+    extras.map((a) => ({ i: a.id, n: a.name, u: a.unit, q: a.qty })),
   ));
   form.set("metadata[fee_cents]", String(fee));
   form.set("metadata[subtotal_cents]", String(subtotal));

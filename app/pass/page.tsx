@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { lookupPass, markPassUsed, type DoorLookup } from "@/lib/door";
 import { findEvent, monthOf, dayOf } from "@/lib/events";
 import { decodePass, type PassToken } from "@/lib/pass-token";
 import { Editable } from "@/components/Editable";
@@ -82,7 +84,41 @@ export default function Pass() {
     return readScans()[state.pass.c] ?? null;
   }, [state, marked]);
 
+  // Staff signed in get the database's view of this pass: add-ons bought with
+  // it, and whether any door has already let it in. Everyone else gets the
+  // offline check above and nothing more.
+  const { ready: authReady, isAdmin } = useSupabaseAuth();
+  const staff = authReady && isAdmin;
+  const passCode = state.kind === "ok" ? state.pass.c : null;
+  const passOrder = state.kind === "ok" ? state.pass.o : null;
+  const [door, setDoor] = useState<{
+    code: string;
+    data?: DoorLookup;
+    error?: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!staff || !passCode || !passOrder) return;
+    let live = true;
+    void lookupPass(passCode, passOrder).then((out) => {
+      if (live) setDoor({ code: passCode, ...out });
+    });
+    return () => {
+      live = false;
+    };
+  }, [staff, passCode, passOrder]);
+  const doorNow = door && door.code === passCode ? door : null;
+  const [markError, setMarkError] = useState<string | null>(null);
+
   const markUsed = (code: string) => {
+    if (staff) {
+      setMarkError(null);
+      void markPassUsed(code).then((out) => {
+        if (!out.ok) setMarkError(out.error ?? "Could not mark it used.");
+        else if (doorNow?.data) {
+          setDoor({ code, data: { ...doorNow.data, usedAt: out.at ?? null } });
+        }
+      });
+    }
     const now = new Date().toISOString();
     const scans = readScans();
     scans[code] = now;
@@ -149,7 +185,9 @@ export default function Pass() {
 
   const p = state.pass;
   const ev = findEvent(p.e);
-  const used = usedAt !== null;
+  const dbUsedAt = doorNow?.data?.usedAt ?? null;
+  const used = usedAt !== null || dbUsedAt !== null;
+  const shownUsedAt = dbUsedAt ?? usedAt;
 
   return (
     <main className="mx-auto w-[92vw] max-w-[440px] py-[clamp(2.5rem,8vw,5rem)]">
@@ -170,6 +208,59 @@ export default function Pass() {
       <h1 className="font-display chrome mt-6 text-[clamp(2rem,8vw,3.25rem)] leading-[0.85] break-words">
         {p.n}
       </h1>
+
+      {/* Add-ons are the first thing the door needs after the name: what to
+          hand over. Read from the order, never from the QR. */}
+      {staff ? (
+        <div
+          className={`mt-6 border px-4 py-4 ${
+            doorNow?.data?.addons.length
+              ? "border-bloodhi bg-[rgba(200,16,46,0.08)]"
+              : "border-line"
+          }`}
+        >
+          <p className="label text-silverfaint">
+            <Editable k="pass.door.addons">ADD-ONS</Editable>
+          </p>
+          {!doorNow ? (
+            <p className="label mt-2 text-silverfaint">CHECKING…</p>
+          ) : doorNow.error ? (
+            <p className="label mt-2 text-bloodhi">{doorNow.error.toUpperCase()}</p>
+          ) : !doorNow.data?.found ? (
+            <p className="label mt-2 leading-loose text-bloodhi">
+              <Editable k="pass.door.notFound">
+                THIS PASS IS NOT IN THE DATABASE. CHECK THE NAME AGAINST THE LIST.
+              </Editable>
+            </p>
+          ) : doorNow.data.addons.length === 0 ? (
+            <p className="label mt-2 text-silverdim">
+              <Editable k="pass.door.none">NONE</Editable>
+            </p>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-1">
+              {doorNow.data.addons.map((a) => (
+                <li key={a.name} className="font-display text-[1.6rem] leading-tight text-chalk">
+                  {a.qty}&times; {a.name}
+                </li>
+              ))}
+            </ul>
+          )}
+          {doorNow?.data?.cancelled && (
+            <p className="label mt-3 text-bloodhi">
+              <Editable k="pass.door.cancelled">THIS ORDER WAS CANCELLED</Editable>
+            </p>
+          )}
+          {doorNow?.data?.found && !doorNow.data.paid && !doorNow.data.cancelled && (
+            <p className="label mt-3 text-bloodhi">
+              <Editable k="pass.door.unpaid">NOT MARKED PAID</Editable>
+            </p>
+          )}
+        </div>
+      ) : authReady ? (
+        <p className="label mt-6 border border-line px-3 py-3 leading-loose text-silverfaint">
+          <Editable k="pass.door.signIn">STAFF: SIGN IN TO SEE ADD-ONS AND DOOR STATUS.</Editable>
+        </p>
+      ) : null}
 
       <dl className="mt-7 border-t border-line">
         {([
@@ -201,10 +292,20 @@ export default function Pass() {
         ))}
       </dl>
 
-      {used ? (
+      {markError && (
+        <p className="label mt-6 text-bloodhi" role="alert">
+          {markError.toUpperCase()}
+        </p>
+      )}
+
+      {used && shownUsedAt ? (
         <p className="label mt-6 border border-[rgba(200,16,46,0.5)] px-3 py-3 leading-loose text-bloodhi">
-          <Editable k="pass.ok.markedUsedAt">MARKED USED ON THIS DEVICE AT</Editable>{" "}
-          {new Date(usedAt).toLocaleString(undefined, {
+          {dbUsedAt ? (
+            <Editable k="pass.ok.markedUsedDoor">LET IN AT</Editable>
+          ) : (
+            <Editable k="pass.ok.markedUsedAt">MARKED USED ON THIS DEVICE AT</Editable>
+          )}{" "}
+          {new Date(shownUsedAt).toLocaleString(undefined, {
             hour: "2-digit",
             minute: "2-digit",
             day: "numeric",

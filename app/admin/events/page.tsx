@@ -17,6 +17,7 @@ import {
 } from "@/lib/admin-data";
 import { siteImageUrl } from "@/lib/site-content";
 import EventPhotoPicker from "@/components/EventPhotoPicker";
+import TierEditor from "@/components/TierEditor";
 import { btn, btnGo, field } from "@/lib/ui";
 import { dayOf, monthOf } from "@/lib/events";
 
@@ -497,6 +498,13 @@ export default function AdminEvents() {
                     : "Leave empty to sell on the site."}
                 </p>
               </div>
+              {editing ? (
+                <TierEditor slug={editing} redirectUrl={draft.ticketRedirectUrl} />
+              ) : (
+                <p className={hint}>
+                  Post the event first, then hit Edit on it to set ticket prices.
+                </p>
+              )}
             </Group>
 
             <Group label="Publish">

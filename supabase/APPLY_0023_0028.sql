@@ -1,21 +1,12 @@
 -- =============================================================
 -- RUN THIS WHOLE FILE IN THE SUPABASE SQL EDITOR.
 --
--- Migration 0023: real money for tickets.
+-- Makes paid tickets work:
+--   0023  ticket prices in the database, paid orders only via Stripe
+--   0028  add-ons (Vampire Punch $10, Rave Spoon $5) and real stock counts
 --
--- READ THIS BEFORE RUNNING IT. After this, the browser can no
--- longer create a paid order at all - only the Stripe webhook
--- can. So the two edge functions have to be deployed and the
--- webhook registered, or paid checkout stops working. Free
--- RSVPs are unaffected either way.
---
---   npx supabase secrets set STRIPE_SECRET_KEY=sk_test_...
---   npx supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...
---   npx supabase functions deploy create-ticket-checkout --use-api
---   npx supabase functions deploy stripe-ticket-webhook --no-verify-jwt --use-api
---
--- Use sk_test_ first. Stripe's test mode takes 4242 4242 4242
--- 4242 and charges nobody.
+-- Safe to run twice. After it runs, set up each event's tickets
+-- from /admin/events -> Edit -> Tickets.
 -- =============================================================
 
 -- Real money for tickets.
@@ -163,33 +154,57 @@ as $$
      and (o.paid_at is not null or coalesce(o.total_cents, 0) = 0);
 $$;
 
--- ---------- did it work? ----------
+-- Add-ons bought with a ticket, and stock that actually counts down.
+--
+-- An add-on is something extra picked up at the door - a Vampire Punch, a
+-- Rave Spoon - bought in the same Stripe checkout as the ticket. It admits
+-- nobody and issues no pass: it is an order line flagged `addon`, which the
+-- door sees when it scans any pass on that order.
+--
+-- Prices live here, where no client can write them, for the same reason
+-- ticket_tiers does (0023): create-ticket-checkout prices every order from
+-- the database and never from the browser.
 
-select 'ticket_tiers table' as thing,
-       exists (select 1 from information_schema.tables
-               where table_schema='public' and table_name='ticket_tiers') as present
-union all
-select 'tiers seeded',
-       (select count(*) > 0 from public.ticket_tiers)
-union all
-select 'orders.paid_at',
-       exists (select 1 from information_schema.columns
-               where table_schema='public' and table_name='orders' and column_name='paid_at')
-union all
-select 'orders.stripe_session_id',
-       exists (select 1 from information_schema.columns
-               where table_schema='public' and table_name='orders' and column_name='stripe_session_id')
-union all
-select 'one order per Stripe session',
-       exists (select 1 from pg_indexes
-               where schemaname='public' and indexname='orders_stripe_session')
-union all
--- The important one. If this is false the old permissive policy is still
--- there and a browser can still write a paid order for nothing.
-select 'browser can only create FREE orders',
-       exists (select 1 from pg_policies
-               where schemaname='public' and tablename='orders'
-                 and policyname='create own free order')
-   and not exists (select 1 from pg_policies
-               where schemaname='public' and tablename='orders'
-                 and policyname='insert own orders');
+create table if not exists public.ticket_addons (
+  id            text    primary key check (id ~ '^[a-z0-9][a-z0-9-]{0,39}$'),
+  name          text    not null,
+  price_cents   int     not null check (price_cents > 0),
+  max_per_order int     not null default 10 check (max_per_order > 0),
+  active        boolean not null default true,
+  sort          int     not null default 0
+);
+
+alter table public.ticket_addons enable row level security;
+
+drop policy if exists "anyone reads ticket addons" on public.ticket_addons;
+create policy "anyone reads ticket addons" on public.ticket_addons for select
+  using (true);
+
+drop policy if exists "admins write ticket addons" on public.ticket_addons;
+create policy "admins write ticket addons" on public.ticket_addons for all
+  using (public.is_admin()) with check (public.is_admin());
+
+insert into public.ticket_addons (id, name, price_cents, sort) values
+  ('vampire-punch', 'Vampire Punch', 1000, 1),
+  ('rave-spoon',    'Rave Spoon',     500, 2)
+on conflict (id) do nothing;
+
+-- Which lines on an order are add-ons rather than admissions.
+alter table public.order_lines
+  add column if not exists addon boolean not null default false;
+
+-- Counts a paid sale against a tier, so capacity means something. Called by
+-- the edge functions on the service role only.
+create or replace function public.ticket_count_sale(p_event text, p_tier text, p_qty int)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.ticket_tiers
+     set sold = sold + greatest(p_qty, 0)
+   where event_slug = p_event and tier_id = p_tier;
+$$;
+
+revoke all on function public.ticket_count_sale(text, text, int) from public, anon, authenticated;
+grant execute on function public.ticket_count_sale(text, text, int) to service_role;

@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAccount } from "@/lib/demo-account";
+import { confirmTicketPayment } from "@/lib/ticket-checkout";
 import { findEvent, monthOf, dayOf } from "@/lib/events";
 import { atHandle } from "@/lib/handle";
 import { useNow } from "@/lib/now";
@@ -15,10 +17,73 @@ import MyPrizes from "@/components/MyPrizes";
 import { Editable } from "@/components/Editable";
 import { btn, btnGo } from "@/lib/ui";
 
+/**
+ * Back from Stripe: /account?paid=tickets&session_id=cs_...
+ *
+ * Confirms the payment with ticket-order-status, which records the order if
+ * the webhook has not already, then re-reads the orders so the tickets are on
+ * screen. The query is stripped afterwards so a reload does not repeat it.
+ */
+function usePaymentReturn(
+  signedIn: boolean,
+  reloadOrders: () => void,
+  clearCart: () => void,
+) {
+  const [state, setState] = useState<
+    { kind: "working" } | { kind: "done" } | { kind: "error"; text: string } | null
+  >(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (!signedIn || started.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    if (params.get("paid") !== "tickets" || !sessionId) return;
+    started.current = true;
+    let live = true;
+
+    void (async () => {
+      setState({ kind: "working" });
+      // The webhook and this call race; a couple of tries covers Stripe being
+      // a beat behind on marking the session paid.
+      let out = await confirmTicketPayment(sessionId);
+      for (let i = 0; i < 2 && !out.ok; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        out = await confirmTicketPayment(sessionId);
+      }
+      if (!live) return;
+      if (out.ok) {
+        clearCart();
+        reloadOrders();
+        setState({ kind: "done" });
+        window.history.replaceState(null, "", "/account#tickets");
+      } else {
+        setState({ kind: "error", text: out.error ?? "Could not confirm the payment." });
+      }
+    })();
+
+    return () => {
+      live = false;
+    };
+  }, [signedIn, reloadOrders, clearCart]);
+
+  return state;
+}
+
 export default function Account() {
-  const { ready, user, orders, ordersError, passCount, signOut, cancelOrder } =
-    useAccount();
+  const {
+    ready,
+    user,
+    orders,
+    ordersError,
+    passCount,
+    signOut,
+    cancelOrder,
+    reloadOrders,
+    clearCart,
+  } = useAccount();
   const now = useNow();
+  const payment = usePaymentReturn(Boolean(ready && user), reloadOrders, clearCart);
 
   if (!ready) {
     return (
@@ -129,6 +194,30 @@ export default function Account() {
         </Link>
       </div>
 
+      {payment && (
+        <p
+          className={`label mb-6 border px-4 py-3 leading-loose ${
+            payment.kind === "error"
+              ? "border-[rgba(200,16,46,0.5)] text-bloodhi"
+              : "border-line text-silverdim"
+          }`}
+          role={payment.kind === "error" ? "alert" : "status"}
+        >
+          {payment.kind === "working" ? (
+            <Editable k="account.paid.working">PAYMENT RECEIVED - ISSUING YOUR TICKETS…</Editable>
+          ) : payment.kind === "done" ? (
+            <Editable k="account.paid.done">PAID. YOUR TICKETS ARE BELOW.</Editable>
+          ) : (
+            <>
+              <Editable k="account.paid.error">
+                YOUR PAYMENT WENT THROUGH BUT THE TICKETS HAVE NOT SHOWN UP YET. REFRESH IN A MINUTE, OR DM US IF THEY DON&rsquo;T -
+              </Editable>{" "}
+              {payment.text.toUpperCase()}
+            </>
+          )}
+        </p>
+      )}
+
       {ordersError && (
         // What is below is still real - this says there may be more of it
         // than what loaded, not that the list itself is wrong.
@@ -189,12 +278,16 @@ export default function Account() {
                       )}
                     </p>
                   </div>
-                  <button
-                    onClick={() => cancelOrder(o.id)}
-                    className="label flex min-h-11 items-center border border-line px-4 text-silverfaint transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi"
-                  >
-                    CANCEL ORDER
-                  </button>
+                  {/* Only a free RSVP can be dropped from here. Cancelling a
+                      paid order would void tickets without refunding them. */}
+                  {o.totalCents === 0 && (
+                    <button
+                      onClick={() => cancelOrder(o.id)}
+                      className="label flex min-h-11 items-center border border-line px-4 text-silverfaint transition-colors hover:border-[rgba(200,16,46,0.5)] hover:text-bloodhi"
+                    >
+                      CANCEL ORDER
+                    </button>
+                  )}
                 </header>
 
                 <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
@@ -211,11 +304,15 @@ export default function Account() {
                   ))}
                 </div>
 
-                {o.discountCents > 0 && (
-                  <p className="label border-t border-line px-4 py-3 text-silverfaint sm:px-5">
-                    {o.promoCode}{" "}
-                    <Editable k="account.order.promoSaved">APPLIED · SAVED</Editable>{" "}
-                    {usd(o.discountCents)}
+                {o.lines.some((l) => l.addon) && (
+                  <p className="label border-t border-line px-4 py-3 leading-loose text-silverdim sm:px-5">
+                    <Editable k="account.order.addons">ADD-ONS, PICK UP AT THE DOOR:</Editable>{" "}
+                    <span className="text-chalk">
+                      {o.lines
+                        .filter((l) => l.addon)
+                        .map((l) => `${l.qty}× ${l.tierName.toUpperCase()}`)
+                        .join(" · ")}
+                    </span>
                   </p>
                 )}
               </section>

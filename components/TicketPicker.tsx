@@ -7,7 +7,9 @@ import PoshLink from "./PoshLink";
 import type { Event } from "@/lib/events";
 import { useState } from "react";
 import {
+  addonsOn,
   admitsOf,
+  linesFromCart,
   isPastEvent,
   isSoldOut,
   maxSelectable,
@@ -18,9 +20,11 @@ import {
   tiersFor,
   totalsFor,
   usd,
+  type Addon,
   type Tier,
 } from "@/lib/tickets";
 import { useAccount } from "@/lib/demo-account";
+import { useTicketCatalog } from "@/lib/ticket-catalog";
 import { useNow } from "@/lib/now";
 import { btnGo, field } from "@/lib/ui";
 
@@ -238,6 +242,60 @@ function TierRow({
   );
 }
 
+/** One add-on: a price and a stepper, usable once a ticket is picked. */
+function AddonRow({
+  addon,
+  qty,
+  enabled,
+  onStep,
+}: {
+  addon: Addon;
+  qty: number;
+  enabled: boolean;
+  onStep: (delta: number) => void;
+}) {
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-4 py-4 transition-colors ${
+        qty > 0 ? "bg-[rgba(200,16,46,0.05)]" : ""
+      } ${enabled ? "" : "opacity-45"}`}
+    >
+      <div className="min-w-[8rem] flex-1">
+        <h3 className="font-display text-[1.2rem]">{addon.name}</h3>
+        <p className="label mt-1 text-silverfaint">
+          <Editable k="event.picker.addon.pickup">PICK UP AT THE DOOR</Editable>
+        </p>
+      </div>
+      <div className="font-display text-right text-[1.4rem] whitespace-nowrap">
+        {usd(addon.priceCents)}
+      </div>
+      <div className="flex items-center border border-line">
+        <button
+          type="button"
+          onClick={() => onStep(-1)}
+          disabled={!enabled || qty === 0}
+          aria-label={`Remove one ${addon.name}`}
+          className="font-display flex h-11 w-11 items-center justify-center text-xl text-silverdim transition-colors hover:text-chalk disabled:opacity-30 disabled:hover:text-silverdim"
+        >
+          &minus;
+        </button>
+        <span aria-live="polite" className="label w-9 text-center text-base text-chalk">
+          {qty}
+        </span>
+        <button
+          type="button"
+          onClick={() => onStep(1)}
+          disabled={!enabled || qty >= addon.maxPerOrder}
+          aria-label={`Add one ${addon.name}`}
+          className="font-display flex h-11 w-11 items-center justify-center text-xl text-silverdim transition-colors hover:text-chalk disabled:opacity-30 disabled:hover:text-silverdim"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Tier selection for one event.
  *
@@ -253,7 +311,10 @@ function TierRow({
  */
 export default function TicketPicker({ event }: { event: Event }) {
   const router = useRouter();
-  const { ready, user, cart, adjustQty, setDonation } = useAccount();
+  const { ready, user, cart, adjustQty, adjustAddon, setDonation } = useAccount();
+  // Tiers and add-ons come from the database; until they land, say so rather
+  // than "not on sale".
+  const { loaded: catalogLoaded } = useTicketCatalog();
   // The page around this widget is a static export, built once - saleState
   // and isPastEvent default to that build's frozen date if nothing is passed
   // to them, which is exactly wrong for the one place that actually sells a
@@ -322,6 +383,14 @@ export default function TicketPicker({ event }: { event: Event }) {
     );
   }
 
+  if (state === "closed" && !catalogLoaded && !isPastEvent(event, now)) {
+    return (
+      <div className="label border border-line px-4 py-4 text-silverfaint">
+        <Editable k="event.picker.loading">LOADING TICKETS…</Editable>
+      </div>
+    );
+  }
+
   if (state === "closed") {
     return (
       <div className="label border border-line px-4 py-4 text-silverfaint">
@@ -355,18 +424,10 @@ export default function TicketPicker({ event }: { event: Event }) {
   const mine = cart?.eventSlug === event.slug ? cart : null;
   const qtyOf = (id: string) => mine?.qty[id] ?? 0;
 
-  const lines = tiers
-    .map((t) => ({
-      tierId: t.id,
-      tierName: t.name,
-      qty: Math.min(qtyOf(t.id), maxSelectable(t)),
-      unitCents: t.donation ? (mine?.amounts?.[t.id] ?? 0) : t.priceCents,
-      admits: admitsOf(t),
-      donation: t.donation,
-    }))
-    .filter((l) => l.qty > 0 && (!l.donation || l.unitCents > 0));
-
+  const lines = linesFromCart(mine);
   const totals = totalsFor(lines);
+  const addons = addonsOn();
+  const hasTicket = totals.ticketCount > 0;
   const empty = lines.length === 0;
 
   // Only admission goes through the gate. Until the account has answered the
@@ -429,6 +490,30 @@ export default function TicketPicker({ event }: { event: Event }) {
             onStep={(d) => adjustQty(event.slug, t.id, d)}
           />
         ),
+      )}
+
+      {addons.length > 0 && tiers.some((t) => !t.donation) && (
+        <>
+          <div className="label flex items-center justify-between border-b border-line px-4 py-3 text-silverfaint">
+            <span>
+              <Editable k="event.picker.addonsTitle">ADD-ONS</Editable>
+            </span>
+            {!hasTicket && (
+              <span>
+                <Editable k="event.picker.addonsNeedTicket">PICK A TICKET FIRST</Editable>
+              </span>
+            )}
+          </div>
+          {addons.map((a) => (
+            <AddonRow
+              key={a.id}
+              addon={a}
+              qty={hasTicket ? (mine?.addons?.[a.id] ?? 0) : 0}
+              enabled={hasTicket}
+              onStep={(d) => adjustAddon(event.slug, a.id, d)}
+            />
+          ))}
+        </>
       )}
 
       <div className="p-4">

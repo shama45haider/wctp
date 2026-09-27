@@ -7,6 +7,7 @@ import DeleteEventButton from "./DeleteEventButton";
 import { heroPhoto, monthOf, dayOf, type Event } from "@/lib/events";
 import { isPastEvent, money, priceFrom } from "@/lib/tickets";
 import { useNow } from "@/lib/now";
+import { useTicketCatalog } from "@/lib/ticket-catalog";
 
 /**
  * Upcoming dates as a wall of flyers.
@@ -127,6 +128,7 @@ export default function EventCarousel({
   onDelete?: (slug: string) => void;
 }) {
   const now = useNow();
+  useTicketCatalog();
   const track = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState(0);
   const [ends, setEnds] = useState({ start: true, end: false });

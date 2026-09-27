@@ -1940,9 +1940,8 @@ create policy "admins delete chat images" on storage.objects for delete
 --      inserted by the Stripe webhook, running as the service role, after
 --      Stripe has confirmed the money arrived.
 --
--- lib/tickets.ts keeps its copy for drawing the picker. It is a display cache
--- now, not the authority - and these rows were generated from it, so the two
--- start out identical.
+-- The site reads its tiers from this table too, so what the picker shows and
+-- what Stripe charges come from the same rows.
 
 -- ------------------------------------------------------------- the prices --
 
@@ -1976,26 +1975,8 @@ drop policy if exists "admins write ticket tiers" on public.ticket_tiers;
 create policy "admins write ticket tiers" on public.ticket_tiers for all
   using (public.is_admin()) with check (public.is_admin());
 
--- Seeded from lib/tickets.ts as it stood when this was written. ON CONFLICT
--- DO NOTHING so re-running never overwrites a price edited since.
-insert into public.ticket_tiers
-  (event_slug, tier_id, name, price_cents, capacity, sold, max_per_order, admits, donation, min_cents, blurb)
-values
-('wecametoofurr', 'rsvp', 'Free RSVP', 0, 150, 73, 2, 1, false, null, 'Location is sent to you on the day of the event.'),
-  ('wecametoofurr', 'donate', 'Donation', 0, 2147483647, 0, 1, 0, true, 100, 'Chip in for sound, lights and the next one. Any amount helps.'),
-  ('saviis-21st-color-wave', 'rsvp', 'Free RSVP', 0, 100, 92, 2, 1, false, null, 'Dress code is colour. All of it.'),
-  ('saviis-21st-color-wave', 'kit', 'RSVP + Colour Kit', 1200, 60, 21, 4, 1, false, null, 'Paint, chalk and a poncho waiting at the door.'),
-  ('wecametooswag', 'rsvp', 'Free RSVP', 0, 200, 9, 4, 1, false, null, null),
-  ('sniff-snort-pt-2', 'early', 'Early Bird', 1000, 50, 50, 4, 1, false, null, 'First fifty only.'),
-  ('sniff-snort-pt-2', 'ga', 'General Admission', 1500, 150, 61, 6, 1, false, null, null),
-  ('sniff-snort-pt-2', 'four', 'Group Of Four', 5000, 25, 4, 2, 4, false, null, 'One code, four heads through the door.'),
-  ('wecametoocosplay', 'early', 'Early Bird', 1500, 60, 60, 4, 1, false, null, 'Gone.'),
-  ('wecametoocosplay', 'ga', 'General Admission', 2000, 180, 44, 6, 1, false, null, null),
-  ('wecametoocosplay', 'vip', 'VIP + Contest Entry', 3500, 40, 11, 4, 1, false, null, 'Early entry and a slot in the costume contest.'),
-  ('wecametoohalloween', 'ga', 'General Admission', 2500, 300, 27, 6, 1, false, null, null),
-  ('wecametoohalloween', 'vip', 'VIP', 4500, 60, 6, 4, 1, false, null, 'In from noon, private bar, own entrance.'),
-  ('wecametoohalloween', 'table', 'Table For Six', 25000, 8, 1, 1, 6, false, null, 'Reserved table, bottle service, six wristbands.')
-on conflict (event_slug, tier_id) do nothing;
+-- No seed. Every tier is set up per event from /admin/events; the old
+-- sample tiers (bundles, tables, VIP) were placeholders and are gone.
 
 -- ------------------------------------------------------- what was actually paid --
 
@@ -2374,3 +2355,60 @@ create policy "admins update event removals" on public.event_removals for update
 drop policy if exists "admins delete event removals" on public.event_removals;
 create policy "admins delete event removals" on public.event_removals for delete
   using (public.is_admin());
+
+-- ---------- 0028_ticket_addons.sql ----------
+
+-- Add-ons bought with a ticket, and stock that actually counts down.
+--
+-- An add-on is something extra picked up at the door - a Vampire Punch, a
+-- Rave Spoon - bought in the same Stripe checkout as the ticket. It admits
+-- nobody and issues no pass: it is an order line flagged `addon`, which the
+-- door sees when it scans any pass on that order.
+--
+-- Prices live here, where no client can write them, for the same reason
+-- ticket_tiers does (0023): create-ticket-checkout prices every order from
+-- the database and never from the browser.
+
+create table if not exists public.ticket_addons (
+  id            text    primary key check (id ~ '^[a-z0-9][a-z0-9-]{0,39}$'),
+  name          text    not null,
+  price_cents   int     not null check (price_cents > 0),
+  max_per_order int     not null default 10 check (max_per_order > 0),
+  active        boolean not null default true,
+  sort          int     not null default 0
+);
+
+alter table public.ticket_addons enable row level security;
+
+drop policy if exists "anyone reads ticket addons" on public.ticket_addons;
+create policy "anyone reads ticket addons" on public.ticket_addons for select
+  using (true);
+
+drop policy if exists "admins write ticket addons" on public.ticket_addons;
+create policy "admins write ticket addons" on public.ticket_addons for all
+  using (public.is_admin()) with check (public.is_admin());
+
+insert into public.ticket_addons (id, name, price_cents, sort) values
+  ('vampire-punch', 'Vampire Punch', 1000, 1),
+  ('rave-spoon',    'Rave Spoon',     500, 2)
+on conflict (id) do nothing;
+
+-- Which lines on an order are add-ons rather than admissions.
+alter table public.order_lines
+  add column if not exists addon boolean not null default false;
+
+-- Counts a paid sale against a tier, so capacity means something. Called by
+-- the edge functions on the service role only.
+create or replace function public.ticket_count_sale(p_event text, p_tier text, p_qty int)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.ticket_tiers
+     set sold = sold + greatest(p_qty, 0)
+   where event_slug = p_event and tier_id = p_tier;
+$$;
+
+revoke all on function public.ticket_count_sale(text, text, int) from public, anon, authenticated;
+grant execute on function public.ticket_count_sale(text, text, int) to service_role;

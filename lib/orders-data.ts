@@ -121,6 +121,8 @@ type OrderRow = {
     unit_cents: number;
     admits: number;
     donation: boolean;
+    /** Absent before 0028. */
+    addon?: boolean;
   }[];
   passes: {
     code: string;
@@ -146,6 +148,7 @@ function toOrder(row: OrderRow): Order {
     unitCents: l.unit_cents,
     admits: l.admits,
     donation: l.donation || undefined,
+    addon: l.addon || l.tier_id.startsWith("addon:") || undefined,
   }));
   const passes: Pass[] = row.passes.map((p) => ({
     code: p.code,

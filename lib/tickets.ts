@@ -3,16 +3,15 @@ import { findEvent, org, TODAY, type Event } from "./events";
 /**
  * Ticket inventory, pricing and order maths.
  *
- * Pure module - no React, no storage. `lib/demo-account.tsx` owns the cart and
- * the placed orders; this file owns what a ticket costs and whether one is
- * still available, so the picker and the checkout price an order the same way
- * instead of each doing its own arithmetic.
+ * Pure module - no React, no network. The tiers and add-ons themselves live in
+ * the database (public.ticket_tiers, public.ticket_addons), which is also what
+ * create-ticket-checkout prices a Stripe payment from, so the picker and the
+ * charge can never disagree. lib/ticket-catalog.ts reads them into the store
+ * below; everything here reads from that store synchronously, which keeps the
+ * call sites as simple as they were when the tiers were hardcoded.
  *
- * PRICING CAVEAT: every tier priced differently from its event's `priceCents`
- * is a placeholder, exactly like the base prices in `lib/events.ts`. The base
- * tier of an event always matches that event's `priceCents`, so correcting the
- * Posh-confirmed number in one place still moves the door price here. The
- * `sold` counts are fixed sample stock, not live inventory.
+ * Until the catalog loads - and on the server, during the static export -
+ * every event has no tiers, which reads as "not on sale here".
  */
 
 export type Tier = {
@@ -24,7 +23,7 @@ export type Tier = {
   sold: number;
   /** Per-order cap, the way a real ticketing system throttles bulk buys. */
   maxPerOrder: number;
-  /** Heads this one ticket lets through the door. A table admits its party. */
+  /** Heads this one ticket lets through the door. */
   admits?: number;
   /**
    * A donation, not an admission: the giver names the amount, it admits nobody
@@ -35,152 +34,43 @@ export type Tier = {
   minCents?: number;
 };
 
-/** Tiers keyed by event slug. An event with no entry is not on sale. */
-const TIERS: Record<string, Tier[]> = {
-  wecametoofurr: [
-    {
-      id: "rsvp",
-      name: "Free RSVP",
-      priceCents: 0,
-      blurb: "Location is sent to you on the day of the event.",
-      capacity: 150,
-      sold: 73,
-      maxPerOrder: 2,
-    },
-    {
-      id: "donate",
-      name: "Donation",
-      priceCents: 0,
-      blurb: "Chip in for sound, lights and the next one. Any amount helps.",
-      // Nothing to run out of, so the capacity here is only there to satisfy
-      // the shape every tier shares; `donation` keeps it out of stock maths.
-      capacity: Number.MAX_SAFE_INTEGER,
-      sold: 0,
-      maxPerOrder: 1,
-      admits: 0,
-      donation: true,
-      minCents: 100,
-    },
-  ],
-  "saviis-21st-color-wave": [
-    {
-      id: "rsvp",
-      name: "Free RSVP",
-      priceCents: 0,
-      blurb: "Dress code is colour. All of it.",
-      capacity: 100,
-      sold: 92,
-      maxPerOrder: 2,
-    },
-    {
-      id: "kit",
-      name: "RSVP + Colour Kit",
-      priceCents: 1200,
-      blurb: "Paint, chalk and a poncho waiting at the door.",
-      capacity: 60,
-      sold: 21,
-      maxPerOrder: 4,
-    },
-  ],
-  wecametooswag: [
-    {
-      id: "rsvp",
-      name: "Free RSVP",
-      priceCents: 0,
-      capacity: 200,
-      sold: 9,
-      maxPerOrder: 4,
-    },
-  ],
-  "sniff-snort-pt-2": [
-    {
-      id: "early",
-      name: "Early Bird",
-      priceCents: 1000,
-      blurb: "First fifty only.",
-      capacity: 50,
-      sold: 50,
-      maxPerOrder: 4,
-    },
-    {
-      id: "ga",
-      name: "General Admission",
-      priceCents: 1500,
-      capacity: 150,
-      sold: 61,
-      maxPerOrder: 6,
-    },
-    {
-      id: "four",
-      name: "Group Of Four",
-      priceCents: 5000,
-      blurb: "One code, four heads through the door.",
-      capacity: 25,
-      sold: 4,
-      maxPerOrder: 2,
-      admits: 4,
-    },
-  ],
-  wecametoocosplay: [
-    {
-      id: "early",
-      name: "Early Bird",
-      priceCents: 1500,
-      blurb: "Gone.",
-      capacity: 60,
-      sold: 60,
-      maxPerOrder: 4,
-    },
-    {
-      id: "ga",
-      name: "General Admission",
-      priceCents: 2000,
-      capacity: 180,
-      sold: 44,
-      maxPerOrder: 6,
-    },
-    {
-      id: "vip",
-      name: "VIP + Contest Entry",
-      priceCents: 3500,
-      blurb: "Early entry and a slot in the costume contest.",
-      capacity: 40,
-      sold: 11,
-      maxPerOrder: 4,
-    },
-  ],
-  wecametoohalloween: [
-    {
-      id: "ga",
-      name: "General Admission",
-      priceCents: 2500,
-      capacity: 300,
-      sold: 27,
-      maxPerOrder: 6,
-    },
-    {
-      id: "vip",
-      name: "VIP",
-      priceCents: 4500,
-      blurb: "In from noon, private bar, own entrance.",
-      capacity: 60,
-      sold: 6,
-      maxPerOrder: 4,
-    },
-    {
-      id: "table",
-      name: "Table For Six",
-      priceCents: 25000,
-      blurb: "Reserved table, bottle service, six wristbands.",
-      capacity: 8,
-      sold: 1,
-      maxPerOrder: 1,
-      admits: 6,
-    },
-  ],
+/** Something extra bought with a ticket and picked up at the door. */
+export type Addon = {
+  id: string;
+  name: string;
+  priceCents: number;
+  maxPerOrder: number;
 };
 
+/* ---------------------------------------------------------- the catalog -- */
+
+let TIERS: Record<string, Tier[]> = {};
+let ADDONS: Addon[] = [];
+let catalogVersion = 0;
+const catalogListeners = new Set<() => void>();
+
+/** Replaces the catalog. Called by lib/ticket-catalog.ts once the database answers. */
+export function setTicketCatalog(tiers: Record<string, Tier[]>, addons: Addon[]) {
+  TIERS = tiers;
+  ADDONS = addons;
+  catalogVersion++;
+  catalogListeners.forEach((l) => l());
+}
+
+export function subscribeTicketCatalog(listener: () => void) {
+  catalogListeners.add(listener);
+  return () => {
+    catalogListeners.delete(listener);
+  };
+}
+
+/** 0 until the catalog has loaded once; bumps on every reload. */
+export const ticketCatalogVersion = () => catalogVersion;
+
 export const tiersFor = (slug: string): Tier[] => TIERS[slug] ?? [];
+
+/** Add-ons on offer with any ticket sold on the site. */
+export const addonsOn = (): Addon[] => ADDONS;
 
 /**
  * Dates whose RSVP is taken on Posh instead of through this site's checkout,
@@ -269,8 +159,8 @@ export const capacityOf = (slug: string) =>
 /* ---------------------------------------------------------------- pricing -- */
 
 /**
- * Service fee, charged per paid ticket. Free tickets are genuinely free: no fee
- * is ever added to a $0 line.
+ * Service fee: a percentage of tickets and add-ons, plus a flat amount per paid
+ * ticket. A free RSVP with nothing added is genuinely free.
  */
 export const SERVICE_RATE = 0.055;
 export const SERVICE_FLAT_CENTS = 119;
@@ -283,25 +173,9 @@ export type OrderLine = {
   admits: number;
   /** A gift, not an admission. No pass is issued and no fee is charged on it. */
   donation?: boolean;
+  /** An add-on (drink, spoon): no pass, shown to the door on scan. */
+  addon?: boolean;
 };
-
-export type Promo = {
-  code: string;
-  kind: "percent" | "flat" | "fees";
-  /** Percent for "percent", cents for "flat", unused for "fees". */
-  value?: number;
-  label: string;
-};
-
-/** Demo codes. A live build validates these server-side, not in the bundle. */
-export const PROMOS: Promo[] = [
-  { code: "WCTP10", kind: "percent", value: 10, label: "10% off tickets" },
-  { code: "FIVEOFF", kind: "flat", value: 500, label: "$5 off your order" },
-  { code: "GUESTLIST", kind: "fees", label: "Service fees waived" },
-];
-
-export const findPromo = (code: string): Promo | null =>
-  PROMOS.find((p) => p.code === code.trim().toUpperCase()) ?? null;
 
 /**
  * A pending order: one event, a quantity per tier, and an optional code.
@@ -314,7 +188,8 @@ export type Cart = {
   qty: Record<string, number>;
   /** Chosen amount in cents for donation tiers, keyed by tier id. */
   amounts?: Record<string, number>;
-  promoCode?: string;
+  /** Add-on quantities, keyed by add-on id. */
+  addons?: Record<string, number>;
 };
 
 /**
@@ -326,7 +201,7 @@ export type Cart = {
  */
 export function linesFromCart(cart: Cart | null): OrderLine[] {
   if (!cart) return [];
-  return tiersFor(cart.eventSlug)
+  const tickets = tiersFor(cart.eventSlug)
     .map((t) => ({
       tierId: t.id,
       tierName: t.name,
@@ -340,6 +215,21 @@ export function linesFromCart(cart: Cart | null): OrderLine[] {
       donation: t.donation,
     }))
     .filter((l) => l.qty > 0 && (!l.donation || l.unitCents > 0));
+
+  // Add-ons ride on a ticket. Without one in the cart they are dropped rather
+  // than sold on their own - there is nothing at the door to attach them to.
+  if (!tickets.some((l) => !l.donation)) return tickets;
+  const extras = addonsOn()
+    .map((a) => ({
+      tierId: `addon:${a.id}`,
+      tierName: a.name,
+      qty: Math.min(cart.addons?.[a.id] ?? 0, a.maxPerOrder),
+      unitCents: a.priceCents,
+      admits: 0,
+      addon: true,
+    }))
+    .filter((l) => l.qty > 0);
+  return [...tickets, ...extras];
 }
 
 export const cartCount = (cart: Cart | null) =>
@@ -350,7 +240,7 @@ export type Totals = {
   discountCents: number;
   feeCents: number;
   totalCents: number;
-  /** Tickets, not heads, and not donations. */
+  /** Tickets, not heads, not donations and not add-ons. */
   ticketCount: number;
   /** Heads - a table for six counts as six. */
   admitCount: number;
@@ -358,43 +248,38 @@ export type Totals = {
   donationCents: number;
 };
 
-export function totalsFor(lines: OrderLine[], promo?: Promo | null): Totals {
+export function totalsFor(lines: OrderLine[]): Totals {
   const subtotalCents = lines.reduce((n, l) => n + l.unitCents * l.qty, 0);
-  const ticketCount = lines.reduce((n, l) => n + (l.donation ? 0 : l.qty), 0);
+  const ticketCount = lines.reduce(
+    (n, l) => n + (l.donation || l.addon ? 0 : l.qty),
+    0,
+  );
   const admitCount = lines.reduce((n, l) => n + l.qty * l.admits, 0);
   const donationCents = lines.reduce(
     (n, l) => n + (l.donation ? l.unitCents * l.qty : 0),
     0,
   );
-  // Fees ride on tickets only. Taking a cut of a gift would be a strange thing
-  // to put in front of someone choosing to give.
+  // Fees ride on tickets and add-ons, never on a gift: taking a cut of a
+  // donation would be a strange thing to put in front of someone choosing to
+  // give. The flat part is per paid ticket only.
   const paidCount = lines.reduce(
-    (n, l) => n + (!l.donation && l.unitCents > 0 ? l.qty : 0),
+    (n, l) => n + (!l.donation && !l.addon && l.unitCents > 0 ? l.qty : 0),
     0,
   );
+  const feeable = subtotalCents - donationCents;
 
-  // Codes discount tickets, never the gift: a promo should not quietly shrink
-  // the amount someone chose to give.
-  const ticketSubtotal = subtotalCents - donationCents;
-  let discountCents = 0;
-  if (promo?.kind === "percent")
-    discountCents = Math.round((ticketSubtotal * (promo.value ?? 0)) / 100);
-  if (promo?.kind === "flat")
-    discountCents = Math.min(ticketSubtotal, promo.value ?? 0);
-
-  const discounted = subtotalCents - discountCents;
-
-  let feeCents =
-    paidCount === 0
+  // Must match create-ticket-checkout exactly, or the Stripe page shows a
+  // different number from the one on the site.
+  const feeCents =
+    feeable === 0
       ? 0
-      : Math.round(discounted * SERVICE_RATE) + SERVICE_FLAT_CENTS * paidCount;
-  if (promo?.kind === "fees") feeCents = 0;
+      : Math.round(feeable * SERVICE_RATE) + SERVICE_FLAT_CENTS * paidCount;
 
   return {
     subtotalCents,
-    discountCents,
+    discountCents: 0,
     feeCents,
-    totalCents: discounted + feeCents,
+    totalCents: subtotalCents + feeCents,
     ticketCount,
     admitCount,
     donationCents,

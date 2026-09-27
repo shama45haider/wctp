@@ -16,6 +16,8 @@ const TIMEOUT_MS = 20_000;
 export async function startTicketCheckout(input: {
   eventSlug: string;
   lines: { tierId: string; qty: number }[];
+  /** Add-on ids and quantities. Priced from public.ticket_addons, never from here. */
+  addons?: { addonId: string; qty: number }[];
 }): Promise<{ url?: string; error?: string }> {
   let supabase;
   try {
@@ -36,6 +38,7 @@ export async function startTicketCheckout(input: {
         body: {
           eventSlug: input.eventSlug,
           lines: paid,
+          addons: (input.addons ?? []).filter((a) => a.qty > 0),
           origin: typeof window !== "undefined" ? window.location.origin : undefined,
         },
       },
@@ -63,5 +66,38 @@ export async function startTicketCheckout(input: {
     return { error: "Checkout could not start." };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * The buyer landing back from Stripe: confirms the session and records the
+ * order if the webhook has not yet, so tickets show up straight away.
+ */
+export async function confirmTicketPayment(
+  sessionId: string,
+): Promise<{ ok: boolean; orderId?: string; error?: string }> {
+  let supabase;
+  try {
+    supabase = getSupabase();
+  } catch {
+    return { ok: false, error: "Not connected." };
+  }
+  if (!supabase) return { ok: false, error: "Not connected." };
+
+  try {
+    const res = await supabase.functions.invoke<{ ok?: boolean; orderId?: string; error?: string }>(
+      "ticket-order-status",
+      { body: { sessionId } },
+    );
+    if (res.error) {
+      const body = await (res.error as { context?: Response }).context
+        ?.json?.()
+        .catch(() => null);
+      return { ok: false, error: body?.error ?? "Could not confirm the payment." };
+    }
+    if (!res.data?.ok) return { ok: false, error: res.data?.error ?? "Could not confirm the payment." };
+    return { ok: true, orderId: res.data.orderId };
+  } catch {
+    return { ok: false, error: "Could not confirm the payment." };
   }
 }

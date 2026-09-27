@@ -5,6 +5,7 @@ import { Editable } from "./Editable";
 import { heroPhoto, type Event } from "@/lib/events";
 import { useNow } from "@/lib/now";
 import { isPastEvent, money, priceFrom, saleState } from "@/lib/tickets";
+import { useTicketCatalog } from "@/lib/ticket-catalog";
 
 /**
  * The two pieces of the event page that say whether tickets are on sale -
@@ -21,6 +22,7 @@ import { isPastEvent, money, priceFrom, saleState } from "@/lib/tickets";
 
 export function EventFlyer({ event }: { event: Event }) {
   const now = useNow();
+  useTicketCatalog();
   const past = isPastEvent(event, now);
   const onSale = saleState(event, now) === "on-sale";
 
@@ -52,6 +54,7 @@ export function EventFlyer({ event }: { event: Event }) {
 
 export function EventFromStat({ event }: { event: Event }) {
   const now = useNow();
+  useTicketCatalog();
   const from = priceFrom(event);
   // No price while on sale means the RSVP is on Posh, which owns the price -
   // see poshRsvpFor() in lib/tickets.ts. "Free" would only be a guess.

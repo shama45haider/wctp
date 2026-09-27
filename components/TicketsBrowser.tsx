@@ -11,11 +11,14 @@ import type { RuntimeEventList } from "@/lib/events-runtime";
 import {
   money,
   poshRsvpFor,
+  admissionTiers,
+  isPastEvent,
   priceFrom,
   saleState,
   ticketsLeft,
   tiersFor,
 } from "@/lib/tickets";
+import { useTicketCatalog } from "@/lib/ticket-catalog";
 
 type FilterId = "all" | "free" | "paid" | "past";
 
@@ -35,6 +38,8 @@ const LOW_STOCK = 25;
 function stockNote(e: Event, now: Date) {
   // Posh keeps the stock for a date that RSVPs there, so there is nothing to say.
   if (saleState(e, now) !== "on-sale" || poshRsvpFor(e.slug)) return null;
+  // Sold off-site: the stock is theirs, and "0 LEFT" here would be a lie.
+  if (admissionTiers(e.slug).length === 0) return null;
   const left = ticketsLeft(e.slug);
   return left <= LOW_STOCK ? `${left} LEFT` : null;
 }
@@ -120,8 +125,10 @@ function Card({ e, now, linked }: { e: Event; now: Date; linked: boolean }) {
             <span className="text-silverfaint">
               {state === "sold-out" ? (
                 <Editable k="tickets.card.soldOut">SOLD OUT</Editable>
-              ) : (
+              ) : isPastEvent(e, now) ? (
                 <Editable k="tickets.card.salesClosed">SALES CLOSED</Editable>
+              ) : (
+                <Editable k="tickets.card.notYet">NOT ON SALE YET</Editable>
               )}
             </span>
           ) : (
@@ -135,6 +142,8 @@ function Card({ e, now, linked }: { e: Event; now: Date; linked: boolean }) {
               <span className="text-bloodhi">
                 {posh ? (
                   <Editable k="tickets.card.posh">RSVP ON POSH</Editable>
+                ) : from === null ? (
+                  <Editable k="tickets.card.offsite">TICKETS OFF-SITE</Editable>
                 ) : from === 0 ? (
                   <Editable k="tickets.card.free">FREE</Editable>
                 ) : (
@@ -177,6 +186,7 @@ function Card({ e, now, linked }: { e: Event; now: Date; linked: boolean }) {
  * happen.
  */
 export default function TicketsBrowser({ runtime }: { runtime: RuntimeEventList }) {
+  useTicketCatalog();
   const { upcoming, past, now, hasPage } = runtime;
   const [filter, setFilter] = useState<FilterId>("all");
   const [query, setQuery] = useState("");

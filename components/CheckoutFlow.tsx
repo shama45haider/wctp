@@ -9,11 +9,10 @@ import { findEvent, heroPhoto, monthOf, dayOf, org } from "@/lib/events";
 import { startTicketCheckout } from "@/lib/ticket-checkout";
 import { atHandle } from "@/lib/handle";
 import {
-  findPromo,
+  addonsOn,
   icsFor,
   maxSelectable,
   money,
-  PROMOS,
   tiersFor,
   totalsFor,
   usd,
@@ -21,6 +20,7 @@ import {
   type Totals,
 } from "@/lib/tickets";
 import { useAccount, type Order } from "@/lib/demo-account";
+import { useTicketCatalog } from "@/lib/ticket-catalog";
 import { btn, btnGo, field } from "@/lib/ui";
 
 type Step = "order" | "details" | "payment" | "done";
@@ -109,16 +109,11 @@ function Summary({
   title,
   lines,
   totals,
-  promoLabel,
-  feeWaived,
 }: {
   slug: string;
   title: string;
   lines: OrderLine[];
   totals: Totals;
-  promoLabel?: string;
-  /** True only when a code removed a fee that would otherwise have applied. */
-  feeWaived?: boolean;
 }) {
   const ev = findEvent(slug);
 
@@ -166,34 +161,12 @@ function Summary({
           <dd className="text-chalk">{usd(totals.subtotalCents)}</dd>
         </div>
 
-        {totals.discountCents > 0 && (
-          <div className="label mt-2 flex justify-between text-bloodhi">
-            <dt>
-              {promoLabel ? (
-                promoLabel.toUpperCase()
-              ) : (
-                <Editable k="checkout.summary.discount">DISCOUNT</Editable>
-              )}
-            </dt>
-            <dd>&minus;{usd(totals.discountCents)}</dd>
-          </div>
-        )}
-
-        {/* An all-free order never had a fee, so "waived" would be a boast
-            about nothing. The row only appears when there is a fee, or when a
-            code actually took one away. */}
-        {(totals.feeCents > 0 || feeWaived) && (
+        {totals.feeCents > 0 && (
           <div className="label mt-2 flex justify-between text-silverdim">
             <dt>
               <Editable k="checkout.summary.serviceFee">SERVICE FEE</Editable>
             </dt>
-            <dd className={feeWaived ? "text-bloodhi" : ""}>
-              {feeWaived ? (
-                <Editable k="checkout.summary.feeWaived">WAIVED</Editable>
-              ) : (
-                usd(totals.feeCents)
-              )}
-            </dd>
+            <dd>{usd(totals.feeCents)}</dd>
           </div>
         )}
 
@@ -253,15 +226,15 @@ export default function CheckoutFlow() {
     lines,
     passCount,
     adjustQty,
-    setPromoCode,
+    adjustAddon,
     clearCart,
     placeOrder,
   } = useAccount();
 
   const [step, setStep] = useState<Step>("order");
   const [order, setOrder] = useState<Order | null>(null);
-  const [promoInput, setPromoInput] = useState("");
-  const [promoError, setPromoError] = useState<string | null>(null);
+  // Subscribes to the live tiers, so steppers know their real limits.
+  useTicketCatalog();
   const [buyer, setBuyer] = useState({ name: "", email: "", phone: "" });
   const [touched, setTouched] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
@@ -291,8 +264,7 @@ export default function CheckoutFlow() {
   }, [progress]);
 
   const event = cart ? findEvent(cart.eventSlug) : null;
-  const promo = cart?.promoCode ? findPromo(cart.promoCode) : null;
-  const totals = totalsFor(lines, promo);
+  const totals = totalsFor(lines);
 
   // A ticket is issued to the account's handle when it has one; the field
   // showing it is read-only, so this is the same value, taken from the source
@@ -313,8 +285,11 @@ export default function CheckoutFlow() {
         const { url, error } = await startTicketCheckout({
           eventSlug: cart?.eventSlug ?? "",
           lines: lines
-            .filter((l) => !l.donation && l.qty > 0)
+            .filter((l) => !l.donation && !l.addon && l.qty > 0)
             .map((l) => ({ tierId: l.tierId, qty: l.qty })),
+          addons: lines
+            .filter((l) => l.addon && l.qty > 0)
+            .map((l) => ({ addonId: l.tierId.replace(/^addon:/, ""), qty: l.qty })),
         });
         if (url) {
           window.location.assign(url);
@@ -381,16 +356,6 @@ export default function CheckoutFlow() {
   const detailsOk = nameOk && emailOk;
   const free = totals.totalCents === 0;
 
-  const applyPromo = () => {
-    const found = findPromo(promoInput);
-    if (!found) {
-      setPromoError("That code is not valid.");
-      return;
-    }
-    setPromoError(null);
-    setPromoCode(found.code);
-    setPromoInput("");
-  };
 
   return (
     <Shell>
@@ -424,6 +389,10 @@ export default function CheckoutFlow() {
                   const tier = tiersFor(event.slug).find(
                     (t) => t.id === l.tierId,
                   );
+                  const addonId = l.addon ? l.tierId.replace(/^addon:/, "") : null;
+                  const addon = addonId
+                    ? addonsOn().find((a) => a.id === addonId)
+                    : undefined;
                   return (
                     <div
                       key={l.tierId}
@@ -438,6 +407,13 @@ export default function CheckoutFlow() {
                             <Editable k="checkout.order.giftNote">
                               GIFT · NO FEE, NO TICKET
                             </Editable>
+                          ) : l.addon ? (
+                            <>
+                              {money(l.unitCents)}{" "}
+                              <Editable k="checkout.order.addonNote">
+                                EACH · ADD-ON, PICK UP AT THE DOOR
+                              </Editable>
+                            </>
                           ) : (
                             <>
                               {money(l.unitCents)}{" "}
@@ -460,6 +436,13 @@ export default function CheckoutFlow() {
                         >
                           CHANGE
                         </Link>
+                      ) : addonId ? (
+                        <QtyStepper
+                          qty={l.qty}
+                          max={addon?.maxPerOrder ?? l.qty}
+                          label={l.tierName}
+                          onStep={(d) => adjustAddon(event.slug, addonId, d)}
+                        />
                       ) : (
                         <QtyStepper
                           qty={l.qty}
@@ -476,57 +459,6 @@ export default function CheckoutFlow() {
                     </div>
                   );
                 })}
-              </div>
-
-              <div className="mt-6 border border-line p-4">
-                <label htmlFor="promo" className="label text-silverfaint">
-                  <Editable k="checkout.promo.label">PROMO CODE</Editable>
-                </label>
-                {promo ? (
-                  <div className="mt-2 flex items-center justify-between gap-4 border border-[rgba(200,16,46,0.5)] px-3 py-2.5">
-                    <span className="label text-bloodhi">
-                      {promo.code} · {promo.label.toUpperCase()}
-                    </span>
-                    <button
-                      onClick={() => setPromoCode(null)}
-                      className="label text-silverfaint hover:text-chalk"
-                    >
-                      REMOVE
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="mt-2 flex gap-2">
-                      <input
-                        id="promo"
-                        value={promoInput}
-                        onChange={(e) => {
-                          setPromoInput(e.target.value);
-                          setPromoError(null);
-                        }}
-                        onKeyDown={(e) => e.key === "Enter" && applyPromo()}
-                        placeholder="Enter code"
-                        className={`${field} min-w-0 flex-1 uppercase`}
-                      />
-                      <button
-                        onClick={applyPromo}
-                        disabled={!promoInput.trim()}
-                        className={btn}
-                      >
-                        Apply
-                      </button>
-                    </div>
-                    {promoError && (
-                      <p className="label mt-2 text-bloodhi" role="alert">
-                        {promoError.toUpperCase()}
-                      </p>
-                    )}
-                    <p className="label mt-3 text-silverfaint">
-                      <Editable k="checkout.promo.demoCodes">DEMO CODES:</Editable>{" "}
-                      {PROMOS.map((p) => p.code).join(" · ")}
-                    </p>
-                  </>
-                )}
               </div>
 
               {gate ? (
@@ -827,8 +759,6 @@ export default function CheckoutFlow() {
           title={event.title}
           lines={lines}
           totals={totals}
-          promoLabel={promo?.label}
-          feeWaived={promo?.kind === "fees"}
         />
       </div>
     </Shell>
@@ -895,10 +825,8 @@ function Confirmation({ order }: { order: Order }) {
               )}{" "}
               <Editable k="checkout.done.for">for</Editable> {order.eventTitle}
               {ev && `, ${ev.dow} ${dayOf(ev.date)} ${monthOf(ev.date)}`}.{" "}
-              <Editable k="checkout.done.copyWouldLand">A copy would land in</Editable>{" "}
-              {order.buyer.email}{" "}
-              <Editable k="checkout.done.liveBuildNote">
-                {`on a live build - here they live in your account, on this device. The address is emailed from ${org.email} to`}
+              <Editable k="checkout.done.inAccount">
+                {`They're saved to your account. The address is emailed from ${org.email} to`}
               </Editable>{" "}
               {order.buyer.email}{" "}
               <Editable k="checkout.done.beforeNight">before the night.</Editable>

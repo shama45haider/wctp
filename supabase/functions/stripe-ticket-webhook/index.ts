@@ -27,6 +27,7 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { recordStoreOrder } from "../_shared/store.ts";
+import { recordTicketOrder } from "../_shared/tickets.ts";
 
 const enc = new TextEncoder();
 
@@ -73,15 +74,6 @@ async function signatureIsGood(
   let diff = 0;
   for (let i = 0; i < mine.length; i++) diff |= mine.charCodeAt(i) ^ v1.charCodeAt(i);
   return diff === 0;
-}
-
-/** WCTP-XXXXXX, the shape the rest of the site expects an order id to be. */
-function orderId() {
-  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  let out = "";
-  const bytes = crypto.getRandomValues(new Uint8Array(6));
-  for (const b of bytes) out += alphabet[b % alphabet.length];
-  return `WCTP-${out}`;
 }
 
 Deno.serve(async (req) => {
@@ -132,106 +124,15 @@ Deno.serve(async (req) => {
       : new Response(`store order failed: ${out.error}`, { status: 500 });
   }
 
-  const userId = meta.user_id;
-  const eventSlug = meta.event_slug;
-  if (!userId || !eventSlug) return new Response("no metadata", { status: 200 });
-
-  let lines: { t: string; n: string; u: number; q: number; a: number }[];
-  try {
-    lines = JSON.parse(meta.lines ?? "[]");
-  } catch {
-    return new Response("bad metadata", { status: 200 });
-  }
-  if (lines.length === 0) return new Response("no lines", { status: 200 });
-
   const admin = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
-
-  // Already handled? Stripe delivers more than once by design.
-  const { data: seen } = await admin
-    .from("orders")
-    .select("id")
-    .eq("stripe_session_id", sessionId)
-    .maybeSingle();
-  if (seen) return new Response("already done", { status: 200 });
-
-  // What Stripe actually took, not what the site expected it to.
-  const total = Number(session.amount_total ?? 0);
-  const subtotal = Number(meta.subtotal_cents ?? 0);
-  const fee = Number(meta.fee_cents ?? 0);
-
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("name, email, phone")
-    .eq("id", userId)
-    .maybeSingle();
-
-  const { data: eventRow } = await admin
-    .from("events")
-    .select("title")
-    .eq("slug", eventSlug)
-    .maybeSingle();
-
-  const id = orderId();
-
-  const { error: orderErr } = await admin.from("orders").insert({
-    id,
-    user_id: userId,
-    event_slug: eventSlug,
-    event_title: eventRow?.title ?? eventSlug,
-    subtotal_cents: subtotal,
-    discount_cents: 0,
-    fee_cents: fee,
-    total_cents: total,
-    buyer_name: profile?.name ?? "",
-    buyer_email: profile?.email ?? String(session.customer_email ?? ""),
-    buyer_phone: profile?.phone ?? null,
-    paid_at: new Date().toISOString(),
-    stripe_session_id: sessionId,
-  });
-
-  if (orderErr) {
-    // A unique violation here is the race that the check above cannot close -
-    // two deliveries in flight at once. Both are the same payment, so the
-    // loser acknowledges rather than asking Stripe to try again.
-    if (/duplicate key|unique/i.test(orderErr.message)) {
-      return new Response("already done", { status: 200 });
-    }
-    // Anything else: fail loudly so Stripe retries rather than a paid order
-    // quietly never existing.
-    return new Response(`order failed: ${orderErr.message}`, { status: 500 });
+  const out = await recordTicketOrder(admin, session);
+  if (!out.ok) {
+    // A database failure asks Stripe to retry; anything else (not ours, not
+    // paid, bad metadata) is acknowledged so it stops.
+    return new Response(out.error, { status: out.retry ? 500 : 200 });
   }
-
-  const { error: lineErr } = await admin.from("order_lines").insert(
-    lines.map((l) => ({
-      order_id: id,
-      tier_id: l.t,
-      tier_name: l.n,
-      qty: l.q,
-      unit_cents: l.u,
-      admits: l.a,
-      donation: false,
-    })),
-  );
-  if (lineErr) return new Response(`lines failed: ${lineErr.message}`, { status: 500 });
-
-  const passes: Record<string, unknown>[] = [];
-  for (const l of lines) {
-    for (let i = 0; i < l.q; i++) {
-      passes.push({
-        code: `${id}-${l.t.toUpperCase()}-${i + 1}`,
-        order_id: id,
-        tier_id: l.t,
-        tier_name: l.n,
-        admits: l.a,
-        price_cents: l.u,
-      });
-    }
-  }
-  const { error: passErr } = await admin.from("passes").insert(passes);
-  if (passErr) return new Response(`passes failed: ${passErr.message}`, { status: 500 });
-
   return new Response("ok", { status: 200 });
 });

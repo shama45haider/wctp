@@ -5,6 +5,7 @@ import EventLink from "./EventLink";
 import { Editable } from "./Editable";
 import type { RuntimeEventList } from "@/lib/events-runtime";
 import { saleState } from "@/lib/tickets";
+import { useTicketCatalog } from "@/lib/ticket-catalog";
 
 /**
  * The "NEXT UP" line at the top of /tickets.
@@ -17,6 +18,7 @@ import { saleState } from "@/lib/tickets";
  * once per component. See lib/now.ts.
  */
 export default function TicketsHeader({ runtime }: { runtime: RuntimeEventList }) {
+  useTicketCatalog();
   const { upcoming, now, hasPage } = runtime;
 
   const onSale = upcoming.filter((e) => saleState(e, now) === "on-sale");
