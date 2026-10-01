@@ -231,7 +231,7 @@ function ProductEditor({
           >
             {shown ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={shown} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={shown} alt="" className="absolute inset-0 h-full w-full object-contain" />
             ) : (
               <span className="label px-3 text-silverfaint">TAP TO ADD A PHOTO</span>
             )}
@@ -685,7 +685,7 @@ export default function StoreAdmin() {
                     <div className="relative h-20 w-20 shrink-0 overflow-hidden bg-ink2">
                       {p.imagePath && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={siteImageUrl(p.imagePath) ?? ""} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                        <img src={siteImageUrl(p.imagePath) ?? ""} alt="" className="absolute inset-0 h-full w-full object-contain" />
                       )}
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col">
