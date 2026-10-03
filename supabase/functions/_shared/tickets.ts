@@ -28,6 +28,8 @@ export async function recordTicketOrder(
   admin: Admin,
   // deno-lint-ignore no-explicit-any
   session: Record<string, any>,
+  /** For reading back the invoice Stripe made; without it the order just has no link. */
+  stripeKey?: string,
 ): Promise<{ ok: true; orderId: string } | { ok: false; error: string; retry?: boolean }> {
   const sessionId = String(session.id ?? "");
   if (!sessionId) return { ok: false, error: "No session." };
@@ -166,5 +168,36 @@ export async function recordTicketOrder(
     await admin.rpc("ticket_count_sale", { p_event: eventSlug, p_tier: l.t, p_qty: l.q });
   }
 
+  await saveInvoice(admin, id, session, stripeKey);
   return { ok: true, orderId: id };
+}
+
+/**
+ * Keeps the Stripe invoice's number and link on the order, best effort: a
+ * failure here - or a database without 0029's columns yet - costs the link,
+ * never the sale, which is already recorded by the time this runs.
+ */
+async function saveInvoice(
+  admin: Admin,
+  id: string,
+  // deno-lint-ignore no-explicit-any
+  session: Record<string, any>,
+  stripeKey: string | undefined,
+) {
+  const invoiceId: string | null =
+    typeof session.invoice === "string" ? session.invoice : session.invoice?.id ?? null;
+  if (!invoiceId || !stripeKey) return;
+  try {
+    const res = await fetch(`https://api.stripe.com/v1/invoices/${encodeURIComponent(invoiceId)}`, {
+      headers: { Authorization: `Bearer ${stripeKey}` },
+    });
+    if (!res.ok) return;
+    const inv = await res.json();
+    await admin
+      .from("orders")
+      .update({ invoice_number: inv.number ?? null, invoice_url: inv.hosted_invoice_url ?? null })
+      .eq("id", id);
+  } catch {
+    // The link is a nicety; Stripe has already emailed the invoice itself.
+  }
 }

@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
-  const out = await recordTicketOrder(admin, session);
+  const out = await recordTicketOrder(admin, session, Deno.env.get("STRIPE_SECRET_KEY"));
   if (!out.ok) {
     // A database failure asks Stripe to retry; anything else (not ours, not
     // paid, bad metadata) is acknowledged so it stops.

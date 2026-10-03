@@ -199,6 +199,12 @@ Deno.serve(async (req) => {
   const total = subtotal + fee;
   if (total > MAX_TOTAL_CENTS) return json({ error: "That order is too large." }, 400);
 
+  // The date's name, for the invoice and the order: the dashboard's copy if an
+  // admin has saved the date's address, a posted date's own row, or the slug.
+  // Built-in dates' slugs are their titles in lowercase, so even the last
+  // resort reads right.
+  const title = await titleFor(admin, eventSlug);
+
   // ------------------------------------------------------------- Stripe --
 
   const form = new URLSearchParams();
@@ -241,8 +247,20 @@ Deno.serve(async (req) => {
   form.set("metadata[addons]", JSON.stringify(
     extras.map((a) => ({ i: a.id, n: a.name, u: a.unit, q: a.qty })),
   ));
+  form.set("metadata[event_title]", title);
   form.set("metadata[fee_cents]", String(fee));
   form.set("metadata[subtotal_cents]", String(subtotal));
+
+  // A real Stripe invoice for the payment, emailed to the buyer - the same as
+  // the store's prizes get.
+  form.set("invoice_creation[enabled]", "true");
+  form.set("invoice_creation[invoice_data][description]", `WECAMETOOPARTY tickets - ${title}`);
+  form.set(
+    "invoice_creation[invoice_data][footer]",
+    "Your ticket QR is on your account at wecametooparty.com/account. The address is emailed to you the day before.",
+  );
+  form.set("invoice_creation[invoice_data][metadata][kind]", "tickets");
+  form.set("invoice_creation[invoice_data][metadata][event_slug]", eventSlug);
 
   const res = await fetch(STRIPE_ENDPOINT, {
     method: "POST",
@@ -260,3 +278,12 @@ Deno.serve(async (req) => {
 
   return json({ url: session.url });
 });
+
+// deno-lint-ignore no-explicit-any
+async function titleFor(admin: any, slug: string): Promise<string> {
+  const detail = await admin.from("event_details").select("title").eq("event_slug", slug).maybeSingle();
+  if (detail.data?.title) return String(detail.data.title);
+  const row = await admin.from("events").select("title").eq("slug", slug).maybeSingle();
+  if (row.data?.title) return String(row.data.title);
+  return slug.toUpperCase();
+}

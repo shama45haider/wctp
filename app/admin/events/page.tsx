@@ -18,6 +18,7 @@ import {
 import { siteImageUrl } from "@/lib/site-content";
 import EventPhotoPicker from "@/components/EventPhotoPicker";
 import TierEditor from "@/components/TierEditor";
+import EventAddressAdmin from "@/components/EventAddressAdmin";
 import { btn, btnGo, field } from "@/lib/ui";
 import { dayOf, monthOf } from "@/lib/events";
 
@@ -351,6 +352,15 @@ export default function AdminEvents() {
       </header>
 
       <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] lg:items-start lg:gap-5">
+        {/* ------------------------------------------ tickets and address -- */}
+        <section className="border border-line bg-ink lg:col-span-2">
+          <PanelHead
+            title="Tickets & address"
+            sub="Any upcoming date, built in or posted: its prices, and the address everyone with a ticket is emailed the day before."
+          />
+          <EventAddressAdmin />
+        </section>
+
         {/* --------------------------------------------------------- form -- */}
         <section className="border border-line bg-ink">
           <PanelHead

@@ -1,0 +1,33 @@
+# Emails each date's address to its ticket holders - see
+# supabase/functions/send-event-addresses. Hourly, so the first round goes out
+# within the hour after noon New York time the day before, and anyone who buys
+# after that still gets the address within the hour.
+name: Email addresses to ticket holders
+
+on:
+  schedule:
+    - cron: "41 * * * *"
+  # Run it by hand from the Actions tab.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "send-addresses"
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call send-event-addresses
+        env:
+          CRON_SECRET: ${{ secrets.ADDRESS_CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -X POST "https://mkcuiglmsmxcchywruay.supabase.co/functions/v1/send-event-addresses" \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d '{}'

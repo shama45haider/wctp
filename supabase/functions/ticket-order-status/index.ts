@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
   }
 
   const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
-  const out = await recordTicketOrder(admin, session);
+  const out = await recordTicketOrder(admin, session, key);
   if (!out.ok) return json({ ok: false, error: out.error });
   return json({ ok: true, orderId: out.orderId });
 });
