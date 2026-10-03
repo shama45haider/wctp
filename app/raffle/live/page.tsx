@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import Logo from "@/components/Logo";
 import RaffleWheel, { landingRotation, type WheelEntrant } from "@/components/RaffleWheel";
 import { org } from "@/lib/events";
 import { avatarUrl } from "@/lib/profile-data";
@@ -386,15 +387,19 @@ export default function RaffleLive() {
   return (
     <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(1.25rem,4vw,3rem)]">
       <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 border-b border-line pb-5">
-        <div className="min-w-0">
-          <p className="flex items-center gap-2">
-            <span className="dot shrink-0" />
-            <span className="label text-bloodhi">LIVE DRAW</span>
-          </p>
-          <h1 className="font-display mt-3 text-[clamp(2.5rem,9vw,5rem)] leading-[0.82] tracking-[-0.02em] break-words">
-            {titleLead && <span className="chrome">{titleLead} </span>}
-            <span className="raffle-gold">{titleLast}</span>
-          </h1>
+        <div className="flex min-w-0 items-end gap-4 sm:gap-6">
+          {/* The raffle's cyan halftone logo, the same one on the popup. */}
+          <Logo finish="cyan-halftone" alt="" eager className="h-auto w-[clamp(4.5rem,14vw,8rem)] shrink-0 -rotate-6" />
+          <div className="min-w-0">
+            <p className="flex items-center gap-2">
+              <span className="dot shrink-0" />
+              <span className="label text-bloodhi">LIVE DRAW</span>
+            </p>
+            <h1 className="font-display mt-3 text-[clamp(2.5rem,9vw,5rem)] leading-[0.82] tracking-[-0.02em] break-words">
+              {titleLead && <span className="chrome">{titleLead} </span>}
+              <span className="raffle-gold">{titleLast}</span>
+            </h1>
+          </div>
         </div>
         <div className="flex gap-6 sm:text-right">
           <div>

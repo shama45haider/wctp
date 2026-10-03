@@ -1,18 +1,15 @@
 import Link from "next/link";
 import { org } from "@/lib/events";
 import { Editable } from "./Editable";
+import Logo from "./Logo";
 import { navLinks } from "./Nav";
 
 export default function Footer() {
   return (
     <footer className="border-t border-line pt-14 pb-10">
       <div className="mx-auto w-[92vw] max-w-[1180px]">
-        <div className="mb-12 flex flex-wrap items-end justify-between gap-8">
-          <div className="font-display chrome text-[clamp(2rem,7vw,4.5rem)] leading-[0.9]">
-            <Editable k="footer.wordmark.line1">WE CAME</Editable>
-            <br />
-            <Editable k="footer.wordmark.line2">TOO PARTY</Editable>
-          </div>
+        <div className="mb-10 flex flex-wrap items-center justify-between gap-x-8 gap-y-6">
+          <Logo finish="grunge" className="h-auto w-[clamp(6.5rem,20vw,8.5rem)] -rotate-3" />
           <div className="label -my-3.5 flex flex-wrap gap-x-6">
             {navLinks.map((l) => (
               <Link

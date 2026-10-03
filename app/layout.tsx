@@ -54,11 +54,14 @@ export const metadata: Metadata = {
     title: "WECAMETOOPARTY",
     description:
       "Nights in New York City. 42 events, 4,342 people. RSVP and the address lands in your inbox.",
-    images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
+    // The red halftone logo on black - the home page's own finish.
+    images: [{ url: "/brand/og.jpg", width: 1200, height: 630, alt: "WE CAME TOO PARTY" }],
   },
-  twitter: { card: "summary" },
+  twitter: { card: "summary_large_image" },
+  // app/favicon.ico covers the tab; this is the sharper one browsers prefer
+  // when they can take a PNG. Both are the clean logo, white on black.
   icons: {
-    icon: "/favicon.svg",
+    icon: [{ url: "/icons/favicon-96.png", type: "image/png", sizes: "96x96" }],
     apple: "/apple-touch-icon.png",
   },
   appleWebApp: {

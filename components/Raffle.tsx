@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Editable } from "./Editable";
+import Logo from "./Logo";
 import { org } from "@/lib/events";
 import { avatarUrl, useOwnProfile } from "@/lib/profile-data";
 import { bubble, round } from "@/lib/raffle-fonts";
@@ -341,12 +342,17 @@ export default function Raffle() {
               </button>
             </div>
 
-            <h2
-              id="raffle-title"
-              className="raffle-bubbly raffle-title mt-2 text-[clamp(2rem,9vw,2.5rem)] leading-[0.95] break-words"
-            >
-              {raffle.title}
-            </h2>
+            {/* The raffle wears the cyan halftone logo, slapped on beside the
+                title like one more sticker. */}
+            <div className="mt-2 flex items-center gap-3">
+              <h2
+                id="raffle-title"
+                className="raffle-bubbly raffle-title min-w-0 flex-1 text-[clamp(2rem,9vw,2.5rem)] leading-[0.95] break-words"
+              >
+                {raffle.title}
+              </h2>
+              <Logo finish="cyan-halftone" alt="" className="h-auto w-[4.75rem] shrink-0 rotate-[8deg]" />
+            </div>
 
             {raffle.blurb && (
               <p className="mt-1.5 line-clamp-3 text-[0.875rem] leading-snug text-silverdim">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Logo from "./Logo";
 import NavAuthButton from "./NavAuthButton";
 
 export const navLinks = [
@@ -25,9 +26,10 @@ export default function Nav() {
       <div className="mx-auto flex w-[92vw] max-w-[1180px] items-center justify-between gap-8 py-2.5 lg:py-4">
         <Link
           href="/"
-          className="font-display -my-3 flex min-h-11 items-center text-[1.0625rem] tracking-[0.14em]"
+          aria-label="WECAMETOOPARTY home"
+          className="-my-1.5 flex min-h-11 shrink-0 items-center transition-opacity hover:opacity-80"
         >
-          WCTP
+          <Logo finish="clean" alt="" eager className="h-10 w-auto lg:h-12" />
         </Link>
         <div className="label hidden gap-7 lg:flex">
           {navLinks.map((l) => (

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Editable } from "@/components/Editable";
+import Logo from "@/components/Logo";
 import { org } from "@/lib/events";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
@@ -76,6 +77,7 @@ export default function Login() {
 
   return (
     <main className="mx-auto flex w-[92vw] max-w-[520px] flex-col items-center py-[clamp(3rem,10vw,6rem)] text-center">
+      <Logo finish="halftone" eager className="mb-8 h-auto w-[clamp(7rem,32vw,9.5rem)]" />
       <span
         className={`label border px-3 py-2 ${
           connected

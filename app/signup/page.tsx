@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Editable } from "@/components/Editable";
+import Logo from "@/components/Logo";
 import { org } from "@/lib/events";
 import { handleProblem, normalizeHandle } from "@/lib/handle";
 import { requestSignupCode, verifySignupCode } from "@/lib/signup-code";
@@ -433,6 +434,7 @@ export default function SignUp() {
 
   return (
     <main className="mx-auto flex w-[92vw] max-w-[460px] flex-col py-[clamp(2.5rem,8vw,5rem)]">
+      <Logo finish="halftone" eager className="mx-auto mb-8 h-auto w-[clamp(6.5rem,28vw,8rem)]" />
       <div className="flex items-center justify-between gap-4">
         <span className="label text-silverfaint">
           {at + 1} / {STEPS.length}

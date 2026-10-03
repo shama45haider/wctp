@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { asset } from "@/lib/asset";
 
 /**
  * The live draw's wheel: one slice per entrant, their picture near the rim and
@@ -33,6 +34,9 @@ export function landingRotation(
 }
 
 const MAX_DPR = 2;
+
+/** The clean mark for the hub - the only finish that still reads that small. */
+const HUB_LOGO = asset("/brand/logo-clean.webp");
 
 function drawWheel(
   ctx: CanvasRenderingContext2D,
@@ -174,6 +178,16 @@ function drawWheel(
   ctx.lineWidth = Math.max(2, size * 0.008);
   ctx.strokeStyle = "#f6e27a";
   ctx.stroke();
+
+  // The logo once it has loaded, the letters until then. 1.4 hubs wide keeps
+  // the mark's corners inside the circle.
+  const mark = images.get(HUB_LOGO);
+  if (mark?.complete && mark.naturalWidth) {
+    const w = hub * 1.4;
+    const h = (w * mark.naturalHeight) / mark.naturalWidth;
+    ctx.drawImage(mark, r - w / 2, r - h / 2, w, h);
+    return;
+  }
   ctx.fillStyle = "#f2f4f7";
   ctx.font = `900 ${hub * 0.62}px ${display}`;
   ctx.textAlign = "center";
@@ -209,10 +223,12 @@ export default function RaffleWheel({
 
   // Pictures load in the background; each one that lands triggers a redraw,
   // batched to one per frame so a wheel of fifty doesn't redraw fifty times.
+  // The hub's logo rides along with the avatars.
   useEffect(() => {
     let frame = 0;
-    for (const e of entrants) {
-      if (!e.avatarUrl || images.current.has(e.avatarUrl)) continue;
+    const urls = [HUB_LOGO, ...entrants.map((e) => e.avatarUrl)];
+    for (const url of urls) {
+      if (!url || images.current.has(url)) continue;
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.decoding = "async";
@@ -220,8 +236,8 @@ export default function RaffleWheel({
         cancelAnimationFrame(frame);
         frame = requestAnimationFrame(() => setLoaded((n) => n + 1));
       };
-      img.src = e.avatarUrl;
-      images.current.set(e.avatarUrl, img);
+      img.src = url;
+      images.current.set(url, img);
     }
     return () => cancelAnimationFrame(frame);
   }, [entrants]);

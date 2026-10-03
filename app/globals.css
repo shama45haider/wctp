@@ -246,6 +246,67 @@ summary {
     drop-shadow(0 6px 24px rgba(150, 165, 190, 0.12));
 }
 
+/* The home page's paste-up wall: a red glow where the lead poster hangs, over
+   faint courses of brick, so the flyers read as stuck to something. */
+.paste-wall {
+  background:
+    radial-gradient(ellipse 55% 75% at 50% 50%, rgba(200, 16, 46, 0.2), rgba(200, 16, 46, 0) 70%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 30px),
+    var(--void);
+}
+
+/* A strip of masking tape across a poster's top edge. */
+.poster-tape {
+  position: absolute;
+  top: -7px;
+  width: 28%;
+  height: 15px;
+  background: rgba(226, 219, 199, 0.55);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* The next date's ticket: the stub tears off along its dashed edge, with a
+   half-moon bitten out of each end of the tear. On a phone the tear runs
+   across the ticket; from md, down it. */
+.ticket-stub {
+  position: relative;
+}
+
+.ticket-stub::before,
+.ticket-stub::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line-hi);
+  border-radius: 50%;
+  background: var(--void);
+}
+
+.ticket-stub::before {
+  top: -10px;
+  left: -10px;
+}
+
+.ticket-stub::after {
+  top: -10px;
+  right: -10px;
+}
+
+@media (min-width: 48rem) {
+  .ticket-stub::before {
+    top: -10px;
+    left: -10px;
+  }
+
+  .ticket-stub::after {
+    top: auto;
+    right: auto;
+    bottom: -10px;
+    left: -10px;
+  }
+}
+
 .label {
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 0.6875rem;
