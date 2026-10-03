@@ -2,17 +2,14 @@
 
 import Link from "next/link";
 import EventLink from "./EventLink";
+import HomeHero from "./HomeHero";
 import Flyer from "./Flyer";
-import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
-import Logo from "./Logo";
 import { heroPhoto, org, monthOf, dayOf } from "@/lib/events";
 import { useRuntimeEvents } from "@/lib/events-runtime";
 import EventCarousel from "./EventCarousel";
 import DeleteEventButton from "./DeleteEventButton";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
-import { poshRsvpFor } from "@/lib/tickets";
-import { btn, btnBase } from "@/lib/ui";
 
 /**
  * Everything on the home page that depends on which night is next.
@@ -54,25 +51,6 @@ function SectionHead({
   );
 }
 
-/**
- * The paste-up wall, left to right: which pick hangs in each spot and how.
- * Pick 0 - the next date - is the middle and biggest; the rest fan outwards
- * in the order they come. A phone shows the middle three, md five, lg seven.
- * Each poster's z-index rises towards the middle so the lead sits on top.
- */
-const WALL = [
-  { pick: 5, className: "z-0 hidden w-[12vw] max-w-[11rem] -rotate-[5deg] translate-y-6 lg:block" },
-  { pick: 3, className: "z-[1] hidden w-[17vw] max-w-[12.5rem] rotate-[5deg] -translate-y-3 md:block lg:w-[14vw]" },
-  { pick: 1, className: "z-[2] w-[33vw] max-w-[15.5rem] -rotate-[4deg] translate-y-3 md:w-[22vw] lg:w-[17vw]" },
-  { pick: 0, className: "z-[3] w-[50vw] max-w-[20rem] rotate-[2deg] md:w-[30vw] lg:w-[22vw]" },
-  { pick: 2, className: "z-[2] w-[33vw] max-w-[15.5rem] rotate-[6deg] -translate-y-2 md:w-[22vw] lg:w-[17vw]" },
-  { pick: 4, className: "z-[1] hidden w-[17vw] max-w-[12.5rem] -rotate-[3deg] translate-y-4 md:block lg:w-[14vw]" },
-  { pick: 6, className: "z-0 hidden w-[12vw] max-w-[11rem] rotate-[7deg] -translate-y-4 lg:block" },
-] as const;
-
-/** The hero's one loud button: solid blood, the only filled red on the page. */
-const HERO_CTA = `${btnBase} border border-bloodhi bg-blood text-chalk hover:bg-bloodhi hover:shadow-[0_12px_36px_-12px_rgba(232,33,63,0.75)] flex-[1.6] md:flex-none`;
-
 export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
   // hasPage: a date published since the last build is listed, but has no page
   // to link to yet - see components/EventLink.tsx.
@@ -83,12 +61,6 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
   const { ready, isAdmin } = useSupabaseAuth();
   const onDelete = ready && isAdmin ? hide : undefined;
   const next = upcoming[0] as (typeof upcoming)[number] | undefined;
-  const nextHasPage = next ? hasPage(next.slug) : false;
-  // A date whose RSVP is on Posh sends GET TICKETS there - see lib/tickets.ts.
-  const nextPosh = next ? poshRsvpFor(next.slug) : null;
-  // The wall: every date with a flyer, coming ones first, so the next night
-  // takes the middle and the archive fills the edges once the calendar thins.
-  const wall = [...upcoming, ...past].filter((e) => heroPhoto(e) || e.imageId).slice(0, WALL.length);
 
   return (
     <main>
@@ -112,118 +84,7 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
           </div>
         </div>
 
-        {/* The hero is a wall of paste-ups: the coming nights' flyers stuck
-            up edge to edge, overlapping and leaning, the next one biggest in
-            the middle, and the logo slapped over the corner as a sticker.
-            Pinned over the bottom of the wall, the next date as a ticket,
-            torn stub and all. */}
-        {wall.length > 0 ? (
-          <div className="paste-wall relative overflow-hidden">
-            <div className="flex items-center justify-center py-[clamp(1.75rem,4vw,3rem)]">
-              {WALL.map(({ pick, className }) => {
-                const e = wall[pick];
-                if (!e) return null;
-                const lead = pick === 0 && e.slug === next?.slug;
-                return (
-                  <EventLink
-                    key={e.slug}
-                    slug={e.slug}
-                    hash={lead ? "tickets" : undefined}
-                    hasPage={hasPage(e.slug)}
-                    className={`relative -mx-[2vw] block shrink-0 transition-[rotate,translate] duration-300 hover:z-20 hover:-translate-y-2 hover:rotate-0 md:-mx-[1.1vw] ${className}`}
-                  >
-                    <span className="relative block aspect-[4/5] overflow-hidden border border-black/70 shadow-[0_22px_48px_-16px_rgba(0,0,0,0.95)]">
-                      <Flyer
-                        id={e.imageId}
-                        src={heroPhoto(e) ?? undefined}
-                        alt={e.title}
-                        sizes={pick === 0 ? "(max-width:767px) 50vw, 22vw" : "(max-width:767px) 33vw, 17vw"}
-                        maxWidth={pick === 0 ? 640 : 400}
-                        priority={pick < 3}
-                        className="contrast-[1.08]"
-                      />
-                      {lead && (
-                        <span className="label absolute bottom-0 left-0 bg-blood px-2 py-1 text-chalk">
-                          <Editable k="home.next.label">NEXT</Editable>
-                        </span>
-                      )}
-                    </span>
-                    <span aria-hidden className="poster-tape left-[14%] -rotate-[8deg]" />
-                    <span aria-hidden className="poster-tape right-[12%] rotate-[6deg]" />
-                  </EventLink>
-                );
-              })}
-            </div>
-
-            {/* The red halftone logo, stuck on like a sticker - the home
-                page's own finish; the nav wears the clean one. */}
-            <h1 className="absolute top-[clamp(0.75rem,2.5vw,1.75rem)] left-[3vw] z-30 w-[clamp(5rem,13vw,9rem)] -rotate-[10deg] rounded-[22%] border-[3px] border-chalk bg-void p-[clamp(0.45rem,1.1vw,0.75rem)] shadow-[0_18px_36px_-12px_rgba(0,0,0,0.95)]">
-              <Logo finish="red-halftone" eager className="h-auto w-full" />
-            </h1>
-          </div>
-        ) : (
-          <h1 className="mx-auto w-[clamp(7rem,30vw,10rem)] pt-8">
-            <Logo finish="red-halftone" eager className="h-auto w-full" />
-          </h1>
-        )}
-
-        <div className="relative z-10 mx-auto w-[92vw] max-w-[1180px] pb-[clamp(1.5rem,3.5vw,2.5rem)]">
-          {/* Every date that has ever shipped eventually passes, so this has
-              to say something even once `upcoming` runs dry rather than
-              reading past a slug that no longer leads anywhere. */}
-          {next ? (
-            <div
-              className={`grid border border-linehi bg-ink shadow-[0_24px_50px_-24px_rgba(0,0,0,0.95)] md:grid-cols-[minmax(0,1fr)_auto] ${
-                wall.length > 0 ? "-mt-[clamp(1.25rem,3vw,2rem)]" : "mt-6"
-              }`}
-            >
-              <div className="min-w-0 px-4 py-4 sm:px-6 sm:py-5">
-                <p className="label flex items-center gap-2">
-                  <span className="dot shrink-0" />
-                  <span className="text-bloodhi">ADMIT ONE</span>
-                </p>
-                <EventLink
-                  slug={next.slug}
-                  hasPage={nextHasPage}
-                  className="font-display chrome mt-2 block text-[clamp(1.75rem,5vw,3.25rem)] leading-[0.9] break-words uppercase transition-opacity hover:opacity-80"
-                >
-                  {next.title}
-                </EventLink>
-                <p className="label mt-2 text-silverdim">
-                  {next.dow} {dayOf(next.date)} {monthOf(next.date)}
-                  &nbsp;/&nbsp;{next.time}&nbsp;/&nbsp;
-                  <Editable k="home.next.address">ADDRESS BY EMAIL</Editable>
-                </p>
-              </div>
-              <div className="ticket-stub flex items-center gap-3 border-t border-dashed border-linehi px-4 py-4 sm:px-6 md:border-t-0 md:border-l">
-                {nextPosh ? (
-                  <PoshLink href={nextPosh} className={HERO_CTA}>
-                    GET TICKETS &rarr;
-                  </PoshLink>
-                ) : (
-                  nextHasPage && (
-                    <Link href={`/events/${next.slug}#tickets`} className={HERO_CTA}>
-                      GET TICKETS &rarr;
-                    </Link>
-                  )
-                )}
-                <a href="#events" className={`${btn} flex-1 md:flex-none`}>
-                  ALL DATES
-                </a>
-              </div>
-            </div>
-          ) : (
-            <p className="label mt-6 border border-line px-4 py-4 text-center text-silverfaint">
-              <Editable k="home.next.none">
-                {`NOTHING ON SALE RIGHT NOW - WATCH ${org.instagramHandle.toUpperCase()} FOR THE NEXT ONE`}
-              </Editable>
-            </p>
-          )}
-
-          <p className="mt-4 text-[0.875rem] leading-relaxed text-silverdim">
-            <Editable k="home.hero.bio">{org.bio}</Editable>
-          </p>
-        </div>
+        <HomeHero next={next} upcoming={upcoming} hasPage={hasPage} />
 
         {/* marquee */}
         {upcoming.length > 0 && (

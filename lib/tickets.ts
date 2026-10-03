@@ -299,14 +299,39 @@ export const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** "9:00 PM" to [21, 0]. Null for anything it cannot read. */
+/** "9:00 PM", "9PM" or "9:30pm" to [21, 0] and so on. Null for anything it cannot read. */
 function parseClock(time: string): [number, number] | null {
-  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(time.trim());
+  const m = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i.exec(time.trim());
   if (!m) return null;
   const [, h, min, mer] = m;
   let hour = Number(h) % 12;
   if (mer.toUpperCase() === "PM") hour += 12;
-  return [hour, Number(min)];
+  return [hour, Number(min ?? 0)];
+}
+
+/**
+ * The instant the doors open, as epoch milliseconds - "2026-10-31" at
+ * "10:00 PM" in New York, whatever zone the reader is in. Null when the time
+ * can't be read. New York's offset is asked of Intl for that very day, so
+ * daylight saving on either side of the date is right without a table.
+ */
+export function doorsAt(date: string, time: string): number | null {
+  const clock = parseClock(time);
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!clock || !ymd) return null;
+  const wall = Date.UTC(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]), clock[0], clock[1]);
+  const read = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+  }).formatToParts(new Date(wall));
+  const part = (type: string) => Number(read.find((p) => p.type === type)?.value);
+  const shown = Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"));
+  return wall + (wall - shown);
 }
 
 const stamp = (date: string, clock: [number, number]) =>

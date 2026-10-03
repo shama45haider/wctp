@@ -1,0 +1,227 @@
+"use client";
+
+import Link from "next/link";
+import { useSyncExternalStore } from "react";
+import EventLink from "./EventLink";
+import Flyer from "./Flyer";
+import Logo from "./Logo";
+import PoshLink from "./PoshLink";
+import { Editable } from "./Editable";
+import { heroPhoto, org, dayOf, monthOf, type Event } from "@/lib/events";
+import { doorsAt, poshRsvpFor } from "@/lib/tickets";
+import { btn, btnBase } from "@/lib/ui";
+
+/** The one loud button on the page: solid blood. */
+const CTA = `${btnBase} border border-bloodhi bg-blood text-chalk hover:bg-bloodhi hover:shadow-[0_12px_36px_-12px_rgba(232,33,63,0.75)]`;
+
+/** How many dates the listings board under the countdown shows. */
+const BOARD_ROWS = 4;
+
+/**
+ * The top of the home page, centred like a club's splash: the next night's
+ * flyer blown up behind everything as the room's light, the red halftone
+ * logo, a live countdown to that night's doors with the way to a ticket, and
+ * under it a listings board of what's coming - one row a date.
+ */
+export default function HomeHero({
+  next,
+  upcoming,
+  hasPage,
+}: {
+  next: Event | undefined;
+  upcoming: Event[];
+  hasPage: (slug: string) => boolean;
+}) {
+  const nextHasPage = next ? hasPage(next.slug) : false;
+  const nextPosh = next ? poshRsvpFor(next.slug) : null;
+  const backdrop = next && (heroPhoto(next) || next.imageId) ? next : null;
+  const board = upcoming.slice(0, BOARD_ROWS);
+
+  return (
+    <div className="relative isolate overflow-hidden">
+      {backdrop && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+          <Flyer
+            id={backdrop.imageId}
+            src={heroPhoto(backdrop) ?? undefined}
+            alt=""
+            sizes="100vw"
+            maxWidth={1080}
+            priority
+            className="scale-110 blur-[7px] saturate-[1.2]"
+          />
+          <div className="absolute inset-0 bg-void/72" />
+          <div className="absolute inset-0 bg-gradient-to-b from-void/30 via-transparent to-void" />
+        </div>
+      )}
+
+      <div className="mx-auto flex w-[92vw] max-w-[1180px] flex-col items-center pt-[clamp(1.5rem,3.5vw,2.5rem)] pb-[clamp(1.25rem,3vw,2rem)] text-center">
+        <h1 className="w-[clamp(6.5rem,16vw,9rem)]">
+          <Logo
+            finish="red-halftone"
+            eager
+            className="h-auto w-full drop-shadow-[0_0_26px_rgba(232,33,63,0.45)]"
+          />
+        </h1>
+        <p className="label mt-3 tracking-[0.3em] text-silver">
+          <Editable k="home.hero.tagline">NIGHTS IN NEW YORK CITY</Editable>
+        </p>
+
+        {/* Every date that has ever shipped eventually passes, so this has
+            to say something even once `upcoming` runs dry rather than
+            reading past a slug that no longer leads anywhere. */}
+        {next ? (
+          <>
+            <p className="label mt-[clamp(1.25rem,3vw,2rem)] flex items-center gap-2 text-bloodhi">
+              <span className="dot shrink-0" />
+              <Editable k="home.next.label">NEXT</Editable>
+            </p>
+            <EventLink
+              slug={next.slug}
+              hasPage={nextHasPage}
+              className="font-display chrome mt-2 block max-w-full text-[clamp(2rem,5.5vw,4rem)] leading-[0.88] break-words uppercase transition-opacity hover:opacity-80"
+            >
+              {next.title}
+            </EventLink>
+
+            <Countdown to={doorsAt(next.date, next.time)} />
+
+            <p className="label mt-4 text-silverdim">
+              {next.dow} {dayOf(next.date)} {monthOf(next.date)}
+              &nbsp;/&nbsp;{next.time}&nbsp;/&nbsp;
+              <Editable k="home.next.address">ADDRESS BY EMAIL</Editable>
+            </p>
+
+            <div className="mt-5 flex w-full max-w-[24rem] flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row">
+              {nextPosh ? (
+                <PoshLink href={nextPosh} className={CTA}>
+                  GET TICKETS &rarr;
+                </PoshLink>
+              ) : next.ticketRedirectUrl ? (
+                <a href={next.ticketRedirectUrl} target="_blank" rel="noopener noreferrer" className={CTA}>
+                  GET TICKETS &rarr;
+                </a>
+              ) : (
+                nextHasPage && (
+                  <Link href={`/events/${next.slug}#tickets`} className={CTA}>
+                    GET TICKETS &rarr;
+                  </Link>
+                )
+              )}
+              <a href="#events" className={btn}>
+                ALL DATES
+              </a>
+            </div>
+          </>
+        ) : (
+          <p className="label mt-8 text-silverfaint">
+            <Editable k="home.next.none">
+              {`NOTHING ON SALE RIGHT NOW - WATCH ${org.instagramHandle.toUpperCase()} FOR THE NEXT ONE`}
+            </Editable>
+          </p>
+        )}
+      </div>
+
+      {/* The listings board: what's coming, a row a date, each row the way
+          to its tickets - or quietly not a link yet, for a date published
+          since the last build that has no page to land on. */}
+      {board.length > 0 && (
+        <div className="mx-auto w-[92vw] max-w-[1180px] pb-[clamp(1.25rem,3vw,2rem)]">
+          <div className="label flex items-center justify-between border-b border-linehi pb-2 text-silverfaint">
+            <span>UPCOMING</span>
+            <span>{upcoming.length} DATES</span>
+          </div>
+          {/* Two columns of rows on a wide screen, so the board stays one
+              short band instead of running the hero past the fold. */}
+          <ol className="lg:grid lg:grid-cols-2 lg:gap-x-10">
+            {board.map((e) => {
+              // Off-site sales link straight out, like the posters below;
+              // everything else lands on the date's own ticket section.
+              const live = Boolean(e.ticketRedirectUrl) || hasPage(e.slug);
+              return (
+                <li key={e.slug} className="border-b border-line">
+                  <EventLink
+                    slug={e.slug}
+                    hash="tickets"
+                    hasPage={hasPage(e.slug)}
+                    externalHref={e.ticketRedirectUrl}
+                    className="group grid grid-cols-[4.75rem_minmax(0,1fr)_auto] items-center gap-3 py-3 sm:grid-cols-[7rem_minmax(0,1fr)_auto] sm:gap-6"
+                  >
+                    <span className="label text-left text-silverdim tabular-nums">
+                      {e.dow} {dayOf(e.date)}.{e.date.slice(5, 7)}
+                    </span>
+                    <span className="font-display truncate text-left text-[clamp(1.125rem,2.6vw,1.625rem)] leading-none text-chalk transition-colors group-hover:text-bloodhi">
+                      {e.title}
+                    </span>
+                    <span className={`label ${live ? "text-bloodhi" : "text-silverfaint"}`}>
+                      {live ? "TICKETS →" : "SOON"}
+                    </span>
+                  </EventLink>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- countdown -- */
+
+// One clock for the countdown, read once a second. The server snapshot is
+// null, so the static HTML carries dashes and the numbers arrive with the
+// first tick rather than mismatching what was prerendered at build time.
+const everySecond = (tick: () => void) => {
+  const id = setInterval(tick, 1000);
+  return () => clearInterval(id);
+};
+const thisSecond = () => Math.floor(Date.now() / 1000) * 1000;
+const noClock = () => null;
+
+/** Each unit's size, and the next unit up that it rolls over into. */
+const UNITS = [
+  { label: "DAYS", ms: 86_400_000, of: Infinity },
+  { label: "HRS", ms: 3_600_000, of: 86_400_000 },
+  { label: "MIN", ms: 60_000, of: 3_600_000 },
+  { label: "SEC", ms: 1000, of: 60_000 },
+] as const;
+
+function Countdown({ to }: { to: number | null }) {
+  const now = useSyncExternalStore(everySecond, thisSecond, noClock);
+  if (to === null) return null;
+  const left = now === null ? null : Math.max(0, to - now);
+
+  if (left === 0) {
+    return (
+      <p className="font-display mt-4 text-[clamp(1.75rem,5vw,2.75rem)] leading-none text-bloodhi">
+        DOORS ARE OPEN
+      </p>
+    );
+  }
+
+  const parts = UNITS.map(({ label, ms, of }) => ({
+    label,
+    value: left === null ? "--" : String(Math.floor((left % of) / ms)).padStart(2, "0"),
+  }));
+
+  return (
+    <div role="timer" className="mt-4 flex items-start justify-center gap-[clamp(0.5rem,2.2vw,1.25rem)]">
+      {parts.map(({ label, value }, i) => (
+        <div key={label} className="flex items-start gap-[clamp(0.5rem,2.2vw,1.25rem)]">
+          {i > 0 && (
+            <span aria-hidden className="font-display text-[clamp(2rem,6vw,3.5rem)] leading-none text-silverfaint">
+              :
+            </span>
+          )}
+          <div className="flex min-w-[2.2ch] flex-col items-center">
+            <span className="font-display text-[clamp(2rem,6vw,3.5rem)] leading-none text-chalk tabular-nums">
+              {value}
+            </span>
+            <span className="label mt-1.5 text-silverfaint">{label}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

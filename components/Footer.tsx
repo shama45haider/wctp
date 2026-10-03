@@ -9,7 +9,14 @@ export default function Footer() {
     <footer className="border-t border-line pt-14 pb-10">
       <div className="mx-auto w-[92vw] max-w-[1180px]">
         <div className="mb-10 flex flex-wrap items-center justify-between gap-x-8 gap-y-6">
-          <Logo finish="grunge" className="h-auto w-[clamp(6.5rem,20vw,8.5rem)] -rotate-3" />
+          {/* The grunge logo with the bio beside it - the home page's top is
+              the next night, so who we are lives down here, on every page. */}
+          <div className="flex max-w-[40rem] items-center gap-5">
+            <Logo finish="grunge" className="h-auto w-[clamp(5.5rem,18vw,7.5rem)] shrink-0 -rotate-3" />
+            <p className="text-[0.8125rem] leading-relaxed text-silverdim">
+              <Editable k="home.hero.bio">{org.bio}</Editable>
+            </p>
+          </div>
           <div className="label -my-3.5 flex flex-wrap gap-x-6">
             {navLinks.map((l) => (
               <Link
