@@ -183,7 +183,14 @@ Deno.serve(async (req) => {
   let query = admin.from("event_details").select("event_slug,title,event_date,doors,address").neq("address", "");
   if (only) query = query.eq("event_slug", only);
   const { data: details, error: detailError } = await query;
-  if (detailError) return json({ error: detailError.message }, 500);
+  if (detailError) {
+    // Before 0029 is applied there is nothing to send. Say so quietly to the
+    // schedule, rather than failing - and emailing the repo's owner - hourly.
+    const missing = /event_details/i.test(detailError.message) &&
+      /does not exist|could not find|schema cache/i.test(detailError.message);
+    if (missing && fromCron) return json({ ok: true, dates: [], waiting: "Run supabase/APPLY_0029.sql." });
+    return json({ error: missing ? "Run supabase/APPLY_0029.sql in the Supabase SQL editor first." : detailError.message }, 500);
+  }
 
   const now = Date.now();
   const due = ((details ?? []) as Detail[]).filter((d) => only || windowOpen(d, now));
