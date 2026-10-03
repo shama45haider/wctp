@@ -160,6 +160,23 @@ Deno.serve(async (req) => {
     });
   }
 
+  // One ticket per verified account, per date: one in this order, and none
+  // already held. Add-ons aren't tickets and don't count. Any order that isn't
+  // cancelled is a ticket - paid ones are only written once Stripe has the
+  // money, and browsers may only write free ones.
+  const ticketsWanted = priced.reduce((n, l) => n + l.qty, 0);
+  if (ticketsWanted > 1) return json({ error: "One ticket per account." }, 400);
+  const { count: held, error: heldErr } = await admin
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .eq("event_slug", eventSlug)
+    .is("cancelled_at", null);
+  if (heldErr) return json({ error: "Could not check your tickets." }, 500);
+  if (held) {
+    return json({ error: "You already have a ticket for this date - it's on your account." }, 409);
+  }
+
   // Add-ons, priced from public.ticket_addons. Only ever alongside a ticket,
   // which the loop above has already required.
   const picks = Array.isArray(payload.addons) ? (payload.addons as AddonPick[]) : [];

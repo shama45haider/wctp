@@ -89,7 +89,9 @@ export default function TierEditor({
         name: rs && rs.length ? "" : "General Admission",
         price: "",
         capacity: "100",
-        maxPerOrder: "6",
+        // One ticket per account (create-ticket-checkout enforces it); the
+        // field stays editable for anything that isn't a ticket.
+        maxPerOrder: "1",
         sold: 0,
         isNew: true,
       },
