@@ -1,7 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { deleteTier, listTiersFor, saveTier } from "@/lib/ticket-catalog";
+import {
+  buyLinkFor,
+  deleteTier,
+  listTiersFor,
+  saveTier,
+  stripeStatusFor,
+  syncTicketProducts,
+} from "@/lib/ticket-catalog";
 import { addonsOn, usd, type Tier } from "@/lib/tickets";
 import { useTicketCatalog } from "@/lib/ticket-catalog";
 import { btn, field } from "@/lib/ui";
@@ -11,8 +18,11 @@ import { btn, field } from "@/lib/ui";
  *
  * Each tier is a row in public.ticket_tiers, which is what the event page
  * lists and what create-ticket-checkout charges from. A price of $0 is a free
- * RSVP; anything above it goes through Stripe. Sold counts are written only by
- * the payment functions, never from here.
+ * RSVP; anything above it goes through Stripe, and every save hands the event
+ * to sync-ticket-products, which makes (or renames, re-prices, archives) the
+ * tier's Product and Price in Stripe. Once one paid tier is in, the event's buy
+ * link is shown to copy. Sold counts are written only by the payment
+ * functions, never from here.
  *
  * Deliberately no <form>: this sits inside the event form, and a nested form
  * is not allowed. Enter in a field is swallowed so it does not submit the
@@ -65,12 +75,26 @@ export default function TierEditor({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** Tier id -> in Stripe at its current price. */
+  const [inStripe, setInStripe] = useState<Record<string, boolean>>({});
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
-    const out = await listTiersFor(slug);
+    const [out, stripe] = await Promise.all([listTiersFor(slug), stripeStatusFor(slug)]);
     setRows(out.tiers.filter((t) => !t.donation).map(toRow));
+    setInStripe(stripe);
     setError(out.error ?? null);
   }, [slug]);
+
+  /** After any change: Stripe catches up, then the rows are re-read. */
+  const syncThenLoad = async (done: string) => {
+    setBusy("sync");
+    const out = await syncTicketProducts(slug);
+    setBusy(null);
+    if (out.ok) setNotice(done);
+    else setError(`${done} Stripe didn't update: ${out.error} Hit "Sync with Stripe" to try again - checkout also fixes it on the first sale.`);
+    void load();
+  };
 
   useEffect(() => {
     // Starts the read; the rows arrive asynchronously.
@@ -124,8 +148,7 @@ export default function TierEditor({
     const out = await saveTier(slug, { tierId, name, priceCents: price, capacity, maxPerOrder });
     setBusy(null);
     if (!out.ok) return setError(out.error ?? "That did not save.");
-    setNotice(`Saved ${name}.`);
-    void load();
+    await syncThenLoad(`Saved ${name}.`);
   };
 
   const remove = async (i: number) => {
@@ -142,12 +165,24 @@ export default function TierEditor({
     const out = await deleteTier(slug, r.tierId);
     setBusy(null);
     if (!out.ok) return setError(out.error ?? "That did not delete.");
-    setNotice(`Removed ${r.name}.`);
-    void load();
+    await syncThenLoad(`Removed ${r.name}.`);
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(buyLinkFor(slug));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.prompt("Copy the buy link:", buyLinkFor(slug));
+    }
   };
 
   const addons = addonsOn();
   const selling = rows && rows.some((r) => !r.isNew);
+  const saved = (rows ?? []).filter((r) => !r.isNew);
+  const paid = saved.filter((r) => Number(r.price) > 0);
+  const unsynced = paid.filter((r) => !inStripe[r.tierId]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -233,7 +268,11 @@ export default function TierEditor({
               {!r.isNew && (
                 <span className="label ml-auto text-silverfaint">
                   {r.sold} SOLD
-                  {Number(r.price) > 0 ? " · STRIPE" : " · FREE RSVP"}
+                  {Number(r.price) <= 0
+                    ? " · FREE RSVP"
+                    : inStripe[r.tierId]
+                      ? " · IN STRIPE"
+                      : " · NOT IN STRIPE YET"}
                 </span>
               )}
             </div>
@@ -244,6 +283,44 @@ export default function TierEditor({
       <button type="button" onClick={add} disabled={busy !== null} className={btn}>
         + Add a ticket type
       </button>
+
+      {saved.length > 0 && !redirectUrl.trim() && (
+        <div className="border border-line p-3">
+          <p className="label text-silverfaint uppercase">Buy link</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <input
+              readOnly
+              value={buyLinkFor(slug)}
+              onFocus={(e) => e.currentTarget.select()}
+              onKeyDown={noEnter}
+              aria-label="Buy link"
+              className={`${field} min-w-0 flex-1`}
+            />
+            <button
+              type="button"
+              onClick={() => void copyLink()}
+              className={`${small} border-linehi text-chalk hover:border-silverdim`}
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <p className="mt-2 text-[0.8125rem] leading-relaxed text-silverfaint">
+            Post it anywhere. It opens checkout for this date with a ticket
+            picked; buyers sign in and need a verified account before Stripe
+            takes their card.
+          </p>
+          {unsynced.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void syncThenLoad("Synced with Stripe.")}
+              disabled={busy !== null}
+              className={`${small} mt-3 border-linehi text-chalk hover:border-silverdim`}
+            >
+              {busy === "sync" ? "Syncing…" : "Sync with Stripe"}
+            </button>
+          )}
+        </div>
+      )}
 
       {addons.length > 0 && (
         <p className="text-[0.8125rem] leading-relaxed text-silverfaint">

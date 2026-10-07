@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { useAccount } from "@/lib/demo-account";
 import { siteImageUrl } from "@/lib/site-content";
 import {
   confirmStoreOrder,
@@ -50,11 +51,14 @@ function Spinner() {
 function ProductCard({
   p,
   signedIn,
+  verified,
   busy,
   onBuy,
 }: {
   p: Product;
   signedIn: boolean;
+  /** Only verified accounts can buy; create-store-checkout refuses anyone else. */
+  verified: boolean;
   busy: boolean;
   onBuy: (qty: number) => void;
 }) {
@@ -109,6 +113,10 @@ function ProductCard({
           ) : !signedIn ? (
             <Link href="/login" className={`${btn} w-full`}>
               Sign in to buy
+            </Link>
+          ) : !verified ? (
+            <Link href="/verify" className={`${btn} w-full`}>
+              Verify to buy
             </Link>
           ) : (
             <div className="flex items-stretch gap-2">
@@ -203,6 +211,7 @@ function PrizeReceipt({ order, onClose }: { order: PaidPrize; onClose: () => voi
 
 export default function StoreFront() {
   const { ready, user, isAdmin } = useSupabaseAuth();
+  const account = useAccount();
   const [products, setProducts] = useState<Product[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
@@ -265,6 +274,7 @@ export default function StoreFront() {
   };
 
   const signedIn = ready && Boolean(user);
+  const verified = Boolean(account.user?.verified);
 
   return (
     <section aria-labelledby="store-title" id="store">
@@ -329,6 +339,7 @@ export default function StoreFront() {
               key={p.id}
               p={p}
               signedIn={signedIn}
+              verified={verified}
               busy={buying === p.id}
               onBuy={(qty) => void buy(p, qty)}
             />

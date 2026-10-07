@@ -5,7 +5,8 @@ import Link from "next/link";
 import Flyer from "./Flyer";
 import TicketPass from "./TicketPass";
 import { Editable } from "./Editable";
-import { findEvent, heroPhoto, monthOf, dayOf, org } from "@/lib/events";
+import { findEvent, heroPhoto, monthOf, dayOf, org, type Event } from "@/lib/events";
+import { useRuntimeEvents } from "@/lib/events-runtime";
 import { startTicketCheckout } from "@/lib/ticket-checkout";
 import { atHandle } from "@/lib/handle";
 import {
@@ -105,17 +106,16 @@ function NothingToBuy({ ticketCount }: { ticketCount: number }) {
  * typing card details into the step beside it.
  */
 function Summary({
-  slug,
+  ev,
   title,
   lines,
   totals,
 }: {
-  slug: string;
+  ev: Event | null;
   title: string;
   lines: OrderLine[];
   totals: Totals;
 }) {
-  const ev = findEvent(slug);
 
   return (
     <aside className="border border-line bg-ink lg:sticky lg:top-28">
@@ -234,7 +234,7 @@ export default function CheckoutFlow() {
   const [step, setStep] = useState<Step>("order");
   const [order, setOrder] = useState<Order | null>(null);
   // Subscribes to the live tiers, so steppers know their real limits.
-  useTicketCatalog();
+  const catalog = useTicketCatalog();
   const [buyer, setBuyer] = useState({ name: "", email: "", phone: "" });
   const [touched, setTouched] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
@@ -263,7 +263,12 @@ export default function CheckoutFlow() {
     return () => window.clearTimeout(id);
   }, [progress]);
 
-  const event = cart ? findEvent(cart.eventSlug) : null;
+  // Dates posted from the dashboard since the last build are only in the
+  // database, so the static list alone would call their carts empty.
+  const runtime = useRuntimeEvents();
+  const event = cart
+    ? (runtime.events.find((e) => e.slug === cart.eventSlug) ?? findEvent(cart.eventSlug) ?? null)
+    : null;
   const totals = totalsFor(lines);
 
   // A ticket is issued to the account's handle when it has one; the field
@@ -334,7 +339,21 @@ export default function CheckoutFlow() {
   }
 
   if (step === "done" && order) {
-    return <Confirmation order={order} />;
+    return (
+      <Confirmation
+        order={order}
+        ev={runtime.events.find((e) => e.slug === order.eventSlug) ?? findEvent(order.eventSlug) ?? null}
+      />
+    );
+  }
+
+  // Until both answer, a cart that is really there would read as empty.
+  if (cart && ((!event && !runtime.ready) || !catalog.loaded)) {
+    return (
+      <Shell>
+        <p className="label text-silverfaint">LOADING&hellip;</p>
+      </Shell>
+    );
   }
 
   if (!cart || lines.length === 0 || !event)
@@ -755,7 +774,7 @@ export default function CheckoutFlow() {
         </div>
 
         <Summary
-          slug={event.slug}
+          ev={event}
           title={event.title}
           lines={lines}
           totals={totals}
@@ -767,8 +786,7 @@ export default function CheckoutFlow() {
 
 /* ----------------------------------------------------------- confirmation -- */
 
-function Confirmation({ order }: { order: Order }) {
-  const ev = findEvent(order.eventSlug);
+function Confirmation({ order, ev }: { order: Order; ev: Event | null }) {
   /** Nothing was admitted, so this is a receipt for a gift rather than a ticket. */
   const gift = order.passes.length === 0;
 

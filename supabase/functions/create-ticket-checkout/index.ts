@@ -18,6 +18,7 @@
  */
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { ensureTierPrice, eventTitleFor, isMissing0030, type TierRow } from "../_shared/stripe-catalog.ts";
 
 const STRIPE_ENDPOINT = "https://api.stripe.com/v1/checkout/sessions";
 
@@ -114,17 +115,34 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
   );
 
-  const { data: tiers, error: tierErr } = await admin
-    .from("ticket_tiers")
-    .select("tier_id, name, price_cents, max_per_order, admits, donation, capacity, sold")
-    .eq("event_slug", eventSlug);
+  const BASE = "event_slug, tier_id, name, price_cents, max_per_order, admits, donation, capacity, sold";
+  const readTiers = (cols: string) =>
+    admin.from("ticket_tiers").select(cols).eq("event_slug", eventSlug) as unknown as Promise<{
+      // deno-lint-ignore no-explicit-any
+      data: Record<string, any>[] | null;
+      error: { message: string } | null;
+    }>;
+  let { data: tiers, error: tierErr } = await readTiers(
+    `${BASE}, stripe_product_id, stripe_price_id, stripe_price_cents`,
+  );
+  // Before 0030 there are no Stripe ids to read. Sell anyway, described inline.
+  if (tierErr && isMissing0030(tierErr.message)) {
+    ({ data: tiers, error: tierErr } = await readTiers(BASE));
+  }
 
   if (tierErr) return json({ error: "Could not read prices." }, 500);
   if (!tiers || tiers.length === 0) return json({ error: "Nothing on sale." }, 400);
 
   const byId = new Map(tiers.map((t) => [t.tier_id as string, t]));
 
-  const priced: { name: string; unit: number; qty: number; tierId: string; admits: number }[] = [];
+  const priced: {
+    name: string;
+    unit: number;
+    qty: number;
+    tierId: string;
+    admits: number;
+    row: TierRow;
+  }[] = [];
   let subtotal = 0;
   let paidTickets = 0;
 
@@ -157,6 +175,7 @@ Deno.serve(async (req) => {
       qty,
       tierId,
       admits: (tier.admits as number) ?? 1,
+      row: tier as unknown as TierRow,
     });
   }
 
@@ -220,7 +239,22 @@ Deno.serve(async (req) => {
   // admin has saved the date's address, a posted date's own row, or the slug.
   // Built-in dates' slugs are their titles in lowercase, so even the last
   // resort reads right.
-  const title = await titleFor(admin, eventSlug);
+  const title = await eventTitleFor(admin, eventSlug);
+
+  // Each paid ticket is charged through its Stripe Price, made now if the
+  // admin's save didn't reach Stripe. ensureTierPrice prices from the row
+  // above, so this changes where the sale shows up in Stripe, never the
+  // amount. If Stripe won't make one, the line is described inline instead -
+  // a missing product is no reason to turn a buyer away.
+  const priceIds = await Promise.all(
+    priced.map((l) =>
+      "stripe_price_id" in l.row
+        ? ensureTierPrice(admin, key, l.row, title, false)
+            .then((ids) => ids?.priceId ?? null)
+            .catch(() => null)
+        : Promise.resolve(null),
+    ),
+  );
 
   // ------------------------------------------------------------- Stripe --
 
@@ -234,6 +268,11 @@ Deno.serve(async (req) => {
 
   priced.forEach((l, i) => {
     form.set(`line_items[${i}][quantity]`, String(l.qty));
+    const priceId = priceIds[i];
+    if (priceId) {
+      form.set(`line_items[${i}][price]`, priceId);
+      return;
+    }
     form.set(`line_items[${i}][price_data][currency]`, "usd");
     form.set(`line_items[${i}][price_data][unit_amount]`, String(l.unit));
     form.set(`line_items[${i}][price_data][product_data][name]`, l.name);
@@ -295,12 +334,3 @@ Deno.serve(async (req) => {
 
   return json({ url: session.url });
 });
-
-// deno-lint-ignore no-explicit-any
-async function titleFor(admin: any, slug: string): Promise<string> {
-  const detail = await admin.from("event_details").select("title").eq("event_slug", slug).maybeSingle();
-  if (detail.data?.title) return String(detail.data.title);
-  const row = await admin.from("events").select("title").eq("slug", slug).maybeSingle();
-  if (row.data?.title) return String(row.data.title);
-  return slug.toUpperCase();
-}

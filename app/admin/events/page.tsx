@@ -18,6 +18,7 @@ import {
 import { siteImageUrl } from "@/lib/site-content";
 import EventPhotoPicker from "@/components/EventPhotoPicker";
 import TierEditor from "@/components/TierEditor";
+import { saveTier, syncTicketProducts } from "@/lib/ticket-catalog";
 import EventAddressAdmin from "@/components/EventAddressAdmin";
 import { btn, btnGo, field } from "@/lib/ui";
 import { dayOf, monthOf } from "@/lib/events";
@@ -53,6 +54,19 @@ function dowOf(iso: string) {
 
 const SLUG_OK = /^[a-z0-9-]+$/;
 
+const toCents = (price: string) => Math.round(Number(price.replace(/[$,\s]/g, "") || "0") * 100);
+
+/** The new-event form's ticket price, checked the way TierEditor checks one. */
+function priceProblem(price: string, capacity: string, editing: boolean): string | null {
+  if (editing || !price.trim()) return null;
+  const cents = toCents(price);
+  if (!Number.isFinite(cents) || cents < 0) return "The price has to be a number.";
+  if (cents > 0 && cents < 50) return "Stripe's minimum is $0.50.";
+  const n = Math.floor(Number(capacity));
+  if (!Number.isFinite(n) || n < 1) return "How many are there? At least 1.";
+  return null;
+}
+
 type Draft = {
   slug: string;
   title: string;
@@ -63,6 +77,12 @@ type Draft = {
   /** Paths in the site-images bucket, in the order they will be shown. */
   photoPaths: string[];
   published: boolean;
+  /**
+   * A new date's first ticket, so posting a paid night is one step. Only on
+   * the new-event form; after that TierEditor owns the tiers.
+   */
+  price: string;
+  capacity: string;
 };
 
 /**
@@ -83,6 +103,8 @@ const EMPTY: Draft = {
   ticketRedirectUrl: "",
   photoPaths: [],
   published: true,
+  price: "",
+  capacity: "100",
 };
 
 type Listing =
@@ -205,8 +227,9 @@ export default function AdminEvents() {
         : "Lowercase letters, numbers and hyphens only",
     title: title ? null : "Needed",
     date: draft.date ? null : "Needed",
+    price: priceProblem(draft.price, draft.capacity, editing !== null),
   };
-  const blocked = Boolean(problems.slug || problems.title || problems.date);
+  const blocked = Boolean(problems.slug || problems.title || problems.date || problems.price);
 
   // Required-field complaints wait for a submit; a malformed slug does not,
   // since the shape of it is not obvious until something objects.
@@ -229,6 +252,8 @@ export default function AdminEvents() {
       ticketRedirectUrl: row.ticketRedirectUrl ?? "",
       photoPaths: row.photoPaths ?? [],
       published: row.published,
+      price: "",
+      capacity: "100",
     });
     setEditing(row.slug);
     setAttempted(false);
@@ -274,6 +299,40 @@ export default function AdminEvents() {
       setNotice({ bad: true, text: out.error ?? "That did not save." });
       return;
     }
+
+    // A new date with a price: its first ticket, then Stripe, then the editor
+    // stays open on it so the buy link is right there to copy.
+    const firstTicket = !editing && draft.price.trim() !== "";
+    if (firstTicket) {
+      setSaving(true);
+      const tier = await saveTier(slug, {
+        tierId: "general-admission",
+        name: "General Admission",
+        priceCents: toCents(draft.price),
+        capacity: Math.floor(Number(draft.capacity)),
+        maxPerOrder: 1,
+      });
+      const stripe = tier.ok && toCents(draft.price) > 0 ? await syncTicketProducts(slug) : { ok: true };
+      if (!alive.current) return;
+      setSaving(false);
+      if (!tier.ok) {
+        setNotice({ bad: true, text: `Posted ${slug}, but the ticket didn't save: ${tier.error}` });
+      } else if (!stripe.ok) {
+        setNotice({ bad: true, text: `Posted ${slug} with tickets, but Stripe didn't update: ${stripe.error}` });
+      } else {
+        setNotice({ bad: false, text: `Posted ${slug}. Tickets are on sale - copy the buy link below.` });
+      }
+      setEditing(slug);
+      setAttempted(false);
+      setDraft((d) => ({ ...d, price: "", capacity: "100" }));
+      void load();
+      return;
+    }
+
+    // An edit can rename the date, which renames its products in Stripe.
+    // Quietly: the event saved either way, and checkout heals the price.
+    if (editing) void syncTicketProducts(slug);
+
     setNotice({ bad: false, text: `Saved ${slug}.` });
     reset();
     void load();
@@ -510,10 +569,48 @@ export default function AdminEvents() {
               </div>
               {editing ? (
                 <TierEditor slug={editing} redirectUrl={draft.ticketRedirectUrl} />
-              ) : (
-                <p className={hint}>
-                  Post the event first, then hit Edit on it to set ticket prices.
-                </p>
+              ) : draft.ticketRedirectUrl.trim() ? null : (
+                <div>
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label htmlFor="price" className="label text-silverfaint uppercase">
+                        Ticket price $
+                      </label>
+                      <input
+                        id="price"
+                        value={draft.price}
+                        onChange={(e) => set("price", e.target.value)}
+                        inputMode="decimal"
+                        placeholder="25.00"
+                        aria-invalid={Boolean(attempted && problems.price)}
+                        className={`${field} mt-2 w-full`}
+                      />
+                    </div>
+                    <div className="w-[6.5rem]">
+                      <label htmlFor="capacity" className="label text-silverfaint uppercase">
+                        How many
+                      </label>
+                      <input
+                        id="capacity"
+                        value={draft.capacity}
+                        onChange={(e) => set("capacity", e.target.value)}
+                        inputMode="numeric"
+                        className={`${field} mt-2 w-full`}
+                      />
+                    </div>
+                  </div>
+                  {attempted && problems.price ? (
+                    <p className="mt-2 text-[0.8125rem] text-bloodhi" role="alert">
+                      {problems.price}
+                    </p>
+                  ) : (
+                    <p className={hint}>
+                      {draft.price.trim()
+                        ? "Posting creates a General Admission ticket, its product in Stripe, and a buy link. $0 makes it a free RSVP."
+                        : "Optional. Set a price and the ticket, its Stripe product and a buy link are made when you post. More ticket types after, under Edit."}
+                    </p>
+                  )}
+                </div>
               )}
             </Group>
 

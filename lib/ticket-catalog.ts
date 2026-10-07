@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { getSupabase } from "./supabase";
+import { SITE_ORIGIN } from "./events";
 import {
   setTicketCatalog,
   subscribeTicketCatalog,
@@ -233,4 +234,65 @@ export async function deleteTier(slug: string, tierId: string): Promise<Outcome>
   }
   void reloadTicketCatalog();
   return { ok: true };
+}
+
+/* ------------------------------------------------------------- Stripe -- */
+
+/** Where a buyer goes to buy one date's tickets. Safe to post anywhere. */
+export const buyLinkFor = (slug: string, origin = SITE_ORIGIN) =>
+  `${origin}/buy/?e=${encodeURIComponent(slug)}`;
+
+export type StripeSync = { ok: boolean; error?: string };
+
+/**
+ * Puts the event's paid tiers into Stripe as Products and Prices (and archives
+ * any whose tier is gone or now free). Admin only; the function checks.
+ * Called after every tier or event save, so nobody has to remember to.
+ */
+export async function syncTicketProducts(slug: string): Promise<StripeSync> {
+  const supabase = client();
+  if (!supabase) return { ok: false, error: "Not connected." };
+  try {
+    const res = await capped(
+      supabase.functions.invoke<{ ok?: boolean; error?: string }>("sync-ticket-products", {
+        body: { eventSlug: slug },
+      }),
+    );
+    if (!res) return { ok: false, error: "Stripe did not answer." };
+    if (res.error) {
+      const body = await (res.error as { context?: Response }).context
+        ?.json?.()
+        .catch(() => null);
+      return { ok: false, error: body?.error ?? "Could not reach Stripe." };
+    }
+    return res.data?.ok ? { ok: true } : { ok: false, error: res.data?.error ?? "Stripe sync failed." };
+  } catch {
+    return { ok: false, error: "Could not reach Stripe." };
+  }
+}
+
+/**
+ * Which tiers are in Stripe at their current price, by tier id. Empty - not an
+ * error - before 0030, so the editor just shows nothing synced.
+ */
+export async function stripeStatusFor(slug: string): Promise<Record<string, boolean>> {
+  const supabase = client();
+  if (!supabase) return {};
+  const res = await capped(
+    supabase
+      .from("ticket_tiers")
+      .select("tier_id,price_cents,stripe_price_id,stripe_price_cents")
+      .eq("event_slug", slug),
+  );
+  if (!res || res.error) return {};
+  const out: Record<string, boolean> = {};
+  for (const r of (res.data ?? []) as {
+    tier_id: string;
+    price_cents: number;
+    stripe_price_id: string | null;
+    stripe_price_cents: number | null;
+  }[]) {
+    out[r.tier_id] = Boolean(r.stripe_price_id) && r.stripe_price_cents === r.price_cents;
+  }
+  return out;
 }
