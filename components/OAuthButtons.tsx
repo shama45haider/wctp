@@ -12,6 +12,12 @@ import { useState } from "react";
 
 type Provider = "google" | "apple";
 
+/**
+ * Locked until Google and Apple are switched on in Supabase and APPLY_0032.sql
+ * has run. Flip to false to open them up; nothing else needs to change.
+ */
+const COMING_SOON = true;
+
 const LABEL: Record<Provider, string> = {
   google: "Continue with Google",
   apple: "Continue with Apple",
@@ -57,19 +63,36 @@ export default function OAuthButtons({
   }
 
   return (
-    <div className="flex w-full flex-col gap-3">
+    <div className="relative flex w-full flex-col gap-3">
       {(["google", "apple"] as const).map((p) => (
         <button
           key={p}
           type="button"
           onClick={() => void go(p)}
-          disabled={busy !== null}
-          className="flex min-h-12 w-full items-center justify-center gap-3 rounded-full bg-white px-5 text-[0.9375rem] font-medium text-[#111] transition-colors hover:bg-[#e8e8e8] disabled:opacity-60"
+          disabled={COMING_SOON || busy !== null}
+          aria-describedby={COMING_SOON ? "oauth-soon" : undefined}
+          className={`flex min-h-12 w-full items-center justify-center gap-3 rounded-full bg-white px-5 text-[0.9375rem] font-medium text-[#111] transition-colors hover:bg-[#e8e8e8] disabled:cursor-not-allowed ${
+            COMING_SOON ? "opacity-35 blur-[1px] disabled:hover:bg-white" : "disabled:opacity-60"
+          }`}
         >
           {p === "google" ? <GoogleMark /> : <AppleMark />}
           {busy === p ? "Opening…" : LABEL[p]}
         </button>
       ))}
+      {/* A lock laid over both buttons while they cannot be used yet. */}
+      {COMING_SOON && (
+        <div
+          id="oauth-soon"
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+        >
+          <span className="flex items-center gap-2 rounded-full border border-line-hi bg-void/90 px-4 py-2 text-[0.875rem] font-medium text-chalk shadow-[0_10px_30px_-10px_rgba(0,0,0,0.9)]">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">
+              <path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Z" />
+            </svg>
+            Google &amp; Apple sign-in coming soon
+          </span>
+        </div>
+      )}
       {problem && (
         <p className="label text-bloodhi" role="alert">
           {problem}
