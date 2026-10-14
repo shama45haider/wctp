@@ -313,6 +313,11 @@ export async function stripeStatusFor(slug: string): Promise<Record<string, bool
 
 /* ---------------------------------------------------------- add-ons, admin -- */
 
+export const NEEDS_0031 =
+  "This project has not run migration 0031 yet, so add-ons have no picture column. Paste supabase/APPLY_0031.sql into the Supabase SQL editor.";
+
+const addonError = (m: string) => (/image_path/i.test(m) ? NEEDS_0031 : m);
+
 export type AddonDraft = {
   id: string;
   name: string;
@@ -333,7 +338,7 @@ export async function listAllAddons(): Promise<{ addons: (AddonDraft & { sort: n
       .order("sort", { ascending: true }),
   );
   if (!res) return { addons: [], error: "The database did not answer." };
-  if (res.error) return { addons: [], error: res.error.message };
+  if (res.error) return { addons: [], error: addonError(res.error.message) };
   const rows = (res.data ?? []) as (AddonRow & { sort: number })[];
   return {
     addons: rows.map((r) => ({
@@ -370,7 +375,7 @@ export async function saveAddon(a: AddonDraft, sort: number): Promise<Outcome> {
       .select("id"),
   );
   if (!res) return { ok: false, error: "The database did not answer." };
-  if (res.error) return { ok: false, error: res.error.message };
+  if (res.error) return { ok: false, error: addonError(res.error.message) };
   if ((res.data ?? []).length === 0) {
     return { ok: false, error: "Nothing saved - this account is not an admin." };
   }
