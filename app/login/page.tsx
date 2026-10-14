@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Editable } from "@/components/Editable";
 import Logo from "@/components/Logo";
@@ -8,6 +8,8 @@ import { org } from "@/lib/events";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { btn, btnGo, field } from "@/lib/ui";
+import { useOwnProfile } from "@/lib/profile-data";
+import OAuthButtons from "@/components/OAuthButtons";
 
 /**
  * Sign in.
@@ -31,9 +33,31 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // round trip and a raw API message into an answer the moment they stop typing.
 const MIN_PASSWORD = 6;
 
+/**
+ * A provider that refused, or an account the database would not create, comes
+ * back to this page with the reason in the URL rather than as a thrown error.
+ * Read straight from the URL: nothing to subscribe to, and nothing on the
+ * server, where the static build has no URL to read.
+ */
+const noSubscribe = () => () => {};
+function readReturnError(): string | null {
+  const params = new URLSearchParams(
+    `${window.location.search.slice(1)}&${window.location.hash.slice(1)}`,
+  );
+  const reason = params.get("error_description");
+  if (!reason) return null;
+  return /database error saving new user/i.test(reason)
+    ? "Google and Apple sign-up isn't switched on yet. Use email for now."
+    : reason;
+}
+
 export default function Login() {
-  const { ready, user, isAdmin, error, signInWithPassword, signOut } =
+  const { ready, user, isAdmin, error, signInWithPassword, signInWithProvider, signOut } =
     useSupabaseAuth();
+  // Google and Apple accounts arrive without the Instagram handle that the
+  // sign-up form asks for, so the signed-in view asks for it.
+  const { profile, loaded: profileLoaded } = useOwnProfile(user?.id);
+  const needsHandle = Boolean(user) && profileLoaded && profile !== null && !profile.instagram;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,7 +72,9 @@ export default function Login() {
   const emailOk = EMAIL.test(email.trim());
   const passwordOk = password.length >= MIN_PASSWORD;
   const canSubmit = emailOk && passwordOk && !busy;
-  const message = problem ?? (connected && !signedIn ? error : null);
+  const returnError = useSyncExternalStore(noSubscribe, readReturnError, () => null);
+  const message = problem ?? returnError ?? (connected && !signedIn ? error : null);
+
 
   async function submit() {
     if (!canSubmit) return;
@@ -105,6 +131,17 @@ export default function Login() {
           </p>
           <p className="mt-2 break-all text-chalk">{user?.email}</p>
 
+          {needsHandle && (
+            <Link
+              href="/profile"
+              className="mt-5 block border border-blood bg-[rgba(229,37,46,0.08)] p-4 text-[0.9375rem] leading-relaxed text-silver"
+            >
+              <span className="label block text-bloodhi">One more thing</span>
+              Add your Instagram handle. It goes on your ticket and the raffle list.
+              <span className="mt-2 block font-medium text-chalk">Finish your profile &rarr;</span>
+            </Link>
+          )}
+
           <div className="mt-6 flex flex-col gap-3">
             <Link href="/account" className={btnGo}>
               Your account
@@ -138,6 +175,14 @@ export default function Login() {
             void submit();
           }}
         >
+          <OAuthButtons onPick={signInWithProvider} />
+
+          <div className="my-7 flex items-center gap-3" aria-hidden="true">
+            <span className="h-px flex-1 bg-line" />
+            <span className="label text-silverfaint">OR WITH EMAIL</span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+
           <label htmlFor="email" className="label text-silverfaint">
             <Editable k="login.emailLabel">EMAIL</Editable>
           </label>

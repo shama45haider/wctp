@@ -258,6 +258,34 @@ export function useSupabaseAuth() {
   );
 
   /**
+   * Google or Apple. The browser leaves for the provider and comes back to
+   * /login/ with a code, which the client swaps for a session on its own
+   * (detectSessionInUrl + PKCE in lib/supabase.ts). Nothing here sees a
+   * password. A first-time account is created on the way back; migration 0032
+   * lets these through without the emailed code, since the provider has
+   * already proven the address.
+   */
+  const signInWithProvider = useCallback(
+    async (provider: "google" | "apple"): Promise<Outcome> => {
+      const supabase = safeClient();
+      if (!supabase) return { ok: false, error: NOT_CONNECTED };
+
+      const out = await attempt(
+        supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo:
+              typeof window === "undefined" ? undefined : `${window.location.origin}/login/`,
+          },
+        }),
+      );
+      if (alive.current) setError(out.error ?? null);
+      return out;
+    },
+    [],
+  );
+
+  /**
    * First-time password for an address that has none.
    *
    * An account created by an emailed code has no password until one is set, so
@@ -379,6 +407,7 @@ export function useSupabaseAuth() {
     signInWithEmail,
     verifyOtp,
     signInWithPassword,
+    signInWithProvider,
     signUpWithPassword,
     signOut,
     sendPasswordReset,

@@ -11,6 +11,7 @@ import { requestSignupCode, verifySignupCode } from "@/lib/signup-code";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { btn, btnGo, field } from "@/lib/ui";
+import OAuthButtons from "@/components/OAuthButtons";
 
 /**
  * Sign up, one question at a time - email and a code first, then everything
@@ -179,7 +180,7 @@ const EMAIL_STEP = STEPS.findIndex((s) => s.key === "email");
 
 export default function SignUp() {
   const router = useRouter();
-  const { ready, user, signUpWithPassword } = useSupabaseAuth();
+  const { ready, user, signUpWithPassword, signInWithProvider } = useSupabaseAuth();
 
   const [at, setAt] = useState(0);
   const [answers, setAnswers] = useState<Answers>({
@@ -456,6 +457,18 @@ export default function SignUp() {
           />
         ))}
       </div>
+
+      {/* The quick way in, offered only before anything has been typed. */}
+      {step.key === "email" && (
+        <div className="mt-9">
+          <OAuthButtons onPick={signInWithProvider} />
+          <div className="mt-7 flex items-center gap-3" aria-hidden="true">
+            <span className="h-px flex-1 bg-line" />
+            <span className="label text-silverfaint">OR WITH EMAIL</span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </div>
+      )}
 
       <form
         className="mt-9"
