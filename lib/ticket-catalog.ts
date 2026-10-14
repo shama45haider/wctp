@@ -113,6 +113,18 @@ export function reloadTicketCatalog(): Promise<void> {
           .select("id,name,price_cents,max_per_order,active,image_path")
           .eq("active", true)
           .order("sort", { ascending: true }),
+      ).then((res) =>
+        // Before migration 0031 there is no image_path column, and asking for
+        // it fails the whole read. Ask again without it so add-ons still sell.
+        res?.error && /image_path/i.test(res.error.message)
+          ? capped(
+              supabase
+                .from("ticket_addons")
+                .select("id,name,price_cents,max_per_order,active")
+                .eq("active", true)
+                .order("sort", { ascending: true }),
+            )
+          : res,
       ),
     ]);
 
@@ -132,7 +144,7 @@ export function reloadTicketCatalog(): Promise<void> {
             name: a.name,
             priceCents: a.price_cents,
             maxPerOrder: a.max_per_order,
-            imagePath: a.image_path,
+            imagePath: a.image_path ?? null,
           }))
         : [];
 
