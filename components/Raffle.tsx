@@ -364,16 +364,18 @@ export default function Raffle() {
                 {prizes.map((p, i) => (
                   <li
                     key={i}
-                    className={`flex min-w-0 flex-col rounded-2xl p-2.5 text-void ${TILES[i] ?? "bg-[#d4d4d4]"}`}
+                    className={`flex min-w-0 flex-col rounded-2xl border p-2.5 ${
+                      i === 0 ? "border-blood bg-blood text-white" : "border-line-hi bg-[#141414] text-white"
+                    }`}
                   >
-                    <span className="raffle-bubbly text-[1.75rem] leading-none">{i + 1}</span>
+                    <span className={`raffle-bubbly text-[1.75rem] leading-none ${i === 0 ? "text-white" : "text-bloodhi"}`}>{i + 1}</span>
                     {p.place && (
-                      <span className="mt-0.5 text-[0.625rem] font-semibold tracking-wide uppercase opacity-70">
+                      <span className="mt-0.5 text-[0.6875rem] font-semibold tracking-wide uppercase opacity-80">
                         {p.place}
                       </span>
                     )}
                     {p.items.length > 0 && (
-                      <ul className="raffle-glare mt-1.5 flex flex-col gap-0.5 text-[0.75rem] leading-tight font-bold break-words">
+                      <ul className="mt-1.5 flex flex-col gap-0.5 text-[0.8125rem] leading-tight font-bold break-words text-white">
                         {p.items.map((item, j) => (
                           <li key={j}>{item}</li>
                         ))}

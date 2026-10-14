@@ -534,43 +534,6 @@ button.label:not([class*="min-h-"]) {
   box-shadow: 0 6px 16px -10px rgba(0, 0, 0, 0.8);
 }
 
-/* A rainbow streak sweeping through the prize text, like light passing over
-   holographic foil - the words stay dark and readable against the tile's
-   solid color between passes. Same clipped-gradient trick as .chrome above,
-   animated instead of fixed.
-   The loop has to move the gradient by exactly one tile or the last frame
-   doesn't match the first and the streak jumps every cycle. With a tile twice
-   the box's width, a percentage position p offsets it by p x (box - tile) =
-   -p x box, so 200% -> 0% slides it exactly one tile (2 x box) to the right:
-   the streak runs left to right and the seam is invisible. */
-@keyframes raffle-glare {
-  from {
-    background-position: 200% 50%;
-  }
-  to {
-    background-position: 0% 50%;
-  }
-}
-
-.raffle-glare {
-  background-image: linear-gradient(
-    100deg,
-    var(--silver) 0%,
-    var(--silver) 30%,
-    #ffffff 50%,
-    var(--silver) 70%,
-    var(--void) 100%
-  );
-  background-size: 200% 100%;
-  background-repeat: repeat-x;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  animation: raffle-glare 2.6s linear infinite;
-  will-change: background-position;
-}
-
 .raffle-wheel-glow {
   background: radial-gradient(
     closest-side,
