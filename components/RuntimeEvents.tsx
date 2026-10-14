@@ -1,6 +1,7 @@
 "use client";
 
 import Flyer from "./Flyer";
+import { ShowMoreButton, useShowMore } from "./ShowMore";
 import PoshLink from "./PoshLink";
 import { Editable } from "./Editable";
 import { allEvents, heroPhoto, monthOf, dayOf, type Event } from "@/lib/events";
@@ -110,6 +111,8 @@ function Card({ e, now }: { e: Event; now: Date }) {
 export default function RuntimeEvents({ runtime }: { runtime: RuntimeEventList }) {
   const { events, now } = runtime;
   const added = events.filter((e) => !BUILT_IN.has(e.slug));
+  // A few at a time, so the tickets page stays a few screens long on a phone.
+  const page = useShowMore(added, 4);
   if (added.length === 0) return null;
 
   return (
@@ -125,10 +128,11 @@ export default function RuntimeEvents({ runtime }: { runtime: RuntimeEventList }
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {added.map((e) => (
+        {page.visible.map((e) => (
           <Card key={e.slug} e={e} now={now} />
         ))}
       </div>
+      <ShowMoreButton remaining={page.remaining} onClick={page.showMore} label="Show more dates" />
     </section>
   );
 }

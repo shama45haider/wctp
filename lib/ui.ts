@@ -18,7 +18,7 @@ export const btnBase =
 export const btn = `${btnBase} border border-line-hi text-chalk hover:border-chalk`;
 
 /** Primary: buy, confirm, continue. One per screen - a solid black pill. */
-export const btnGo = `${btnBase} bg-prize text-void hover:bg-gold-hi`;
+export const btnGo = `${btnBase} bg-blood text-chalk hover:bg-bloodhi`;
 
 /** Row of small metadata pills and quiet links. */
 export const tag =

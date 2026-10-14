@@ -122,7 +122,7 @@ export default function TabBar() {
                 >
                   {ICONS[l.href]}
                 </svg>
-                <span className="font-mono text-[0.625rem] tracking-[0.08em]">{l.label}</span>
+                <span className="font-mono text-[0.75rem] tracking-[0.02em]">{l.label}</span>
               </Link>
             </li>
           );

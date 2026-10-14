@@ -64,7 +64,7 @@ export function EventFromStat({ event }: { event: Event }) {
   // plainly rather than as the start of a range.
   return (
     <div>
-      <div className="label mb-1 text-silverfaint">
+      <div className="label mb-1 text-blood">
         {from > 0 ? (
           <Editable k="event.stats.from">FROM</Editable>
         ) : (

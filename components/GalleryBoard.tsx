@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ShowMoreButton, useShowMore } from "./ShowMore";
 import Link from "next/link";
 import Flyer from "./Flyer";
 import { allEvents, org, monthOf, dayOf } from "@/lib/events";
@@ -293,6 +294,10 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
   // guest, but what is drawn should not depend on a rule in another system
   // being right. An admin is the only session that sees one, badged.
   const shown = canEdit ? items : items.filter((i) => i.published);
+  // A batch at a time, so the gallery is a few screens on a phone, not dozens.
+  const photoPage = useShowMore(shown, 12);
+  const flyerPage = useShowMore(flyers, 8);
+  const postPage = useShowMore(posts, 8);
   const showPhotos = shown.length > 0 || canEdit;
 
   const upload = async (files: File[]) => {
@@ -462,8 +467,9 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
           )}
 
           {shown.length > 0 ? (
+            <>
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {shown.map((item) =>
+              {photoPage.visible.map((item) =>
                 canEdit && editing === item.id ? (
                   <PhotoEditor
                     key={item.id}
@@ -481,6 +487,8 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
                 ),
               )}
             </div>
+            <ShowMoreButton remaining={photoPage.remaining} onClick={photoPage.showMore} />
+            </>
           ) : (
             <div className="mt-6 border border-dashed border-linehi p-10 text-center">
               <p className="font-display text-2xl">
@@ -509,7 +517,7 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-        {flyers.map((e) => (
+        {flyerPage.visible.map((e) => (
           <Link
             key={e.slug}
             href={`/events/${e.slug}`}
@@ -529,6 +537,7 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
           </Link>
         ))}
       </div>
+      <ShowMoreButton remaining={flyerPage.remaining} onClick={flyerPage.showMore} />
 
       <div className="mt-14 flex items-end justify-between gap-4 border-b border-line pb-4">
         <h2 className="font-display text-[clamp(1.9rem,5vw,3rem)]">
@@ -543,8 +552,9 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
       </div>
 
       {posts.length > 0 ? (
+        <>
         <div className="mt-6 grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-3 lg:grid-cols-4">
-          {posts.map((p) => (
+          {postPage.visible.map((p) => (
             <a
               key={p.id}
               href={p.permalink}
@@ -574,6 +584,8 @@ export default function GalleryBoard({ posts }: { posts: IgPost[] }) {
             </a>
           ))}
         </div>
+        <ShowMoreButton remaining={postPage.remaining} onClick={postPage.showMore} />
+        </>
       ) : (
         <div className="mt-6 border border-line">
           <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 lg:grid-cols-4">

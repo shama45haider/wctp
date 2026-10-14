@@ -36,7 +36,7 @@ export default function Nav() {
             <Link
               key={l.label}
               href={l.href}
-              className="-my-3 py-3 text-silver transition-colors hover:text-prize"
+              className="-my-3 py-3 text-silver transition-colors hover:text-bloodhi"
             >
               {l.label}
             </Link>

@@ -47,7 +47,9 @@ const pad = (n: number) => String(n).padStart(2, "0");
  * roster is the one page that gets to be loud. The colours live on each
  * Section, bundled ones in lib/artists.ts and added ones in team_sections.
  */
-const accentStyle = (accent: string) => ({ "--accent": accent }) as React.CSSProperties;
+// Every crew takes the site's red. The colour stored on each section is kept so
+// nothing is lost, but the page no longer rainbows: one accent, one voice.
+const accentStyle = (_accent: string) => ({ "--accent": "var(--blood)" }) as React.CSSProperties;
 
 /** Colours offered for a new category; the bundled six plus a few more. */
 const SWATCHES = [
@@ -133,15 +135,15 @@ function FilledCard({
         {onEdit && <EditTab onEdit={onEdit} slot={a.slot} />}
       </div>
 
-      <div className="px-5 pt-4 pb-6">
-        <h3 className="font-display text-[1.6rem] break-words">{a.name}</h3>
+      <div className="px-3 pt-3 pb-4 sm:px-5 sm:pt-4 sm:pb-6">
+        <h3 className="font-display text-[1.15rem] break-words sm:text-[1.6rem]">{a.name}</h3>
         <div className="team-role label mt-1">
           <Editable k={`team.role.${section.id}.label`}>{section.label}</Editable>
         </div>
-        {a.title && <div className="label mt-1 text-silverdim">{a.title.toUpperCase()}</div>}
-        {a.bio && <p className="mt-3 text-sm leading-relaxed text-silverdim">{a.bio}</p>}
+        {a.title && <div className="label mt-1 break-words text-silverdim">{a.title.toUpperCase()}</div>}
+        {a.bio && <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-silverdim sm:line-clamp-none">{a.bio}</p>}
         {(a.instagram || a.soundcloud) && (
-          <div className="label mt-4 flex gap-5 border-t border-line pt-1 [&_a:hover]:text-[var(--accent)]">
+          <div className="label mt-4 flex flex-wrap gap-x-4 border-t border-line pt-1 [&_a:hover]:text-[var(--accent)]">
             {a.instagram && (
               <a
                 href={a.instagram}
@@ -1012,7 +1014,7 @@ export default function TeamBoard() {
               </span>
             </div>
 
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
               {slots.length === 0 && <EmptySection section={r} />}
               {slots.map((a) =>
                 editing === a.slot ? (

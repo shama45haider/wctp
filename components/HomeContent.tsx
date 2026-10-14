@@ -9,6 +9,18 @@ import { heroPhoto, org, monthOf, dayOf } from "@/lib/events";
 import { useRuntimeEvents } from "@/lib/events-runtime";
 import EventCarousel from "./EventCarousel";
 import DeleteEventButton from "./DeleteEventButton";
+import TextCarousel from "./TextCarousel";
+import { ShowMoreButton, useShowMore } from "./ShowMore";
+
+const STRIP_PHRASES = [
+  "Free parties",
+  "Drinks",
+  "Raffles",
+  "Dance contests",
+  "Live DJs",
+  "Prizes",
+  "18+ / 21+",
+];
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 /**
@@ -44,6 +56,7 @@ function SectionHead({
     <div className="mb-10 flex flex-col items-start gap-3 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
       <div>
         <h2 className="font-display text-[clamp(2.5rem,6vw,4.25rem)] text-chalk">{title}</h2>
+        <span aria-hidden className="gold-rule mt-4" />
         {blurb && <p className="mt-3 max-w-[42ch] text-[1.0625rem] text-silver">{blurb}</p>}
       </div>
       {aside && <div className="label text-silverfaint sm:shrink-0">{aside}</div>}
@@ -61,26 +74,16 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
   const { ready, isAdmin } = useSupabaseAuth();
   const onDelete = ready && isAdmin ? hide : undefined;
   const next = upcoming[0] as (typeof upcoming)[number] | undefined;
+  // The archive is every night ever thrown; show it a few rows at a time.
+  const archive = useShowMore(past, 8);
 
   return (
     <main>
       <header className="relative overflow-hidden border-b border-line">
-        {/* stamped index strip */}
+        {/* What a night here is, one phrase at a time. */}
         <div className="border-b border-line">
-          <div className="label mx-auto flex w-[92vw] max-w-[1180px] justify-between py-2 text-silverfaint">
-            <span>
-              <Editable k="home.strip.est">EST. NYC</Editable>
-            </span>
-            <span>
-              {org.totalEvents} / {org.totalAttendees.toLocaleString()}
-              <span className="hidden sm:inline">
-                {" "}
-                <Editable k="home.strip.heads">HEADS</Editable>
-              </span>
-            </span>
-            <span>
-              <Editable k="home.strip.age">18+</Editable>
-            </span>
+          <div className="py-3">
+            <TextCarousel items={STRIP_PHRASES} />
           </div>
         </div>
 
@@ -173,7 +176,7 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
               180px band loses most of the artwork, which is the whole point of
               an archive. Paired columns show each flyer whole. */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(230px,1fr))] sm:gap-5">
-            {past.map((e) => (
+            {archive.visible.map((e) => (
               <div key={e.slug} className="relative flex">
                 <EventLink
                   slug={e.slug}
@@ -213,6 +216,7 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
               </div>
             ))}
           </div>
+          <ShowMoreButton remaining={archive.remaining} onClick={archive.showMore} label="Show more nights" />
         </div>
       </section>
     </main>

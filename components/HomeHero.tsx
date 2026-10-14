@@ -45,11 +45,8 @@ export default function HomeHero({
         <h1 className="w-[clamp(7rem,18vw,10rem)]">
           <Logo finish="clean" eager className="h-auto w-full" />
         </h1>
-        <p className="mt-7 font-display text-[clamp(1.25rem,3vw,1.75rem)] text-silver">
-          <Editable k="home.hero.tagline">It&rsquo;s in the name</Editable>
-        </p>
         {/* For someone who has never been: what this is, in one line. */}
-        <p className="mt-6 max-w-[36ch] text-[1.0625rem] leading-relaxed text-silver">
+        <p className="mt-7 max-w-[36ch] text-[1.0625rem] leading-relaxed text-silver">
           <Editable k="home.hero.explainer">
             Pick a night, get a ticket, and we email you the address the day before.
           </Editable>
@@ -67,7 +64,7 @@ export default function HomeHero({
             <EventLink
               slug={next.slug}
               hasPage={nextHasPage}
-              className="font-display mt-3 block max-w-full text-[clamp(1.75rem,7.5vw,4.5rem)] leading-[1.05] break-words text-chalk transition-colors hover:text-silver"
+              className="font-display mt-3 block max-w-full text-[clamp(1.25rem,4vw,2.25rem)] leading-[1.05] break-words text-chalk transition-colors hover:text-silver"
             >
               {next.title}
             </EventLink>
@@ -198,12 +195,12 @@ function Countdown({ to }: { to: number | null }) {
       {parts.map(({ label, value }, i) => (
         <div key={label} className="flex items-start gap-[clamp(0.5rem,2.2vw,1.25rem)]">
           {i > 0 && (
-            <span aria-hidden className="font-display text-[clamp(2rem,6vw,3.5rem)] leading-none text-silverfaint">
+            <span aria-hidden className="font-display text-[clamp(1.375rem,4vw,2.125rem)] leading-none text-blood">
               :
             </span>
           )}
           <div className="flex min-w-[2.2ch] flex-col items-center">
-            <span className="font-display text-[clamp(2rem,6vw,3.5rem)] leading-none text-chalk tabular-nums">
+            <span className="font-display text-[clamp(1.375rem,4vw,2.125rem)] leading-none text-chalk tabular-nums">
               {value}
             </span>
             <span className="label mt-1.5 text-silver">{label}</span>

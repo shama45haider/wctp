@@ -7,7 +7,6 @@ import { Editable } from "./Editable";
 import Logo from "./Logo";
 import { org } from "@/lib/events";
 import { avatarUrl, useOwnProfile } from "@/lib/profile-data";
-import { bubble, round } from "@/lib/raffle-fonts";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { enterRaffle, loadRaffle, type Entrant, type RaffleState } from "@/lib/raffle";
 
@@ -18,9 +17,9 @@ import { enterRaffle, loadRaffle, type Entrant, type RaffleState } from "@/lib/r
  * dashboard; entry rules live in the database (0015/0016). The button here
  * only explains which rule a guest hasn't met yet and sends them to fix it.
  *
- * Styled on purpose like a party-flyer sticker rather than the rest of the
- * site's chrome: flat candy colors, hard shadows and its own two fonts (see
- * lib/raffle-fonts.ts and the raffle-box block in globals.css).
+ * Styled to match the site: a dark panel, white type and the same pill
+ * buttons as everywhere else (see
+ * the raffle block in globals.css).
  *
  * Renders nothing until the raffle has loaded - whether the box has been
  * seen is in localStorage, which the static export can't know - and nothing
@@ -29,8 +28,7 @@ import { enterRaffle, loadRaffle, type Entrant, type RaffleState } from "@/lib/r
  */
 
 const HIDDEN_ON = ["/admin", "/pass", "/claim", "/signup", "/login", "/reset-password", "/verify", "/checkout", "/raffle"];
-const TILES = ["bg-[#ffe45c]", "bg-[#ff8cc6]", "bg-[#8fdcff]"];
-const FONTS = `${bubble.variable} ${round.variable}`;
+const TILES = ["bg-white", "bg-[#d4d4d4]", "bg-[#9a9a9a]"];
 const seenKey = (raffleId: string) => `wctp.raffle.${raffleId}.seen`;
 
 const CTA =
@@ -64,7 +62,7 @@ function Status({
   win?: boolean;
 }) {
   return (
-    <div className={`rounded-2xl px-4 py-3 ${win ? "bg-[#ffe45c] text-void" : "bg-[#1a1c21] text-chalk"}`}>
+    <div className={`rounded-2xl px-4 py-3 ${win ? "bg-white text-void" : "bg-[#141414] text-chalk"}`}>
       <p className="raffle-bubbly text-[1.25rem] leading-none uppercase">{title}</p>
       <p className={`mt-1.5 text-[0.8125rem] leading-snug ${win ? "text-[#3a3000]" : "text-silverdim"}`}>
         {body}
@@ -244,7 +242,7 @@ export default function Raffle() {
         <Link
           href="/login"
           onClick={close}
-          className="mt-1 flex min-h-11 items-center text-[0.8125rem] text-silverdim underline decoration-[#ff5fa8] decoration-2 underline-offset-4 transition-colors hover:text-chalk"
+          className="mt-1 flex min-h-11 items-center text-[0.8125rem] text-silverdim underline decoration-[#a8a8a8] decoration-2 underline-offset-4 transition-colors hover:text-chalk"
         >
           Already verified? Sign in
         </Link>
@@ -284,16 +282,16 @@ export default function Raffle() {
           type="button"
           onClick={reopen}
           aria-label={`Open the raffle - ${count} entered`}
-          className={`${FONTS} raffle-pill raffle-round fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[8990] flex min-h-12 items-center gap-2 py-1.5 pr-3.5 pl-1.5 lg:right-6 lg:bottom-6`}
+          className={`raffle-pill raffle-round fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[8990] flex min-h-12 items-center gap-2 py-1.5 pr-3.5 pl-1.5 lg:right-6 lg:bottom-6`}
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-void text-[#ffe45c]">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blood text-white">
             <TicketIcon className="h-[1.125rem] w-[1.125rem]" />
           </span>
           <span className="raffle-bubbly text-[1.125rem] leading-none uppercase">
             {data.entered ? "You're in" : "Raffle"}
           </span>
           {!data.error && (
-            <span className="rounded-full bg-void px-2 py-0.5 text-[0.75rem] font-semibold leading-tight text-[#ffe45c]">
+            <span className="rounded-full bg-void px-2 py-0.5 text-[0.75rem] font-semibold leading-tight text-white">
               {count}
             </span>
           )}
@@ -302,7 +300,7 @@ export default function Raffle() {
 
       {open && (
         <div
-          className={`${FONTS} raffle-backdrop raffle-round fixed inset-0 z-[9000] flex items-end justify-center bg-void/75 backdrop-blur-sm sm:items-center sm:p-6`}
+          className={`raffle-backdrop raffle-round fixed inset-0 z-[9000] flex items-end justify-center bg-void/75 backdrop-blur-sm sm:items-center sm:p-6`}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) close();
           }}
@@ -317,7 +315,7 @@ export default function Raffle() {
           >
             {/* --------------------------------------------------- top -- */}
             <div className="flex items-start justify-between gap-3">
-              <span className="rounded-full bg-[#ff5fa8] px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-void uppercase">
+              <span className="rounded-full bg-[#a8a8a8] px-2.5 py-1 text-[0.6875rem] font-semibold tracking-wide text-void uppercase">
                 <Editable k="raffle.eyebrow">Members only · Free entry</Editable>
               </span>
               <button
@@ -326,7 +324,7 @@ export default function Raffle() {
                 aria-label="Close the raffle"
                 className="-mt-2 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ffe45c] text-void transition-transform active:scale-90">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-void transition-transform active:scale-90">
                   <svg
                     viewBox="0 0 24 24"
                     aria-hidden="true"
@@ -366,7 +364,7 @@ export default function Raffle() {
                 {prizes.map((p, i) => (
                   <li
                     key={i}
-                    className={`flex min-w-0 flex-col rounded-2xl p-2.5 text-void ${TILES[i] ?? "bg-[#c9f27a]"}`}
+                    className={`flex min-w-0 flex-col rounded-2xl p-2.5 text-void ${TILES[i] ?? "bg-[#d4d4d4]"}`}
                   >
                     <span className="raffle-bubbly text-[1.75rem] leading-none">{i + 1}</span>
                     {p.place && (
@@ -392,7 +390,7 @@ export default function Raffle() {
                 <span className="text-[0.75rem] font-semibold tracking-wide text-silver uppercase">
                   <Editable k="raffle.entrants.title">Who&rsquo;s in</Editable>
                 </span>
-                <span className="raffle-bubbly rounded-full bg-[#1a1c21] px-2 py-1 text-[0.8125rem] leading-none text-[#ffe45c]">
+                <span className="raffle-bubbly rounded-full bg-[#141414] px-2 py-1 text-[0.8125rem] leading-none text-white">
                   {data.error ? "–" : count}
                 </span>
                 {!data.error && count > 0 && (
@@ -401,7 +399,7 @@ export default function Raffle() {
                     onClick={() => setListOpen((v) => !v)}
                     aria-expanded={listOpen}
                     aria-controls="raffle-entrants"
-                    className="ml-auto flex min-h-11 items-center gap-2 rounded-full bg-[#1a1c21] py-1 pr-3 pl-1.5 text-[0.8125rem] font-semibold text-chalk transition-colors hover:bg-[#23262d]"
+                    className="ml-auto flex min-h-11 items-center gap-2 rounded-full bg-[#141414] py-1 pr-3 pl-1.5 text-[0.8125rem] font-semibold text-chalk transition-colors hover:bg-[#1c1c1c]"
                   >
                     <span className="flex -space-x-2" aria-hidden="true">
                       {data.entrants.slice(0, 3).map((e, i) => (
@@ -409,7 +407,7 @@ export default function Raffle() {
                           key={`${e.handle}-${i}`}
                           entrant={e}
                           index={i}
-                          className="h-7 w-7 ring-2 ring-[#1a1c21]"
+                          className="h-7 w-7 ring-2 ring-[#141414]"
                         />
                       ))}
                     </span>
@@ -440,7 +438,7 @@ export default function Raffle() {
                 listOpen && (
                   <ul
                     id="raffle-entrants"
-                    className="raffle-list mt-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto overscroll-contain rounded-2xl bg-[#1a1c21] p-1.5"
+                    className="raffle-list mt-2 flex max-h-60 flex-col gap-0.5 overflow-y-auto overscroll-contain rounded-2xl bg-[#141414] p-1.5"
                   >
                     {data.entrants.map((e, i) => {
                       const me = myHandle !== null && e.handle.toLowerCase() === myHandle;
@@ -448,7 +446,7 @@ export default function Raffle() {
                         <li
                           key={`${e.handle}-${i}`}
                           className={`flex min-h-11 items-center gap-2.5 rounded-xl px-2 py-1.5 ${
-                            me ? "bg-[#ffe45c] text-void" : "text-silver"
+                            me ? "bg-white text-void" : "text-silver"
                           }`}
                         >
                           <Face entrant={e} index={i} className="h-8 w-8" />
@@ -456,7 +454,7 @@ export default function Raffle() {
                             {e.handle === "member" ? "member" : `@${e.handle}`}
                           </span>
                           {me && (
-                            <span className="rounded-full bg-void px-2 py-0.5 text-[0.6875rem] font-semibold text-[#ffe45c]">
+                            <span className="rounded-full bg-void px-2 py-0.5 text-[0.6875rem] font-semibold text-white">
                               you
                             </span>
                           )}

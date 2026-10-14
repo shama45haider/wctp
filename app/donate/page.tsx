@@ -78,7 +78,7 @@ export default function Donate() {
           </p>
           <h2
             id="give-title"
-            className="font-display chrome mt-2 text-[clamp(2.25rem,8vw,3.25rem)] leading-[0.85]"
+            className="font-display chrome mt-2 text-[clamp(2rem,8vw,3.25rem)] break-words leading-[0.85]"
           >
             <Editable k="donate.give.heading">Or just donate</Editable>
           </h2>

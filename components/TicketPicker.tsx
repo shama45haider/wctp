@@ -27,6 +27,7 @@ import { useAccount } from "@/lib/demo-account";
 import { useTicketCatalog } from "@/lib/ticket-catalog";
 import { useNow } from "@/lib/now";
 import { btnGo, field } from "@/lib/ui";
+import { siteImageUrl } from "@/lib/site-content";
 
 /** Stock is only worth naming once it is scarce enough to hurry someone. */
 const LOW_STOCK = 25;
@@ -242,7 +243,11 @@ function TierRow({
   );
 }
 
-/** One add-on: a price and a stepper, usable once a ticket is picked. */
+/**
+ * One add-on as a tile: its picture on top, then the name and price, then the
+ * way to take it. "Add to cart" until one is in the cart, and a stepper once it
+ * is, so the tile always shows what the guest has already picked.
+ */
 function AddonRow({
   addon,
   qty,
@@ -254,48 +259,77 @@ function AddonRow({
   enabled: boolean;
   onStep: (delta: number) => void;
 }) {
-  // A card with a red edge once it is picked: the tag says what it is, the price
-  // is red, and the stepper is a pill with a red plus.
+  const pic = siteImageUrl(addon.imagePath);
+  const soldOut = qty >= addon.maxPerOrder;
   return (
     <div
-      className={`flex flex-wrap items-center gap-x-6 gap-y-4 border border-line border-l-[3px] px-4 py-4 transition-colors ${
-        qty > 0 ? "border-l-blood bg-[rgba(229,37,46,0.08)]" : "border-l-line-hi bg-ink"
+      className={`flex flex-col overflow-hidden border bg-ink transition-colors ${
+        qty > 0 ? "border-blood" : "border-line"
       } ${enabled ? "" : "opacity-45"}`}
     >
-      <div className="min-w-[8rem] flex-1">
-        <span className="label inline-block bg-blood px-2 py-0.5 text-white uppercase">
-          Add-on
-        </span>
-        <h3 className="font-display mt-2 text-[1.3rem]">{addon.name}</h3>
-        <p className="label mt-1 text-silverdim">
+      <div className="relative aspect-square w-full bg-ink2">
+        {pic ? (
+          <img src={pic} alt="" loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <div className="font-display flex h-full w-full items-center justify-center text-[2rem] text-silverfaint">
+            {addon.name.slice(0, 1).toUpperCase()}
+          </div>
+        )}
+        {qty > 0 && (
+          <span className="label absolute top-2 right-2 bg-blood px-2 py-0.5 text-white">
+            In cart · {qty}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="font-display text-[1.15rem] break-words">{addon.name}</h3>
+          <span className="font-display text-[1.15rem] whitespace-nowrap text-bloodhi">
+            {usd(addon.priceCents)}
+          </span>
+        </div>
+        <p className="label text-silverdim">
           <Editable k="event.picker.addon.pickup">Pick up at the door</Editable>
         </p>
-      </div>
-      <div className="font-display text-right text-[1.5rem] whitespace-nowrap text-bloodhi">
-        {usd(addon.priceCents)}
-      </div>
-      <div className="flex items-center gap-1 rounded-full border border-line bg-void p-1">
-        <button
-          type="button"
-          onClick={() => onStep(-1)}
-          disabled={!enabled || qty === 0}
-          aria-label={`Remove one ${addon.name}`}
-          className="font-display flex h-10 w-10 items-center justify-center rounded-full text-xl text-silver transition-colors hover:bg-ink2 disabled:opacity-30 disabled:hover:bg-transparent"
-        >
-          &minus;
-        </button>
-        <span aria-live="polite" className="label w-8 text-center text-base text-white">
-          {qty}
-        </span>
-        <button
-          type="button"
-          onClick={() => onStep(1)}
-          disabled={!enabled || qty >= addon.maxPerOrder}
-          aria-label={`Add one ${addon.name}`}
-          className="font-display flex h-10 w-10 items-center justify-center rounded-full bg-blood text-xl text-white transition-colors hover:bg-bloodhi disabled:opacity-30 disabled:hover:bg-blood"
-        >
-          +
-        </button>
+
+        <div className="mt-auto pt-1">
+          {qty === 0 ? (
+            <button
+              type="button"
+              onClick={() => onStep(1)}
+              disabled={!enabled}
+              aria-label={`Add ${addon.name} to cart`}
+              className={`${btnGo} w-full`}
+            >
+              Add to cart
+            </button>
+          ) : (
+            <div className="flex items-center justify-between rounded-full border border-line bg-void p-1">
+              <button
+                type="button"
+                onClick={() => onStep(-1)}
+                disabled={!enabled}
+                aria-label={`Remove one ${addon.name}`}
+                className="font-display flex h-10 w-10 items-center justify-center rounded-full text-xl text-silver transition-colors hover:bg-ink2 disabled:opacity-30"
+              >
+                &minus;
+              </button>
+              <span aria-live="polite" className="label text-base text-white">
+                {qty}
+              </span>
+              <button
+                type="button"
+                onClick={() => onStep(1)}
+                disabled={!enabled || soldOut}
+                aria-label={`Add one ${addon.name}`}
+                className="font-display flex h-10 w-10 items-center justify-center rounded-full bg-blood text-xl text-white transition-colors hover:bg-bloodhi disabled:opacity-30"
+              >
+                +
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -499,25 +533,29 @@ export default function TicketPicker({ event }: { event: Event }) {
 
       {addons.length > 0 && tiers.some((t) => !t.donation) && (
         <>
-          <div className="label flex items-center justify-between border-b border-line px-4 py-3 text-silverfaint">
-            <span>
-              <Editable k="event.picker.addonsTitle">ADD-ONS</Editable>
+          <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
+            <span className="label flex items-center gap-2 text-blood">
+              <span className="h-2 w-2 rounded-full bg-blood" aria-hidden />
+              <Editable k="event.picker.addonsTitle">Add-ons</Editable>
             </span>
             {!hasTicket && (
-              <span>
-                <Editable k="event.picker.addonsNeedTicket">PICK A TICKET FIRST</Editable>
+              <span className="label text-silverdim">
+                <Editable k="event.picker.addonsNeedTicket">Pick a ticket first</Editable>
               </span>
             )}
           </div>
-          {addons.map((a) => (
-            <AddonRow
-              key={a.id}
-              addon={a}
-              qty={hasTicket ? (mine?.addons?.[a.id] ?? 0) : 0}
-              enabled={hasTicket}
-              onStep={(d) => adjustAddon(event.slug, a.id, d)}
-            />
-          ))}
+          {/* Little picture tiles: two across on a phone, three on a wider screen. */}
+          <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-3">
+            {addons.map((a) => (
+              <AddonRow
+                key={a.id}
+                addon={a}
+                qty={hasTicket ? (mine?.addons?.[a.id] ?? 0) : 0}
+                enabled={hasTicket}
+                onStep={(d) => adjustAddon(event.slug, a.id, d)}
+              />
+            ))}
+          </div>
         </>
       )}
 

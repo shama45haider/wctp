@@ -66,47 +66,52 @@ export default async function EventPage({
 
   return (
     <main className="mx-auto w-[92vw] max-w-[1180px] py-[clamp(1.5rem,5vw,5rem)]">
+      {/* A clear way back to the list, as a pill people can see and tap. */}
       <Link
         href="/tickets"
-        className="label -my-3 inline-block py-3 text-silverfaint hover:text-chalk"
+        className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-4 text-[0.9375rem] font-medium text-silver transition-colors hover:border-blood hover:text-bloodhi"
       >
-        &larr; ALL TICKETS
+        <span aria-hidden>&larr;</span> All dates
       </Link>
 
       <div className="mt-6 grid gap-8 md:mt-8 md:grid-cols-[minmax(0,1fr)_380px] md:gap-10">
         {/* The flyer leads on a phone - it is the thing people recognise - then
             moves to the right rail once there is room for two columns. */}
-        <div className="relative -order-1 aspect-square overflow-hidden border border-line bg-ink md:order-2">
+        <div className="relative mx-auto -order-1 aspect-[4/5] w-[72%] overflow-hidden border border-line bg-ink sm:w-[58%] md:order-2 md:mx-0 md:aspect-square md:w-full">
           <EventFlyer event={event} />
         </div>
 
         <div className="min-w-0">
-          <div className="label mb-3 flex items-center gap-2 text-silverfaint">
+          <div className="label mb-3 flex items-center gap-2 text-blood">
             {org.name}
           </div>
 
-          <h1 className="font-display chrome text-[clamp(1.75rem,8.5vw,5rem)] break-words">
+          {/* The date leads, in a red block, so it is the first thing read. */}
+          <div className="inline-flex bg-blood px-3 py-1.5 font-display text-[1.125rem] uppercase text-white">
+            {event.dow} {dayOf(event.date)} {monthOf(event.date)}
+          </div>
+
+          <h1 className="font-display chrome mt-4 text-[clamp(1.5rem,6.5vw,5rem)] break-words">
             {event.title}
           </h1>
 
           <div className="mt-7 grid grid-cols-2 gap-x-8 gap-y-6 border-y border-line py-6 sm:flex sm:flex-wrap sm:gap-x-12">
             <div>
-              <div className="label mb-1 text-silverfaint">
+              <div className="label mb-1 text-blood">
                 <Editable k="event.stats.when">WHEN</Editable>
               </div>
               <div className="font-display text-2xl">
-                {event.dow} {dayOf(event.date)} {monthOf(event.date)}
+                {event.time}
+                {event.endTime && ` – ${event.endTime}`}
               </div>
               <div className="label mt-1 text-silverdim">
-                {event.time}
-                {event.endTime && ` – ${event.endTime}`}{" "}
                 <Editable k="event.stats.timezone">EDT</Editable>
               </div>
             </div>
             {/* Never an address. Where a night happens goes out by email to
                 the list, and only there - see lib/events.ts. */}
             <div>
-              <div className="label mb-1 text-silverfaint">
+              <div className="label mb-1 text-blood">
                 <Editable k="event.stats.where">WHERE</Editable>
               </div>
               <div className="font-display text-2xl">
@@ -120,7 +125,7 @@ export default async function EventPage({
             </div>
             {typeof event.going === "number" && (
               <div>
-                <div className="label mb-1 text-silverfaint">
+                <div className="label mb-1 text-blood">
                   <Editable k="event.stats.going">GOING</Editable>
                 </div>
                 <div className="font-display text-2xl">{event.going}</div>
@@ -135,7 +140,12 @@ export default async function EventPage({
             </p>
           )}
 
-          <div className="mt-8">
+          {/* The one thing to do on this page, under a clear heading. */}
+          <div className="mt-10">
+            <h2 className="label mb-3 flex items-center gap-2 text-blood">
+              <span className="h-2 w-2 rounded-full bg-blood" aria-hidden />
+              Tickets
+            </h2>
             <TicketPicker event={event} />
           </div>
 

@@ -14,8 +14,8 @@
   --silver-faint: #7a7a7a;
   --white: #ffffff;
   /* Errors and alerts only. */
-  --blood: #e0484f;
-  --blood-hi: #f0606a;
+  --blood: #e5252e;
+  --blood-hi: #ff4450;
   --sponsor: #d9a441;
   /* The one accent: white. Primary buttons and active states. */
   --prize: #ffffff;
@@ -45,6 +45,13 @@
 
 html {
   scroll-behavior: smooth;
+}
+
+/* No page should ever scroll sideways on a phone. clip, not hidden: hidden
+   would make html a scroll container and break the sticky nav. */
+html,
+body {
+  overflow-x: clip;
 }
 
 body {
@@ -233,8 +240,8 @@ summary {
 .gold-rule {
   display: block;
   width: 3.5rem;
-  height: 1px;
-  background: var(--prize);
+  height: 3px;
+  background: var(--blood);
 }
 
 /* Anything tappable that is only a line of small mono text - "BACK HOME",
@@ -415,12 +422,12 @@ button.label:not([class*="min-h-"]) {
 .raffle-ring {
   background: conic-gradient(
     from var(--raffle-angle),
-    #f6e27a,
-    #ff7ab8,
-    #a78bfa,
-    #5ec8ff,
-    #6bffb8,
-    #f6e27a
+    #ffffff,
+    #3a3a3a,
+    #ffffff,
+    #3a3a3a,
+    #ffffff,
+    #ffffff
   );
 }
 
@@ -430,8 +437,7 @@ button.label:not([class*="min-h-"]) {
     raffle-spin 7s linear infinite,
     raffle-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
   box-shadow:
-    0 40px 120px -40px rgba(246, 226, 122, 0.35),
-    0 30px 80px -30px rgba(0, 0, 0, 0.9);
+    0 40px 120px -40px rgba(0, 0, 0, 0.9);
 }
 
 .raffle-gold,
@@ -443,8 +449,7 @@ button.label:not([class*="min-h-"]) {
 }
 
 .raffle-gold {
-  background-image: linear-gradient(180deg, #fff7d1 0%, #f6e27a 32%, #c9962b 55%, #fff1b0 78%, #b8860b 100%);
-  filter: drop-shadow(0 6px 22px rgba(246, 226, 122, 0.28));
+  background-image: linear-gradient(180deg, #ffffff, #ffffff);
 }
 
 .raffle-silver {
@@ -452,50 +457,48 @@ button.label:not([class*="min-h-"]) {
 }
 
 .raffle-bronze {
-  background-image: linear-gradient(180deg, #ffe0c2 0%, #e0a36b 35%, #8c4a1f 58%, #f0b98a 80%, #9a5a2c 100%);
+  background-image: linear-gradient(180deg, #ffffff 0%, #8a8a8a 60%, #d6d6d6 100%);
 }
 
-/* The pop-up box and its bubble: flat candy colors, a thick outline and a hard
-   offset shadow, like a party-flyer sticker - nothing glows or gradients. Its
-   two fonts come from lib/raffle-fonts.ts as --font-bubble and --font-round. */
+/* The pop-up box and its bubble: a dark panel with a hairline edge, white type
+   and the site's own pill buttons. The raffle uses the site's fonts. */
 
 .raffle-bubbly {
-  font-family: var(--font-bubble), "Arial Rounded MT Bold", system-ui, sans-serif;
-  font-weight: 400;
-  letter-spacing: 0.01em;
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .raffle-round {
-  font-family: var(--font-round), ui-rounded, system-ui, sans-serif;
+  font-family: var(--font-body), system-ui, sans-serif;
 }
 
 .raffle-sticker {
-  border: 3px solid #ffe45c;
-  border-radius: 22px;
-  background: #0c0d10;
-  box-shadow: 7px 7px 0 #ff5fa8;
+  border: 1px solid var(--line-hi);
+  border-radius: 20px;
+  background: var(--void);
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.9);
   animation: raffle-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* A bottom sheet on a phone: flat along the screen edges, shadow on top. */
 @media (max-width: 639px) {
   .raffle-sticker {
-    border-width: 3px 0 0;
-    border-radius: 22px 22px 0 0;
-    box-shadow: 0 -5px 0 #ff5fa8;
+    border-width: 1px 0 0;
+    border-radius: 20px 20px 0 0;
+    box-shadow: none;
   }
 }
 
 .raffle-title {
-  color: #ffe45c;
-  text-shadow: 3px 3px 0 #ff5fa8;
+  color: var(--white);
 }
 
 .raffle-go {
   border-radius: 999px;
-  background: #ff5fa8;
-  color: #050505;
-  box-shadow: 0 5px 0 #ffe45c;
+  background: var(--prize);
+  color: var(--void);
+  box-shadow: none;
   transition:
     transform 0.1s ease-out,
     box-shadow 0.1s ease-out,
@@ -507,8 +510,7 @@ button.label:not([class*="min-h-"]) {
 }
 
 .raffle-go:active:not(:disabled) {
-  transform: translateY(4px);
-  box-shadow: 0 1px 0 #ffe45c;
+  transform: scale(0.98);
 }
 
 /* The "who's in" dropdown: a thin scrollbar that stays out of the way on the
@@ -518,37 +520,18 @@ button.label:not([class*="min-h-"]) {
   scrollbar-color: #3a3f47 transparent;
 }
 
-@keyframes raffle-wiggle {
-  0%,
-  86%,
-  100% {
-    transform: rotate(0deg);
-  }
-  89% {
-    transform: rotate(-7deg);
-  }
-  92% {
-    transform: rotate(6deg);
-  }
-  95% {
-    transform: rotate(-3deg);
-  }
-}
-
 .raffle-pill {
-  border: 2.5px solid #050505;
+  border: 1px solid var(--line-hi);
   border-radius: 999px;
-  background: #ffe45c;
-  color: #050505;
-  box-shadow: 3px 3px 0 #ff5fa8;
-  animation:
-    raffle-pop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1),
-    raffle-wiggle 6s ease-in-out 2s infinite;
+  background: var(--ink);
+  color: var(--white);
+  box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.8);
+  animation: raffle-pop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
   -webkit-tap-highlight-color: transparent;
 }
 
 .raffle-pill:active {
-  box-shadow: 1px 1px 0 #ff5fa8;
+  box-shadow: 0 6px 16px -10px rgba(0, 0, 0, 0.8);
 }
 
 /* A rainbow streak sweeping through the prize text, like light passing over
@@ -572,12 +555,10 @@ button.label:not([class*="min-h-"]) {
 .raffle-glare {
   background-image: linear-gradient(
     100deg,
-    var(--void) 0%,
-    var(--void) 30%,
-    #ff5fa8 40%,
-    #ffe45c 50%,
-    #8fdcff 60%,
-    var(--void) 70%,
+    var(--silver) 0%,
+    var(--silver) 30%,
+    #ffffff 50%,
+    var(--silver) 70%,
     var(--void) 100%
   );
   background-size: 200% 100%;
@@ -593,8 +574,8 @@ button.label:not([class*="min-h-"]) {
 .raffle-wheel-glow {
   background: radial-gradient(
     closest-side,
-    rgba(246, 226, 122, 0.16),
-    rgba(167, 139, 250, 0.08) 62%,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.03) 62%,
     transparent
   );
 }
@@ -606,7 +587,7 @@ button.label:not([class*="min-h-"]) {
    glow on hover. */
 
 .team-hero {
-  --accent-hi: #ff5fa8;
+  --accent-hi: #e5252e;
   /* The glow below is pushed past the right edge on purpose; clip it here
      rather than let it widen the whole page on a phone. */
   overflow-x: clip;
@@ -619,16 +600,14 @@ button.label:not([class*="min-h-"]) {
   width: min(34rem, 80vw);
   height: 20rem;
   background:
-    radial-gradient(closest-side, rgba(255, 95, 168, 0.16), transparent 70%),
-    radial-gradient(closest-side at 70% 60%, rgba(94, 231, 255, 0.12), transparent 70%);
+    radial-gradient(closest-side, rgba(229, 37, 46, 0.16), transparent 70%);
   filter: blur(8px);
   pointer-events: none;
   z-index: -1;
 }
 
 .team-spectrum {
-  background: linear-gradient(90deg, #ffd166, #5ee7ff, #ff5fa8, #b8ff5c, #b69cff, #ff8f1f);
-  box-shadow: 0 0 22px rgba(255, 95, 168, 0.35);
+  background: var(--blood);
 }
 
 .team-chip {

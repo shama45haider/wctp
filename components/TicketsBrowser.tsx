@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ShowMoreButton, useShowMore } from "./ShowMore";
 import Link from "next/link";
 import EventLink from "./EventLink";
 import Flyer from "./Flyer";
@@ -209,6 +210,9 @@ export default function TicketsBrowser({ runtime }: { runtime: RuntimeEventList 
     });
   }, [filter, query, upcoming, past]);
 
+  // A few dates at a time; a new filter or search starts the count over.
+  const page = useShowMore(events, 6, `${filter}|${query}`);
+
   return (
     <>
       <div className="mb-8 flex flex-col gap-3 border-y border-line py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -259,11 +263,14 @@ export default function TicketsBrowser({ runtime }: { runtime: RuntimeEventList 
           </p>
         </div>
       ) : (
+        <>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {events.map((e) => (
+          {page.visible.map((e) => (
             <Card key={e.slug} e={e} now={now} linked={hasPage(e.slug)} />
           ))}
         </div>
+        <ShowMoreButton remaining={page.remaining} onClick={page.showMore} label="Show more dates" />
+        </>
       )}
 
       <p className="label mt-8 text-silverfaint">

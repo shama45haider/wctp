@@ -40,6 +40,8 @@ export type Addon = {
   name: string;
   priceCents: number;
   maxPerOrder: number;
+  /** Path in the site-images bucket, or null until a picture is uploaded. */
+  imagePath?: string | null;
 };
 
 /* ---------------------------------------------------------- the catalog -- */

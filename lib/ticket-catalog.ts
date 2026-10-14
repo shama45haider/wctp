@@ -45,6 +45,7 @@ type AddonRow = {
   price_cents: number;
   max_per_order: number;
   active: boolean;
+  image_path: string | null;
 };
 
 export const NEEDS_0023 =
@@ -109,7 +110,7 @@ export function reloadTicketCatalog(): Promise<void> {
       capped(
         supabase
           .from("ticket_addons")
-          .select("id,name,price_cents,max_per_order,active")
+          .select("id,name,price_cents,max_per_order,active,image_path")
           .eq("active", true)
           .order("sort", { ascending: true }),
       ),
@@ -131,6 +132,7 @@ export function reloadTicketCatalog(): Promise<void> {
             name: a.name,
             priceCents: a.price_cents,
             maxPerOrder: a.max_per_order,
+            imagePath: a.image_path,
           }))
         : [];
 
@@ -295,4 +297,71 @@ export async function stripeStatusFor(slug: string): Promise<Record<string, bool
     out[r.tier_id] = Boolean(r.stripe_price_id) && r.stripe_price_cents === r.price_cents;
   }
   return out;
+}
+
+/* ---------------------------------------------------------- add-ons, admin -- */
+
+export type AddonDraft = {
+  id: string;
+  name: string;
+  priceCents: number;
+  maxPerOrder: number;
+  imagePath: string | null;
+  active: boolean;
+};
+
+/** Every add-on, inactive ones included. For the admin editor only. */
+export async function listAllAddons(): Promise<{ addons: (AddonDraft & { sort: number })[]; error?: string }> {
+  const supabase = client();
+  if (!supabase) return { addons: [], error: "Not connected." };
+  const res = await capped(
+    supabase
+      .from("ticket_addons")
+      .select("id,name,price_cents,max_per_order,active,image_path,sort")
+      .order("sort", { ascending: true }),
+  );
+  if (!res) return { addons: [], error: "The database did not answer." };
+  if (res.error) return { addons: [], error: res.error.message };
+  const rows = (res.data ?? []) as (AddonRow & { sort: number })[];
+  return {
+    addons: rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      priceCents: r.price_cents,
+      maxPerOrder: r.max_per_order,
+      imagePath: r.image_path,
+      active: r.active,
+      sort: r.sort,
+    })),
+  };
+}
+
+/** Creates or updates one add-on. A new one goes to the end of the list. */
+export async function saveAddon(a: AddonDraft, sort: number): Promise<Outcome> {
+  const supabase = client();
+  if (!supabase) return { ok: false, error: "Not connected." };
+  const res = await capped(
+    supabase
+      .from("ticket_addons")
+      .upsert(
+        {
+          id: a.id,
+          name: a.name.trim(),
+          price_cents: a.priceCents,
+          max_per_order: a.maxPerOrder,
+          active: a.active,
+          image_path: a.imagePath,
+          sort,
+        },
+        { onConflict: "id" },
+      )
+      .select("id"),
+  );
+  if (!res) return { ok: false, error: "The database did not answer." };
+  if (res.error) return { ok: false, error: res.error.message };
+  if ((res.data ?? []).length === 0) {
+    return { ok: false, error: "Nothing saved - this account is not an admin." };
+  }
+  void reloadTicketCatalog();
+  return { ok: true };
 }

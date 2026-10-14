@@ -18,6 +18,7 @@ import {
 import { siteImageUrl } from "@/lib/site-content";
 import EventPhotoPicker from "@/components/EventPhotoPicker";
 import TierEditor from "@/components/TierEditor";
+import AddonEditor from "@/components/AddonEditor";
 import { saveTier, syncTicketProducts } from "@/lib/ticket-catalog";
 import EventAddressAdmin from "@/components/EventAddressAdmin";
 import { btn, btnGo, field } from "@/lib/ui";
@@ -811,6 +812,11 @@ export default function AdminEvents() {
           )}
         </section>
       </div>
+
+      {/* Add-ons are sold with every night, so they sit below the events. */}
+      <section className="mt-4 border border-line bg-ink">
+        <AddonEditor />
+      </section>
     </main>
   );
 }

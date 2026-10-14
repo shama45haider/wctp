@@ -79,12 +79,11 @@ function drawWheel(
     const start = -Math.PI / 2 + i * slice;
     const mid = start + slice / 2;
 
-    const hue = ((i * 360) / Math.max(n, 7) + 40) % 360;
     ctx.beginPath();
     ctx.moveTo(r, r);
     ctx.arc(r, r, outer, start, start + slice);
     ctx.closePath();
-    ctx.fillStyle = `hsl(${hue} 62% ${i % 2 === 0 ? 44 : 33}%)`;
+    ctx.fillStyle = `hsl(0 0% ${i % 2 === 0 ? 20 : 30}%)`;
     ctx.fill();
     if (n > 1) {
       ctx.lineWidth = n > 90 ? 0.6 : 1.5;
@@ -159,7 +158,7 @@ function drawWheel(
       ctx.arc(r, r, outer, start, start + slice);
       ctx.closePath();
       ctx.lineWidth = Math.max(3, size * 0.009);
-      ctx.strokeStyle = "#f6e27a";
+      ctx.strokeStyle = "#f2f4f7";
       ctx.stroke();
     }
   }
@@ -176,7 +175,7 @@ function drawWheel(
   ctx.fillStyle = "#050505";
   ctx.fill();
   ctx.lineWidth = Math.max(2, size * 0.008);
-  ctx.strokeStyle = "#f6e27a";
+  ctx.strokeStyle = "#f2f4f7";
   ctx.stroke();
 
   // The logo once it has loaded, the letters until then. 1.4 hubs wide keeps
@@ -277,7 +276,7 @@ export default function RaffleWheel({
         aria-hidden="true"
         className="absolute top-0 left-1/2 z-10 h-11 w-9 -translate-x-1/2 -translate-y-[38%] drop-shadow-[0_6px_14px_rgba(0,0,0,0.8)]"
       >
-        <path d="M16 39 2.6 8.5A15 15 0 1 1 29.4 8.5Z" fill="#f6e27a" stroke="#050505" strokeWidth="2" />
+        <path d="M16 39 2.6 8.5A15 15 0 1 1 29.4 8.5Z" fill="#f2f4f7" stroke="#050505" strokeWidth="2" />
         <circle cx="16" cy="14" r="4.5" fill="#050505" />
       </svg>
     </div>

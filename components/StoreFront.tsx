@@ -107,20 +107,20 @@ function ProductCard({
 
         <div className="mt-auto pt-4">
           {soldOut ? (
-            <button type="button" disabled className={`${btn} w-full`}>
+            <button type="button" disabled className={`${btn} w-full whitespace-nowrap px-3 text-[0.875rem] sm:px-6 sm:text-[0.9375rem]`}>
               Sold out
             </button>
           ) : !signedIn ? (
-            <Link href="/login" className={`${btn} w-full`}>
+            <Link href="/login" className={`${btnGo} w-full whitespace-nowrap px-3 text-[0.875rem] sm:px-6 sm:text-[0.9375rem]`}>
               Sign in to buy
             </Link>
           ) : !verified ? (
-            <Link href="/verify" className={`${btn} w-full`}>
+            <Link href="/verify" className={`${btnGo} w-full whitespace-nowrap px-3 text-[0.875rem] sm:px-6 sm:text-[0.9375rem]`}>
               Verify to buy
             </Link>
           ) : (
-            <div className="flex items-stretch gap-2">
-              <div className="flex items-center border border-line" role="group" aria-label="Quantity">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+              <div className="flex items-center justify-between border border-line" role="group" aria-label="Quantity">
                 <button
                   type="button"
                   onClick={() => setQty((q) => Math.max(1, q - 1))}
@@ -147,7 +147,7 @@ function ProductCard({
                 type="button"
                 onClick={() => onBuy(qty)}
                 disabled={busy}
-                className={`${btnGo} store-buy flex-1 gap-2`}
+                className={`${btnGo} store-buy flex-1 gap-2 whitespace-nowrap px-3 text-[0.875rem] sm:px-6 sm:text-[0.9375rem]`}
               >
                 {busy ? <Spinner /> : null}
                 {busy ? "To Stripe…" : `Buy · ${usd(p.priceCents * qty)}`}
@@ -314,7 +314,7 @@ export default function StoreFront() {
       </div>
 
       {products === null ? (
-        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (
             <div key={i} className="aspect-[4/5] animate-pulse border border-line bg-ink" />
           ))}
@@ -333,7 +333,7 @@ export default function StoreFront() {
           {error && isAdmin && <p className="label mt-3 text-bloodhi">{error.toUpperCase()}</p>}
         </div>
       ) : (
-        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3">
           {products.map((p) => (
             <ProductCard
               key={p.id}
