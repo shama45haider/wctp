@@ -43,8 +43,8 @@ function SectionHead({
   return (
     <div className="mb-10 flex flex-col items-start gap-3 border-b border-line pb-6 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
       <div>
-        <h2 className="font-display chrome text-[clamp(2.5rem,6vw,4.5rem)]">{title}</h2>
-        {blurb && <p className="mt-2 max-w-[42ch] text-silverdim">{blurb}</p>}
+        <h2 className="font-display text-[clamp(2.5rem,6vw,4.25rem)] text-chalk">{title}</h2>
+        {blurb && <p className="mt-3 max-w-[42ch] text-[1.0625rem] text-silver">{blurb}</p>}
       </div>
       {aside && <div className="label text-silverfaint sm:shrink-0">{aside}</div>}
     </div>
@@ -138,7 +138,7 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
           )}
           <Link
             href="/tickets"
-            className="label mt-6 flex min-h-11 items-center justify-center border border-linehi text-silverdim transition-colors hover:border-silverdim hover:text-chalk"
+            className="label mt-6 flex min-h-12 items-center justify-center border-2 border-chalk text-chalk transition-colors hover:bg-chalk hover:text-void"
           >
             ALL DATES, PRICES AND TIERS &rarr;
           </Link>
@@ -178,6 +178,7 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
                 <EventLink
                   slug={e.slug}
                   hasPage={hasPage(e.slug)}
+                  stab
                   className="group w-full border border-line bg-ink transition-colors hover:border-linehi"
                 >
                   <div className="relative aspect-[4/5] overflow-hidden sm:aspect-auto sm:h-[180px]">
@@ -198,10 +199,10 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
                     <span className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[rgba(5,5,5,0.85)]" />
                   </div>
                   <div className="px-4 pt-3 pb-5 sm:px-5 sm:pt-4 sm:pb-6">
-                    <h3 className="font-display text-[1.15rem] break-words sm:text-[1.4rem]">
+                    <h3 className="font-display text-[1.25rem] uppercase break-words text-chalk sm:text-[1.5rem]">
                       {e.title}
                     </h3>
-                    <span className="label mt-2 block text-silverfaint">
+                    <span className="label mt-2 block text-silver">
                       {e.dow} {dayOf(e.date)} {monthOf(e.date)} &middot; {e.time}
                     </span>
                   </div>

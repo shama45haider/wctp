@@ -175,7 +175,7 @@ export default function Pass() {
         </p>
         <Link
           href="/tickets"
-          className="font-display mt-8 flex min-h-11 w-full items-center justify-center border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] px-6 py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-silverdim"
+          className="font-display mt-8 flex min-h-11 w-full items-center justify-center border border-linehi bg-ink px-6 py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-silverdim"
         >
           See the dates
         </Link>
@@ -315,7 +315,7 @@ export default function Pass() {
       ) : (
         <button
           onClick={() => markUsed(p.c)}
-          className="font-display mt-7 w-full border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-bloodhi"
+          className="font-display mt-7 w-full border border-[rgba(200,16,46,0.5)] bg-ink py-3 tracking-[0.12em] text-chalk uppercase transition-all hover:border-bloodhi"
         >
           Mark as used
         </button>

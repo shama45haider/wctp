@@ -1,25 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --void: #050505;
-  --ink: #0c0d10;
-  --ink-2: #131519;
-  /* Structural edges (panel outlines) vs. internal row dividers. Rows inside
-     a panel used the same --line as the panel's own edge, so a long table read
-     as a stack of equally-weighted boxes. --line-soft recedes behind the edge. */
-  --line-soft: #191c21;
-  --line: #24272d;
-  --line-hi: #3a3f47;
-  --silver: #c9cdd4;
-  --silver-dim: #7a8089;
-  --silver-faint: #4c515a;
-  --white: #f2f4f7;
-  --blood: #c8102e;
-  --blood-hi: #e8213f;
-  /* East Village Buyers' sign orange - the sponsor popup's accent only. */
-  --sponsor: #ff8f1f;
-  /* Prize gold: the store's price tags and pickup QR. */
-  --prize: #ffd166;
+  /* Minimal and dark: near-black page, soft panels one step lighter, white
+     type. Primary buttons are white pills, the posh.vip look inverted. */
+  --void: #0a0a0a;
+  --ink: #141414;
+  --ink-2: #1c1c1c;
+  --line-soft: #1a1a1a;
+  --line: #2a2a2a;
+  --line-hi: #444444;
+  --silver: #e6e6e6;
+  --silver-dim: #a8a8a8;
+  --silver-faint: #7a7a7a;
+  --white: #ffffff;
+  /* Errors and alerts only. */
+  --blood: #e0484f;
+  --blood-hi: #f0606a;
+  --sponsor: #d9a441;
+  /* The one accent: white. Primary buttons and active states. */
+  --prize: #ffffff;
+  --gold-hi: #d9d9d9;
 }
 
 @theme inline {
@@ -37,6 +37,7 @@
   --color-bloodhi: var(--blood-hi);
   --color-sponsor: var(--sponsor);
   --color-prize: var(--prize);
+  --color-gold-hi: var(--gold-hi);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
   --font-mono: var(--font-mono);
@@ -50,27 +51,13 @@ body {
   background: var(--void);
   color: var(--silver);
   font-family: var(--font-body), system-ui, sans-serif;
+  /* Body copy was 400 weight on near-black, which is what made it look thin. */
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
-  opacity: 0.035;
-  pointer-events: none;
-  z-index: 9999;
-}
-
-/* Blending a full-screen fixed layer is re-done on every scroll frame, which
-   a phone GPU feels and a desktop does not. At 3.5% opacity the plain layer
-   looks the same on a dark page. */
-@media (hover: hover) and (pointer: fine) {
-  body::before {
-    mix-blend-mode: screen;
-  }
-}
 
 /* --- touch --- */
 
@@ -219,38 +206,35 @@ summary {
    to normal: an explicit text-* utility wins, and this is only the default. */
 @layer components {
   .font-display {
-    font-family: var(--font-display), "Arial Narrow", sans-serif;
-    font-weight: 900;
-    line-height: 0.92;
-    letter-spacing: 0.01em;
+    font-family: var(--font-display), system-ui, sans-serif;
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
     text-wrap: balance;
     color: var(--white);
   }
 }
 
+/* Was a chrome gradient: the dark band through the middle made headings read
+   as thin and grey on black. Now solid, heavy and flat. */
 .chrome {
-  background: linear-gradient(
-    180deg,
-    #ffffff 0%,
-    #cfd4dc 16%,
-    #7d848e 38%,
-    #1f2328 50%,
-    #8a9099 58%,
-    #eef1f5 76%,
-    #98a0aa 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.14))
-    drop-shadow(0 6px 24px rgba(150, 165, 190, 0.12));
+  color: var(--white);
 }
 
 .label {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 0.6875rem;
-  letter-spacing: 0.06em;
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
+}
+
+/* A quiet gold rule under a heading, in place of the old poster blocks. */
+.gold-rule {
+  display: block;
+  width: 3.5rem;
+  height: 1px;
+  background: var(--prize);
 }
 
 /* Anything tappable that is only a line of small mono text - "BACK HOME",
@@ -623,6 +607,9 @@ button.label:not([class*="min-h-"]) {
 
 .team-hero {
   --accent-hi: #ff5fa8;
+  /* The glow below is pushed past the right edge on purpose; clip it here
+     rather than let it widen the whole page on a phone. */
+  overflow-x: clip;
 }
 
 .team-hero::before {
@@ -945,5 +932,59 @@ button.label:not([class*="min-h-"]) {
   }
   .wall-poster:hover {
     transform: none;
+  }
+}
+
+/* --- flyer stab (components/StabTransition.tsx) ---
+   A knife drops onto the clicked flyer, blood splats out from the impact, and
+   only then does the page change. The overlay sits above the nav and tab bar. */
+
+.stab-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(10, 10, 10, 0.86);
+  animation: stab-fade 0.2s ease-out;
+  pointer-events: all;
+  overflow: hidden;
+}
+
+@keyframes stab-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.stab-knife {
+  position: absolute;
+  left: calc(var(--sx) - 30px);
+  top: calc(var(--sy) - 160px);
+  animation: stab-drop 0.55s cubic-bezier(0.55, 0, 0.9, 0.4) forwards;
+}
+
+@keyframes stab-drop {
+  from {
+    transform: translateY(-75vh);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.stab-splat {
+  position: absolute;
+  left: var(--sx);
+  top: var(--sy);
+  animation: stab-splat-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards;
+}
+
+@keyframes stab-splat-in {
+  from {
+    transform: scale(0) rotate(-40deg);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
   }
 }

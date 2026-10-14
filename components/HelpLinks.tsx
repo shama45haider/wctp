@@ -412,7 +412,7 @@ export default function HelpLinks() {
             </>
           );
           const card =
-            "group flex min-h-[4.5rem] flex-1 items-center gap-4 border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] px-3.5 py-3 transition-all";
+            "group flex min-h-[4.5rem] flex-1 items-center gap-4 border border-linehi bg-ink px-3.5 py-3 transition-all";
 
           return (
             <li key={s.id} className="flex items-stretch gap-2">

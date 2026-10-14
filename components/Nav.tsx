@@ -31,12 +31,12 @@ export default function Nav() {
         >
           <Logo finish="clean" alt="" eager className="h-10 w-auto lg:h-12" />
         </Link>
-        <div className="label hidden gap-7 lg:flex">
+        <div className="hidden gap-8 text-[0.8125rem] font-semibold tracking-[0.16em] uppercase lg:flex">
           {navLinks.map((l) => (
             <Link
               key={l.label}
               href={l.href}
-              className="-my-3 py-3 text-silverdim transition-colors hover:text-chalk"
+              className="-my-3 py-3 text-silver transition-colors hover:text-prize"
             >
               {l.label}
             </Link>

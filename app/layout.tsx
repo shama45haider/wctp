@@ -1,37 +1,39 @@
 import type { Metadata, Viewport } from "next";
-import { Big_Shoulders, Archivo, Martian_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
-import Particles from "@/components/Particles";
-import Confetti from "@/components/Confetti";
 import TabBar from "@/components/TabBar";
+import Particles from "@/components/Particles";
+import StabTransition from "@/components/StabTransition";
 import Raffle from "@/components/Raffle";
 import ServiceWorker from "@/components/ServiceWorker";
 import { CopyProvider } from "@/components/Editable";
 import { SITE_ORIGIN } from "@/lib/events";
 
-const display = Big_Shoulders({
+// Minimal and modern: one clean sans for everything. Headings, body and small
+// labels differ by weight and size, not by typeface.
+const display = Inter({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["700", "900"],
+  weight: ["500", "600", "700"],
 });
 
-const body = Archivo({
+const body = Inter({
   variable: "--font-body",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
 });
 
-const mono = Martian_Mono({
+const mono = Inter({
   variable: "--font-mono",
   subsets: ["latin"],
-  weight: ["400", "600"],
+  weight: ["500"],
 });
 
 export const viewport: Viewport = {
-  themeColor: "#050505",
-  colorScheme: "dark",
+  themeColor: "#ffffff",
+  colorScheme: "light",
   // Lets the page paint under a phone's notch and home indicator; the nav and
   // tab bar pad themselves back in with env(safe-area-inset-*).
   viewportFit: "cover",
@@ -84,13 +86,13 @@ export default function RootLayout({
         className={`${display.variable} ${body.variable} ${mono.variable} pr-[env(safe-area-inset-right)] pb-[calc(3.75rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] lg:pb-0`}
       >
         <Particles />
-        <Confetti />
         <CopyProvider>
           <Nav />
           {children}
           <Footer />
           <TabBar />
           <Raffle />
+          <StabTransition />
         </CopyProvider>
         <ServiceWorker />
       </body>

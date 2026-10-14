@@ -53,6 +53,7 @@ function Poster({
       slug={e.slug}
       hasPage={linked}
       externalHref={e.ticketRedirectUrl}
+      stab
       // A date published since the last build has no static page yet, and
       // EventLink renders it as plain text rather than a link to a 404.
       className={onDelete ? "block p-2.5" : `${POSTER} p-2.5`}

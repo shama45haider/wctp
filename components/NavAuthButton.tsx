@@ -31,7 +31,7 @@ import { useSupabaseAuth } from "@/lib/supabase-auth";
  */
 
 const TRIGGER =
-  "font-display flex min-h-11 items-center gap-2 border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] px-[1.15rem] text-base tracking-[0.12em] text-chalk uppercase transition-all hover:border-silverdim hover:shadow-[0_8px_30px_-12px_rgba(180,195,215,0.35)]";
+  "flex min-h-11 items-center gap-2 rounded-full border border-line-hi bg-ink px-5 text-[0.9375rem] font-medium text-chalk transition-colors hover:border-chalk";
 
 const ITEM =
   "label flex min-h-11 items-center justify-between gap-4 border-b border-line px-4 text-silverdim transition-colors last:border-b-0 hover:bg-ink2 hover:text-chalk";

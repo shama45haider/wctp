@@ -12,13 +12,13 @@ export const field =
 
 /** Shape and type every button shares; add a border and colours to make a variant. */
 export const btnBase =
-  "font-display inline-flex min-h-11 items-center justify-center py-[0.7rem] px-[1.15rem] tracking-[0.12em] uppercase transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100";
+  "inline-flex min-h-12 items-center justify-center rounded-full py-3 px-6 text-[0.9375rem] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
-/** Secondary: cancel, back, anything that is not the way forward. */
-export const btn = `${btnBase} border border-linehi bg-gradient-to-b from-ink2 to-[#0a0b0e] text-chalk hover:border-silverdim`;
+/** Secondary: cancel, back, anything that is not the way forward. An outlined pill. */
+export const btn = `${btnBase} border border-line-hi text-chalk hover:border-chalk`;
 
-/** Primary: buy, confirm, continue. One per screen. */
-export const btnGo = `${btnBase} border border-[rgba(200,16,46,0.5)] bg-gradient-to-b from-ink2 to-[#0a0b0e] text-chalk hover:border-bloodhi hover:shadow-[0_10px_34px_-12px_rgba(200,16,46,0.6)]`;
+/** Primary: buy, confirm, continue. One per screen - a solid black pill. */
+export const btnGo = `${btnBase} bg-prize text-void hover:bg-gold-hi`;
 
 /** Row of small metadata pills and quiet links. */
 export const tag =

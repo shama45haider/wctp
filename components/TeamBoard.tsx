@@ -924,7 +924,7 @@ export default function TeamBoard() {
       {named.length > 2 && (
         <div
           aria-hidden
-          className="team-ticker relative -mx-[4vw] mt-8 overflow-hidden border-y border-line bg-ink/60 py-3"
+          className="team-ticker relative mt-8 w-full overflow-hidden border-y border-line bg-ink/60 py-3"
         >
           <div className="marquee-track">
             {[0, 1].map((copy) => (

@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { stabTo } from "./StabTransition";
 
 /**
  * A link to one event's page, or the same content unlinked when the static
@@ -16,6 +19,7 @@ export default function EventLink({
   hash,
   hasPage,
   externalHref,
+  stab = false,
   className,
   children,
 }: {
@@ -30,6 +34,8 @@ export default function EventLink({
    * step that exists for no one's benefit.
    */
   externalHref?: string | null;
+  /** A flyer: the click plays the knife-and-blood transition before the page opens. */
+  stab?: boolean;
   className?: string;
   children: ReactNode;
 }) {
@@ -46,8 +52,28 @@ export default function EventLink({
     );
   }
   if (!hasPage) return <span className={className}>{children}</span>;
+  const href = `/events/${slug}${hash ? `#${hash}` : ""}`;
+  if (stab) {
+    return (
+      <Link
+        href={href}
+        className={className}
+        onClick={(e) => {
+          // Leave modified clicks (new tab, etc.) to the browser.
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+          e.preventDefault();
+          // Keyboard activation reports no pointer position: start from the middle.
+          const x = e.clientX || window.innerWidth / 2;
+          const y = e.clientY || window.innerHeight / 2;
+          stabTo(href, x, y);
+        }}
+      >
+        {children}
+      </Link>
+    );
+  }
   return (
-    <Link href={`/events/${slug}${hash ? `#${hash}` : ""}`} className={className}>
+    <Link href={href} className={className}>
       {children}
     </Link>
   );
