@@ -126,6 +126,71 @@ function quietly(work: () => void) {
  * Padding is on a two-step scale - 0.875rem across a head, 1.25rem through a
  * body - rather than a uniform p-4, so a head reads as trim and a body as room.
  */
+/**
+ * One flat glyph per dashboard section: a single solid shape in currentColor,
+ * no outline, gradient or shadow, so it takes the row's text colour and reads
+ * as part of the typography rather than a stock icon bolted on.
+ */
+function SectionIcon({ id, className = "" }: { id: string; className?: string }) {
+  const paths: Record<string, React.ReactNode> = {
+    parties: (
+      <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h15A1.5 1.5 0 0 1 21 6.5V10a2 2 0 0 0 0 4v3.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5V14a2 2 0 0 0 0-4z" />
+    ),
+    accounts: (
+      <>
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z" />
+      </>
+    ),
+    review: (
+      <>
+        <path d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5z" />
+        <path
+          d="M8.5 12.2l2.4 2.4 4.6-4.8"
+          fill="none"
+          stroke="var(--ink)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+    door: (
+      <>
+        <path d="M6 2h12v20H6z" />
+        <circle cx="15" cy="12.5" r="1.4" fill="var(--ink)" />
+      </>
+    ),
+    store: (
+      <>
+        <path d="M4.5 8h15l-1.2 13h-12.6z" />
+        <path
+          d="M9 10V6.5a3 3 0 0 1 6 0V10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+      </>
+    ),
+    raffle: (
+      <path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.5 1.3 6.6L12 17.3l-5.9 3.2 1.3-6.6-4.9-4.5 6.6-.8z" />
+    ),
+  };
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="currentColor"
+      aria-hidden="true"
+      className={`shrink-0 ${className}`}
+    >
+      {paths[id]}
+    </svg>
+  );
+}
+
 function Panel({
   children,
   className = "",
@@ -1037,6 +1102,10 @@ export default function Admin() {
                   : "border-l-transparent hover:bg-ink2/60"
               }`}
             >
+              <SectionIcon
+                id={s.id}
+                className={`mt-0.5 ${tab === s.id ? "text-prize" : "text-silverfaint"}`}
+              />
               <span className="min-w-0 flex-1">
                 <span
                   className={`block text-[0.9375rem] leading-tight ${
@@ -1074,6 +1143,10 @@ export default function Admin() {
                     : "border-line bg-ink text-silverdim"
                 }`}
               >
+                <SectionIcon
+                  id={s.id}
+                  className={`${tab === s.id ? "text-prize" : "text-silverfaint"}`}
+                />
                 <span className="text-[0.9375rem]">{s.label}</span>
                 {s.badge}
               </button>
