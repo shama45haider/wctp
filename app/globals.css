@@ -955,11 +955,163 @@ button.label:not([class*="min-h-"]) {
   }
 }
 
+/* The outer box sits where the blade lands: its tip finishes 36px past the
+   impact point, so the blade goes through the paper, not just onto it. The
+   inner box is the throw - it starts off-screen, spinning, and flies in. */
 .stab-knife {
   position: absolute;
   left: calc(var(--sx) - 30px);
-  top: calc(var(--sy) - 160px);
-  animation: stab-drop 0.55s cubic-bezier(0.55, 0, 0.9, 0.4) forwards;
+  top: calc(var(--sy) - 124px);
+  /* Above the blood, so the blade reads as the thing that did it. */
+  z-index: 5;
+  filter: drop-shadow(0 14px 12px rgba(0, 0, 0, 0.7));
+}
+
+.stab-knife-throw {
+  animation: stab-throw 0.5s cubic-bezier(0.35, 0, 0.8, 0.5) both;
+}
+
+@keyframes stab-throw {
+  from {
+    transform: translate(-42vw, -62vh) rotate(-620deg) scale(0.8);
+  }
+  80% {
+    transform: translate(2px, 4px) rotate(-22deg) scale(1);
+  }
+  to {
+    transform: translate(0, 0) rotate(-18deg) scale(1);
+  }
+}
+
+/* Blood over the whole screen: each splat opens out from the strike. */
+.stab-tint {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--sx) var(--sy), rgba(120, 8, 16, 0.75), rgba(60, 4, 10, 0.85) 70%);
+  opacity: 0;
+  animation: stab-tint-in 0.45s 0.5s ease-out forwards;
+}
+
+@keyframes stab-tint-in {
+  to {
+    opacity: 1;
+  }
+}
+
+.stab-screen-splat {
+  position: absolute;
+  left: var(--sx);
+  top: var(--sy);
+  opacity: 0;
+  animation: stab-screen-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+}
+
+@keyframes stab-screen-in {
+  from {
+    transform: translate(calc(-50% + var(--ox)), calc(-50% + var(--oy))) scale(0.05);
+    opacity: 0;
+  }
+  to {
+    transform: translate(calc(-50% + var(--ox)), calc(-50% + var(--oy))) scale(1);
+    opacity: 0.94;
+  }
+}
+
+/* The blood leaves the screen the way a wipe does, top to bottom, as the new
+   page is already there underneath. */
+.stab-overlay.is-wiping {
+  animation: stab-wipe 0.7s cubic-bezier(0.6, 0, 0.3, 1) forwards;
+}
+
+@keyframes stab-wipe {
+  from {
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 100% 0);
+  }
+}
+
+/* The flyer, put back where it was on the page, so the blade hits the artwork. */
+.stab-flyer {
+  position: fixed;
+  background-color: var(--ink);
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.9);
+  animation: stab-quake 0.4s 0.55s both;
+}
+
+/* Whatever shakes on impact: the flyer and the stage share the same jolt, the
+   stage is the blade, the slit and the splats. */
+.stab-stage {
+  position: absolute;
+  inset: 0;
+  animation: stab-quake 0.4s 0.55s both;
+}
+
+@keyframes stab-quake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(-6px, 3px);
+  }
+  40% {
+    transform: translate(5px, -4px);
+  }
+  60% {
+    transform: translate(-4px, 2px);
+  }
+  80% {
+    transform: translate(3px, -1px);
+  }
+}
+
+/* A dark cut that opens along the blade's path through the paper. */
+.stab-slit {
+  position: absolute;
+  left: var(--sx);
+  top: var(--sy);
+  width: 3px;
+  height: 0;
+  margin-left: -1.5px;
+  background: #000;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+  animation: stab-slit 0.25s 0.5s forwards;
+}
+
+@keyframes stab-slit {
+  to {
+    height: 58px;
+    margin-top: -14px;
+  }
+}
+
+/* Droplets flung outward from the strike. */
+.stab-spray {
+  position: absolute;
+  left: var(--sx);
+  top: var(--sy);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #d8323b, #5a0a12);
+  opacity: 0;
+  animation: stab-spray 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
+}
+
+@keyframes stab-spray {
+  from {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1);
+    opacity: 0.9;
+  }
 }
 
 @keyframes stab-drop {

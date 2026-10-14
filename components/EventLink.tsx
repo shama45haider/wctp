@@ -65,7 +65,12 @@ export default function EventLink({
           // Keyboard activation reports no pointer position: start from the middle.
           const x = e.clientX || window.innerWidth / 2;
           const y = e.clientY || window.innerHeight / 2;
-          stabTo(href, x, y);
+          // The artwork is what gets stabbed, so take its box and picture from
+          // the image when there is one, not the whole card with its caption.
+          const target = (e.currentTarget.querySelector("img") as HTMLImageElement | null) ?? e.currentTarget;
+          const r = target.getBoundingClientRect();
+          const src = target instanceof HTMLImageElement ? target.currentSrc || target.src : null;
+          stabTo(href, x, y, { left: r.left, top: r.top, width: r.width, height: r.height, src });
         }}
       >
         {children}
