@@ -254,32 +254,37 @@ function AddonRow({
   enabled: boolean;
   onStep: (delta: number) => void;
 }) {
+  // A card with a red edge once it is picked: the tag says what it is, the price
+  // is red, and the stepper is a pill with a red plus.
   return (
     <div
-      className={`flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-4 py-4 transition-colors ${
-        qty > 0 ? "bg-[rgba(200,16,46,0.05)]" : ""
+      className={`flex flex-wrap items-center gap-x-6 gap-y-4 border border-line border-l-[3px] px-4 py-4 transition-colors ${
+        qty > 0 ? "border-l-blood bg-[rgba(229,37,46,0.08)]" : "border-l-line-hi bg-ink"
       } ${enabled ? "" : "opacity-45"}`}
     >
       <div className="min-w-[8rem] flex-1">
-        <h3 className="font-display text-[1.2rem]">{addon.name}</h3>
-        <p className="label mt-1 text-silverfaint">
-          <Editable k="event.picker.addon.pickup">PICK UP AT THE DOOR</Editable>
+        <span className="label inline-block bg-blood px-2 py-0.5 text-white uppercase">
+          Add-on
+        </span>
+        <h3 className="font-display mt-2 text-[1.3rem]">{addon.name}</h3>
+        <p className="label mt-1 text-silverdim">
+          <Editable k="event.picker.addon.pickup">Pick up at the door</Editable>
         </p>
       </div>
-      <div className="font-display text-right text-[1.4rem] whitespace-nowrap">
+      <div className="font-display text-right text-[1.5rem] whitespace-nowrap text-bloodhi">
         {usd(addon.priceCents)}
       </div>
-      <div className="flex items-center border border-line">
+      <div className="flex items-center gap-1 rounded-full border border-line bg-void p-1">
         <button
           type="button"
           onClick={() => onStep(-1)}
           disabled={!enabled || qty === 0}
           aria-label={`Remove one ${addon.name}`}
-          className="font-display flex h-11 w-11 items-center justify-center text-xl text-silverdim transition-colors hover:text-chalk disabled:opacity-30 disabled:hover:text-silverdim"
+          className="font-display flex h-10 w-10 items-center justify-center rounded-full text-xl text-silver transition-colors hover:bg-ink2 disabled:opacity-30 disabled:hover:bg-transparent"
         >
           &minus;
         </button>
-        <span aria-live="polite" className="label w-9 text-center text-base text-chalk">
+        <span aria-live="polite" className="label w-8 text-center text-base text-white">
           {qty}
         </span>
         <button
@@ -287,7 +292,7 @@ function AddonRow({
           onClick={() => onStep(1)}
           disabled={!enabled || qty >= addon.maxPerOrder}
           aria-label={`Add one ${addon.name}`}
-          className="font-display flex h-11 w-11 items-center justify-center text-xl text-silverdim transition-colors hover:text-chalk disabled:opacity-30 disabled:hover:text-silverdim"
+          className="font-display flex h-10 w-10 items-center justify-center rounded-full bg-blood text-xl text-white transition-colors hover:bg-bloodhi disabled:opacity-30 disabled:hover:bg-blood"
         >
           +
         </button>
