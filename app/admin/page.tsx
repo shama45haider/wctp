@@ -20,6 +20,7 @@ import {
   type VerificationStatus,
 } from "@/lib/admin-data";
 import { useRuntimeEvents } from "@/lib/events-runtime";
+import { heroPhoto } from "@/lib/events";
 import { isPastEvent, usd } from "@/lib/tickets";
 import { atHandle } from "@/lib/handle";
 import Flyer from "@/components/Flyer";
@@ -1285,9 +1286,10 @@ export default function Admin() {
                                 className="group flex flex-col border border-line bg-void text-left transition-colors hover:border-bloodhi"
                               >
                                 <span className="relative block aspect-[3/4] overflow-hidden">
-                                  {e.imageId ? (
+                                  {heroPhoto(e) || e.imageId ? (
                                     <Flyer
                                       id={e.imageId}
+                                      src={heroPhoto(e) ?? undefined}
                                       alt={e.title}
                                       sizes="(max-width:639px) 46vw, (max-width:1023px) 30vw, 280px"
                                       maxWidth={400}
@@ -1351,9 +1353,10 @@ export default function Admin() {
                                 className="group flex flex-col border border-line bg-void text-left opacity-70 transition-opacity hover:opacity-100"
                               >
                                 <span className="relative block aspect-[3/4] overflow-hidden">
-                                  {e.imageId ? (
+                                  {heroPhoto(e) || e.imageId ? (
                                     <Flyer
                                       id={e.imageId}
+                                      src={heroPhoto(e) ?? undefined}
                                       alt={e.title}
                                       sizes="(max-width:639px) 30vw, 160px"
                                       maxWidth={256}
@@ -1434,8 +1437,14 @@ export default function Admin() {
                       <PanelBody className="flex gap-4 sm:gap-5">
                         <div className="relative w-24 shrink-0 overflow-hidden border border-line sm:w-32">
                           <div className="aspect-[3/4]">
-                            {e?.imageId ? (
-                              <Flyer id={e.imageId} alt={e.title} sizes="128px" maxWidth={256} />
+                            {e && (heroPhoto(e) || e.imageId) ? (
+                              <Flyer
+                                id={e.imageId}
+                                src={heroPhoto(e) ?? undefined}
+                                alt={e.title}
+                                sizes="128px"
+                                maxWidth={256}
+                              />
                             ) : (
                               <div className="hairline-x h-full bg-ink2" />
                             )}
