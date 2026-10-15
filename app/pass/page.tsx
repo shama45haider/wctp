@@ -245,6 +245,11 @@ export default function Pass() {
               ))}
             </ul>
           )}
+          {doorNow?.data?.verified === false && (
+            <p className="mt-3 border border-bloodhi bg-[rgba(229,37,46,0.12)] px-3 py-2 text-[0.9375rem] font-semibold text-bloodhi">
+              <Editable k="pass.door.unverified">ACCOUNT NOT VERIFIED - CHECK THEIR ID</Editable>
+            </p>
+          )}
           {doorNow?.data?.cancelled && (
             <p className="label mt-3 text-bloodhi">
               <Editable k="pass.door.cancelled">THIS ORDER WAS CANCELLED</Editable>

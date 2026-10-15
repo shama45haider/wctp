@@ -14,7 +14,7 @@ import { btn, btnGo } from "@/lib/ui";
  *
  * Shown to copy in /admin/events once a date has tickets, for posting
  * anywhere. It puts one ticket in the cart and hands over to /checkout, which
- * is where the rules live - signed in, verified, one ticket per account - and
+ * is where the rules live - signed in, one ticket per account - and
  * which is the only way to Stripe. Nothing here can sell to an account that
  * checkout would refuse.
  *
@@ -112,7 +112,7 @@ export default function BuyPage() {
         ))}
       </div>
       <p className="mt-5 text-[0.8125rem] leading-relaxed text-silverfaint">
-        One ticket per account. You&apos;ll need to sign in with a verified account to pay.
+        One ticket per account. Sign in to pay; your QR unlocks once staff verify your account.
       </p>
     </Shell>
   );

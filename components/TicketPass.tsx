@@ -2,6 +2,7 @@ import { findEvent, monthOf, dayOf, SITE_ORIGIN } from "@/lib/events";
 import { admitsOf, money } from "@/lib/tickets";
 import type { Pass } from "@/lib/demo-account";
 import { passUrl } from "@/lib/pass-token";
+import Link from "next/link";
 import TicketQr from "./TicketQr";
 import { Editable } from "./Editable";
 
@@ -20,6 +21,7 @@ export default function TicketPass({
   guestName,
   issuedAt,
   qrSize = 156,
+  locked = false,
 }: {
   pass: Pass;
   eventSlug: string;
@@ -30,6 +32,12 @@ export default function TicketPass({
   /** ISO string from the order. */
   issuedAt: string;
   qrSize?: number;
+  /**
+   * The ticket is bought but the account has not been verified by staff yet.
+   * The stub still shows what was bought; the QR and its code stay hidden, so
+   * there is nothing to scan or screenshot until a person has checked the ID.
+   */
+  locked?: boolean;
 }) {
   const ev = findEvent(eventSlug);
   const admits = admitsOf(pass);
@@ -88,7 +96,29 @@ export default function TicketPass({
       </div>
 
       <div className="mt-auto border-t border-dashed border-linehi px-4 py-5">
-        <TicketQr code={pass.code} value={url} size={qrSize} />
+        {locked ? (
+          <div className="flex flex-col items-center gap-3 border border-blood bg-[rgba(229,37,46,0.06)] px-4 py-6 text-center">
+            <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" className="text-bloodhi" fill="currentColor">
+              <path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 0 1 6 0v3H9Z" />
+            </svg>
+            <p className="text-[0.9375rem] font-medium text-chalk">
+              <Editable k="ticketPass.locked.title">QR locked until you&rsquo;re verified</Editable>
+            </p>
+            <p className="text-[0.8125rem] leading-relaxed text-silverdim">
+              <Editable k="ticketPass.locked.body">
+                Your ticket is saved. Staff check your ID, then the QR shows up here.
+              </Editable>
+            </p>
+            <Link
+              href="/verify"
+              className="inline-flex min-h-10 items-center rounded-full bg-blood px-4 text-[0.8125rem] font-medium text-white hover:bg-bloodhi"
+            >
+              Verify my account
+            </Link>
+          </div>
+        ) : (
+          <TicketQr code={pass.code} value={url} size={qrSize} />
+        )}
         <p className="label mt-3 text-center text-silverfaint">
           <Editable k="ticketPass.orderLabel">ORDER</Editable> {orderId}
         </p>

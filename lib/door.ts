@@ -22,6 +22,12 @@ export type DoorLookup = {
   paid: boolean;
   cancelled: boolean;
   addons: DoorAddon[];
+  /**
+   * Whether the account that bought this pass has been verified by staff.
+   * Buying no longer waits for it, so the door is where an unverified holder
+   * gets caught. Null when there is no account to ask about.
+   */
+  verified: boolean | null;
 };
 
 export async function lookupPass(
@@ -40,7 +46,7 @@ export async function lookupPass(
     supabase.from("passes").select("used_at").eq("code", code).maybeSingle(),
     supabase
       .from("orders")
-      .select("total_cents, paid_at, cancelled_at")
+      .select("total_cents, paid_at, cancelled_at, user_id")
       .eq("id", orderId)
       .maybeSingle(),
     supabase.from("order_lines").select("tier_id, tier_name, qty").eq("order_id", orderId),
@@ -49,7 +55,23 @@ export async function lookupPass(
   if (pass.error) return { error: pass.error.message };
   if (lines.error) return { error: lines.error.message };
 
-  const o = order.data as { total_cents: number; paid_at?: string | null; cancelled_at: string | null } | null;
+  const o = order.data as {
+    total_cents: number;
+    paid_at?: string | null;
+    cancelled_at: string | null;
+    user_id?: string | null;
+  } | null;
+
+  let verified: boolean | null = null;
+  if (o?.user_id) {
+    const holder = await supabase
+      .from("profiles")
+      .select("verified")
+      .eq("id", o.user_id)
+      .maybeSingle();
+    if (!holder.error && holder.data) verified = Boolean((holder.data as { verified: boolean }).verified);
+  }
+
   return {
     data: {
       found: Boolean(pass.data),
@@ -59,6 +81,7 @@ export async function lookupPass(
       addons: ((lines.data ?? []) as { tier_id: string; tier_name: string; qty: number }[])
         .filter((l) => l.tier_id.startsWith("addon:"))
         .map((l) => ({ name: l.tier_name, qty: l.qty })),
+      verified,
     },
   };
 }

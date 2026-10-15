@@ -473,14 +473,9 @@ export default function TicketPicker({ event }: { event: Event }) {
   // button is disabled anyway, so it keeps the plain checkout label rather
   // than flashing "Sign in" at someone who is about to turn out to be signed in.
   const rsvp = totals.ticketCount > 0;
-  const gate =
-    !ready || !rsvp
-      ? null
-      : !user
-        ? "signin"
-        : !user.verified
-          ? "verify"
-          : null;
+  // Signing in is the only gate on buying. Unverified accounts can buy; the
+  // QR on their pass stays locked until staff verify them.
+  const gate: "signin" | "verify" | null = !ready || !rsvp ? null : !user ? "signin" : null;
   const destination =
     gate === "signin" ? "/login" : gate === "verify" ? "/verify" : "/checkout";
   const label = empty

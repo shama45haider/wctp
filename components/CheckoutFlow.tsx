@@ -343,6 +343,7 @@ export default function CheckoutFlow() {
       <Confirmation
         order={order}
         ev={runtime.events.find((e) => e.slug === order.eventSlug) ?? findEvent(order.eventSlug) ?? null}
+        locked={!user?.verified}
       />
     );
   }
@@ -362,13 +363,9 @@ export default function CheckoutFlow() {
   // A donation is a gift, not an admission: no account to attach it to and
   // nobody's age to check. Only tickets go through the gate.
   const donationOnly = totals.ticketCount === 0 && totals.donationCents > 0;
-  const gate = donationOnly
-    ? null
-    : !user
-      ? "signin"
-      : !user.verified
-        ? "verify"
-        : null;
+  // Signing in is the only gate on buying now. An unverified account can buy;
+  // its QR stays locked on the pass until staff verify it (TicketPass).
+  const gate: "signin" | "verify" | null = donationOnly ? null : !user ? "signin" : null;
   const pending = user?.check?.status === "pending";
   const nameOk = ticketName.length > 1;
   const emailOk = EMAIL.test(buyer.email.trim());
@@ -657,6 +654,15 @@ export default function CheckoutFlow() {
                 )}
               </h1>
 
+              {/* Buying no longer waits on the ID check, so say plainly what does. */}
+              {user && !user.verified && (
+                <p className="mt-4 border border-blood bg-[rgba(229,37,46,0.06)] px-4 py-3 text-[0.9375rem] leading-relaxed text-silver">
+                  <Editable k="checkout.payment.unverified">
+                    Your account isn&rsquo;t verified yet. You can still get your ticket now; the QR to get in unlocks once staff check your ID.
+                  </Editable>
+                </p>
+              )}
+
               {free ? (
                 <p className="mt-3 max-w-[48ch] text-sm leading-relaxed text-silverdim">
                   <Editable k="checkout.payment.freeBlurb">
@@ -786,7 +792,16 @@ export default function CheckoutFlow() {
 
 /* ----------------------------------------------------------- confirmation -- */
 
-function Confirmation({ order, ev }: { order: Order; ev: Event | null }) {
+function Confirmation({
+  order,
+  ev,
+  locked,
+}: {
+  order: Order;
+  ev: Event | null;
+  /** The buyer is not verified yet, so the QR on each pass stays hidden. */
+  locked: boolean;
+}) {
   /** Nothing was admitted, so this is a receipt for a gift rather than a ticket. */
   const gift = order.passes.length === 0;
 
@@ -925,6 +940,7 @@ function Confirmation({ order, ev }: { order: Order; ev: Event | null }) {
                 orderId={order.id}
                 guestName={order.buyer.name}
                 issuedAt={order.createdAt}
+                locked={locked}
               />
             ))}
           </div>

@@ -300,6 +300,7 @@ export default function Account() {
                       orderId={o.id}
                       guestName={o.buyer.name}
                       issuedAt={o.createdAt}
+                      locked={!user.verified}
                     />
                   ))}
                 </div>

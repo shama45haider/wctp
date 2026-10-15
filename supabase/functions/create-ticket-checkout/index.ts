@@ -76,18 +76,14 @@ Deno.serve(async (req) => {
   const user = userData?.user;
   if (!user) return json({ error: "Sign in first." }, 401);
 
-  // Buying needs the same age check the door does. The policy on chat_messages
-  // enforces its own gate; orders are created by the webhook on the service
-  // role key, so this is the only place that check can happen for a purchase.
+  // Buying no longer waits on the age check: an unverified account can pay,
+  // and its QR stays locked on the site until staff verify it. The door also
+  // flags an unverified holder when a pass is scanned (lib/door.ts).
   const { data: profile } = await supabase
     .from("profiles")
     .select("verified, email, name")
     .eq("id", user.id)
     .maybeSingle();
-
-  if (!profile?.verified) {
-    return json({ error: "Your age has to be checked before you can buy." }, 403);
-  }
 
   let payload: Payload;
   try {
@@ -179,7 +175,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  // One ticket per verified account, per date: one in this order, and none
+  // One ticket per account, per date: one in this order, and none
   // already held. Add-ons aren't tickets and don't count. Any order that isn't
   // cancelled is a ticket - paid ones are only written once Stripe has the
   // money, and browsers may only write free ones.
@@ -264,7 +260,7 @@ Deno.serve(async (req) => {
   // ticket-order-status so the tickets appear without waiting on the webhook.
   form.set("success_url", `${origin}/account?paid=tickets&session_id={CHECKOUT_SESSION_ID}`);
   form.set("cancel_url", `${origin}/checkout`);
-  if (profile.email) form.set("customer_email", String(profile.email));
+  if (profile?.email) form.set("customer_email", String(profile.email));
 
   priced.forEach((l, i) => {
     form.set(`line_items[${i}][quantity]`, String(l.qty));
