@@ -56,6 +56,18 @@ export default function Footer() {
             </a>
           </span>
         </div>
+        {/* A quiet credit for whoever built the site. */}
+        <p className="label mt-6 text-center text-silverfaint">
+          This website was made by{" "}
+          <a
+            href="https://www.instagram.com/stopaura/"
+            target="_blank"
+            rel="noopener"
+            className="-my-3 inline-block py-3 text-silverdim underline decoration-line underline-offset-4 transition-colors hover:text-bloodhi hover:decoration-bloodhi"
+          >
+            StopAura
+          </a>
+        </p>
       </div>
     </footer>
   );

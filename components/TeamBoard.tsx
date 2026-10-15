@@ -49,6 +49,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
  */
 // Every crew takes the site's red. The colour stored on each section is kept so
 // nothing is lost, but the page no longer rainbows: one accent, one voice.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const accentStyle = (_accent: string) => ({ "--accent": "var(--blood)" }) as React.CSSProperties;
 
 /** Colours offered for a new category; the bundled six plus a few more. */
@@ -124,7 +125,6 @@ function FilledCard({
           aria-hidden
           className="team-photo-fade pointer-events-none absolute inset-x-0 bottom-0 h-1/3"
         />
-        <span className="team-slot label absolute top-0 left-0 px-2 py-1">{pad(a.slot)}</span>
         {/* Only an admin ever sees this card at all once it is hidden, so the
             badge is what tells them why nobody else can. */}
         {!a.published && (
@@ -816,7 +816,6 @@ export default function TeamBoard() {
   const fallback = byId.get("artist") ?? sections[0];
   const sectionOf = (role: Role) => byId.get(role) ?? fallback;
 
-  const announced = members.filter(isFilled).length;
   const editingMember = members.find((m) => m.slot === editing);
   // Open on a slot that is not on the roster: the "add a slot" case, which has
   // no card to expand into and so gets a panel of its own under the header.
@@ -867,15 +866,6 @@ export default function TeamBoard() {
           </p>
         </div>
         <div className="flex flex-col items-start gap-3 sm:shrink-0 sm:items-end">
-          <div className="flex items-baseline gap-2">
-            <span className="font-display text-[clamp(2.25rem,6vw,3.25rem)] leading-none text-chalk tabular-nums">
-              {pad(announced)}
-            </span>
-            <span className="label text-silverfaint">
-              <Editable k="team.count.of">OF</Editable> {pad(members.length)}{" "}
-              <Editable k="team.count.announced">ANNOUNCED</Editable>
-            </span>
-          </div>
           {canEdit && (
             <div className="flex flex-wrap gap-2 sm:justify-end">
               <button
@@ -903,11 +893,9 @@ export default function TeamBoard() {
         </div>
       </div>
 
-      {/* Jump to a crew. One chip per section in its own colour, with a count,
-          so the page says how many crews and how big each is before a scroll. */}
+      {/* Jump to a crew: one chip per section. */}
       <nav aria-label="Crews" className="mt-5 flex flex-wrap gap-2">
         {sections.map((r) => {
-          const n = members.filter((m) => sectionOf(m.role) === r && isFilled(m)).length;
           return (
             <a
               key={r.id}
@@ -917,7 +905,6 @@ export default function TeamBoard() {
             >
               <span aria-hidden className="h-2 w-2 rounded-full bg-[var(--accent)]" />
               <Editable k={`team.role.${r.id}.label`}>{r.label}</Editable>
-              <span className="text-silverfaint tabular-nums">{n}</span>
             </a>
           );
         })}
@@ -984,7 +971,7 @@ export default function TeamBoard() {
           four-column grid so a card is the same width all the way down the
           page; the two-card CEO and DJ sections simply fill two of the four
           columns on a wide screen rather than stretching to a different size. */}
-      {sections.map((r, i) => {
+      {sections.map((r) => {
         const slots = members.filter((m) => sectionOf(m.role) === r);
         return (
           <section
@@ -996,7 +983,7 @@ export default function TeamBoard() {
             <div className="team-section-head relative mb-6 flex items-end justify-between gap-4 border-b border-line pb-4 pl-5">
               <div className="min-w-0">
                 <p className="label text-[var(--accent)]">
-                  {pad(i + 1)} &middot; <Editable k={`team.role.${r.id}.label`}>{r.label}</Editable>
+                  <Editable k={`team.role.${r.id}.label`}>{r.label}</Editable>
                 </p>
                 <h2 className="font-display mt-1 text-[clamp(1.9rem,5vw,3rem)]">
                   <Editable k={`team.role.${r.id}.heading`}>{r.heading}</Editable>
@@ -1009,9 +996,6 @@ export default function TeamBoard() {
                   <RemoveSection id={r.id} onRemoved={done} />
                 )}
               </div>
-              <span className="font-display shrink-0 text-[clamp(2rem,5vw,3rem)] leading-none text-[var(--accent)] opacity-25 tabular-nums">
-                {pad(slots.filter(isFilled).length)}
-              </span>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
