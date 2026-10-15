@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import ConfirmDelete from "./ConfirmDelete";
 import Link from "next/link";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { useAccount } from "@/lib/demo-account";
@@ -9,6 +10,7 @@ import {
   confirmStoreOrder,
   leftOf,
   listProducts,
+  deleteProduct,
   startStoreCheckout,
   STORE_CHANGED,
   type PaidPrize,
@@ -54,8 +56,13 @@ function ProductCard({
   verified,
   busy,
   onBuy,
+  isAdmin = false,
+  onDeleted,
 }: {
   p: Product;
+  /** Admins get a delete under the buy button, so a prize can go in two taps. */
+  isAdmin?: boolean;
+  onDeleted?: () => void;
   signedIn: boolean;
   /** Only verified accounts can buy; create-store-checkout refuses anyone else. */
   verified: boolean;
@@ -153,6 +160,14 @@ function ProductCard({
                 {busy ? "To Stripe…" : `Buy · ${usd(p.priceCents * qty)}`}
               </button>
             </div>
+          )}
+          {isAdmin && onDeleted && (
+            <ConfirmDelete
+              what={p.name}
+              onConfirm={() => deleteProduct(p.id)}
+              onDone={onDeleted}
+              className="mt-3"
+            />
           )}
         </div>
       </div>
@@ -342,6 +357,8 @@ export default function StoreFront() {
               verified={verified}
               busy={buying === p.id}
               onBuy={(qty) => void buy(p, qty)}
+              isAdmin={isAdmin}
+              onDeleted={() => setProducts((ps) => ps?.filter((x) => x.id !== p.id) ?? ps)}
             />
           ))}
         </div>

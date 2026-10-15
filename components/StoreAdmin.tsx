@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useId, useMemo, useState } from "react";
+import ConfirmDelete from "./ConfirmDelete";
 import { btn, btnGo, field, num, tableEl, tableWrap, td, th } from "@/lib/ui";
 import { atHandle } from "@/lib/handle";
 import { siteImageUrl, uploadSiteImage } from "@/lib/site-content";
@@ -696,14 +697,21 @@ export default function StoreAdmin() {
                         {leftOf(p) !== null ? ` · ${leftOf(p)} LEFT` : ""}
                         {p.active ? "" : " · HIDDEN"}
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => setEditing(p.id)}
-                        disabled={editing !== null}
-                        className="label mt-auto self-start pt-1 text-silverdim underline underline-offset-4 hover:text-chalk disabled:opacity-40"
-                      >
-                        EDIT
-                      </button>
+                      <div className="mt-auto flex flex-wrap items-center gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(p.id)}
+                          disabled={editing !== null}
+                          className="label text-silverdim underline underline-offset-4 hover:text-chalk disabled:opacity-40"
+                        >
+                          EDIT
+                        </button>
+                        <ConfirmDelete
+                          what={p.name}
+                          onConfirm={() => deleteProduct(p.id)}
+                          onDone={reloadProducts}
+                        />
+                      </div>
                     </div>
                   </li>
                 ),

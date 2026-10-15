@@ -11,6 +11,8 @@ import EventCarousel from "./EventCarousel";
 import DeleteEventButton from "./DeleteEventButton";
 import TextCarousel from "./TextCarousel";
 import { ShowMoreButton, useShowMore } from "./ShowMore";
+import ConfirmDelete from "./ConfirmDelete";
+import { removeEvent } from "@/lib/admin-data";
 
 const STRIP_PHRASES = [
   "Free parties",
@@ -125,6 +127,31 @@ export default function HomeContent({ pageSlugs }: { pageSlugs: string[] }) {
               </>
             }
           />
+          {/* Admins only: every upcoming date with its own delete, above the
+              posters, so taking one down never means hunting for a corner. */}
+          {onDelete && upcoming.length > 0 && (
+            <div className="mb-8 border border-blood bg-[rgba(229,37,46,0.06)] p-4">
+              <p className="label text-bloodhi">Admin · delete an upcoming date</p>
+              <ul className="mt-3 flex flex-col divide-y divide-line">
+                {upcoming.map((e) => (
+                  <li key={e.slug} className="flex items-center justify-between gap-4 py-3">
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-chalk">{e.title}</span>
+                      <span className="label text-silverdim">
+                        {e.dow} {dayOf(e.date)} {monthOf(e.date)}
+                      </span>
+                    </span>
+                    <ConfirmDelete
+                      what={e.title}
+                      onConfirm={() => removeEvent(e.slug)}
+                      onDone={() => onDelete(e.slug)}
+                      className="shrink-0 items-end"
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {upcoming.length > 0 ? (
             <EventCarousel events={upcoming} hasPage={hasPage} onDelete={onDelete} />
           ) : (

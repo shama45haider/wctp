@@ -6,6 +6,7 @@ import { heroPhoto, type Event } from "@/lib/events";
 import { useNow } from "@/lib/now";
 import { isPastEvent, money, priceFrom, saleState } from "@/lib/tickets";
 import { useTicketCatalog } from "@/lib/ticket-catalog";
+import { useRuntimeEvents } from "@/lib/events-runtime";
 
 /**
  * The two pieces of the event page that say whether tickets are on sale -
@@ -26,12 +27,18 @@ export function EventFlyer({ event }: { event: Event }) {
   const past = isPastEvent(event, now);
   const onSale = saleState(event, now) === "on-sale";
 
-  const uploaded = heroPhoto(event);
+  // The page was built with whatever the event looked like at build time. A
+  // flyer uploaded in the dashboard since then only exists in the live row,
+  // so prefer that, falling back to the built copy while it loads.
+  const { events } = useRuntimeEvents();
+  const live = events.find((e) => e.slug === event.slug);
+  const uploaded = (live && heroPhoto(live)) ?? heroPhoto(event);
+  const imageId = live?.imageId ?? event.imageId;
 
-  return uploaded || event.imageId ? (
+  return uploaded || imageId ? (
     <>
       <Flyer
-        id={event.imageId}
+        id={imageId}
         src={uploaded ?? undefined}
         alt={event.title}
         sizes="(max-width:767px) 92vw, 380px"
