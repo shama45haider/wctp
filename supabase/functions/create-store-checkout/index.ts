@@ -3,9 +3,9 @@
  *
  * Priced here, from public.store_products, never from anything the browser
  * says about money - the same rule create-ticket-checkout follows. The buyer
- * has to be signed in, and verified: the prize QR lives on their account, a
- * guest who closed the thank-you screen would have no way back to it, and
- * nothing but a donation is sold to an account whose age hasn't been checked.
+ * has to be signed in: the prize QR lives on their account, and a guest who
+ * closed the thank-you screen would have no way back to it. Verification is
+ * not needed to buy; the pickup QR stays locked until staff verify them.
  *
  * `invoice_creation` makes Stripe issue a real invoice for the payment, which
  * the buyer gets by email and which store_orders links to for the dashboard.
@@ -85,17 +85,14 @@ Deno.serve(async (req) => {
     if (qty > left) return json({ error: `Only ${left} left.` }, 400);
   }
 
-  // The same age check tickets have: nothing on the site is sold to an account
-  // that hasn't been verified. Donations are the one exception, and they don't
-  // come through here.
+  // Buying no longer waits on the age check, same as tickets: any signed-in
+  // account can pay, and the pickup QR stays locked on the site until staff
+  // verify them. /claim flags an unverified buyer at hand-over.
   const { data: profile } = await admin
     .from("profiles")
     .select("email, name, verified")
     .eq("id", user.id)
     .maybeSingle();
-  if (!profile?.verified) {
-    return json({ error: "Your age has to be checked before you can buy." }, 403);
-  }
 
   const form = new URLSearchParams();
   form.set("mode", "payment");

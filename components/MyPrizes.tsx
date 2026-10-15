@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { useOwnProfile } from "@/lib/profile-data";
 import { listStoreOrders, NEEDS_0025, STORE_CHANGED, type StoreOrder } from "@/lib/store";
 import { usd } from "@/lib/tickets";
 import { Editable } from "./Editable";
@@ -15,6 +16,8 @@ import PrizeQr from "./PrizeQr";
  */
 export default function MyPrizes() {
   const { user } = useSupabaseAuth();
+  // Locked until known verified, so a pickup QR never flashes up for someone who isn't.
+  const { profile } = useOwnProfile(user?.id);
   const userId = user?.id;
   const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +100,7 @@ export default function MyPrizes() {
             </div>
             {!o.redeemedAt && (
               <div className="flex justify-center border-t border-dashed border-line px-4 py-5">
-                <PrizeQr code={o.claimCode} size={156} />
+                <PrizeQr code={o.claimCode} size={156} locked={!profile?.verified} />
               </div>
             )}
             {o.invoiceUrl && (

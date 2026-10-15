@@ -53,7 +53,6 @@ function Spinner() {
 function ProductCard({
   p,
   signedIn,
-  verified,
   busy,
   onBuy,
   isAdmin = false,
@@ -64,8 +63,6 @@ function ProductCard({
   isAdmin?: boolean;
   onDeleted?: () => void;
   signedIn: boolean;
-  /** Only verified accounts can buy; create-store-checkout refuses anyone else. */
-  verified: boolean;
   busy: boolean;
   onBuy: (qty: number) => void;
 }) {
@@ -121,10 +118,6 @@ function ProductCard({
             <Link href="/login" className={`${btnGo} w-full whitespace-nowrap px-3 text-[0.875rem] sm:px-6 sm:text-[0.9375rem]`}>
               Sign in to buy
             </Link>
-          ) : !verified ? (
-            <Link href="/verify" className={`${btnGo} w-full whitespace-nowrap px-3 text-[0.875rem] sm:px-6 sm:text-[0.9375rem]`}>
-              Verify to buy
-            </Link>
           ) : (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
               <div className="flex items-center justify-between border border-line" role="group" aria-label="Quantity">
@@ -175,12 +168,21 @@ function ProductCard({
   );
 }
 
-function PrizeReceipt({ order, onClose }: { order: PaidPrize; onClose: () => void }) {
+function PrizeReceipt({
+  order,
+  onClose,
+  locked,
+}: {
+  order: PaidPrize;
+  onClose: () => void;
+  /** Not verified yet: the pickup QR waits for staff to check ID. */
+  locked: boolean;
+}) {
   return (
     <div className="store-receipt relative mt-8 overflow-hidden border border-[rgba(255,209,102,0.45)] bg-ink">
       <div aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-transparent via-prize to-transparent" />
       <div className="grid gap-6 p-5 sm:grid-cols-[auto_1fr] sm:items-center sm:p-7">
-        <PrizeQr code={order.claimCode} className="order-2 sm:order-1" />
+        <PrizeQr code={order.claimCode} className="order-2 sm:order-1" locked={locked} />
         <div className="order-1 sm:order-2">
           <p className="label text-prize">
             <Editable k="store.receipt.eyebrow">PAID · YOUR PRIZE IS RESERVED</Editable>
@@ -305,7 +307,7 @@ export default function StoreFront() {
         </p>
       )}
       {receipt.kind === "paid" && (
-        <PrizeReceipt order={receipt.order} onClose={() => setReceipt({ kind: "none" })} />
+        <PrizeReceipt order={receipt.order} onClose={() => setReceipt({ kind: "none" })} locked={!verified} />
       )}
 
       {notice && (
@@ -354,7 +356,6 @@ export default function StoreFront() {
               key={p.id}
               p={p}
               signedIn={signedIn}
-              verified={verified}
               busy={buying === p.id}
               onBuy={(qty) => void buy(p, qty)}
               isAdmin={isAdmin}

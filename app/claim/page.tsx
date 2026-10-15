@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { atHandle } from "@/lib/handle";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { readOwnProfile, useOwnProfile } from "@/lib/profile-data";
 import { findOrderByCode, redeemOrder, type StoreOrder } from "@/lib/store";
 import { usd } from "@/lib/tickets";
 import { btn, btnGo } from "@/lib/ui";
@@ -54,6 +55,23 @@ export default function Claim() {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [justNow, setJustNow] = useState(false);
+  // The viewer's own status, for a buyer opening their QR link.
+  const { profile: me } = useOwnProfile(user?.id);
+  // The buyer's status, for staff: buying no longer waits on the ID check, so
+  // the hand-over is where an unverified buyer gets caught.
+  const [buyerCheck, setBuyerCheck] = useState<{ id: string; verified: boolean } | null>(null);
+  const buyerId = lookup.kind === "found" ? lookup.order.userId : null;
+  useEffect(() => {
+    if (!isAdmin || !buyerId) return;
+    let live = true;
+    void readOwnProfile(buyerId).then((p) => {
+      if (live && p) setBuyerCheck({ id: buyerId, verified: Boolean(p.verified) });
+    });
+    return () => {
+      live = false;
+    };
+  }, [isAdmin, buyerId]);
+  const buyerUnverified = buyerCheck !== null && buyerCheck.id === buyerId && !buyerCheck.verified;
 
   const load = useCallback(async (c: string) => {
     const res = await findOrderByCode(c);
@@ -176,7 +194,7 @@ export default function Claim() {
         ) : (
           <>
             <p className="mt-4 text-silverdim">Show this QR to a staff member at the next event.</p>
-            <PrizeQr code={o.claimCode} className="mt-7" size={200} />
+            <PrizeQr code={o.claimCode} className="mx-auto mt-7" size={200} locked={!me?.verified} />
           </>
         )}
       </main>
@@ -199,6 +217,12 @@ export default function Claim() {
         {o.qty > 1 ? `${o.qty} × ` : ""}
         {o.productName}
       </h1>
+
+      {buyerUnverified && (
+        <p className="mt-5 border border-bloodhi bg-[rgba(229,37,46,0.12)] px-3 py-2 text-[0.9375rem] font-semibold text-bloodhi">
+          BUYER NOT VERIFIED - CHECK THEIR ID BEFORE HANDING OVER
+        </p>
+      )}
 
       <dl className="mt-7 border-t border-line">
         {([
